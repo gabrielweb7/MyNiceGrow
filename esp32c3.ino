@@ -28,9 +28,9 @@ const char* password = "SENHA_DO_SEU_WIFI";
 
 // 3. Relés SSR (Low-Level Trigger)
 #define RELE_LUZ        0
-#define RELE_VENT_INT   1
-#define RELE_UMIDIFIC   3
-#define RELE_EXAUST_MAX 6
+#define RELE_UMIDIFIC   1
+#define RELE_EXAUST_INT 3
+#define RELE_EXAUST_EXT 6
 
 // ==========================================
 // OBJETOS E ESTADOS DO SISTEMA
@@ -65,14 +65,14 @@ void setup() {
   // --- 1. CONFIGURAÇÃO DOS RELÉS ---
   // Inicia todos DESLIGADOS (HIGH)
   digitalWrite(RELE_LUZ, HIGH);
-  digitalWrite(RELE_VENT_INT, HIGH);
   digitalWrite(RELE_UMIDIFIC, HIGH);
-  digitalWrite(RELE_EXAUST_MAX, HIGH);
+  digitalWrite(RELE_EXAUST_INT, HIGH);
+  digitalWrite(RELE_EXAUST_EXT, HIGH);
 
   pinMode(RELE_LUZ, OUTPUT);
-  pinMode(RELE_VENT_INT, OUTPUT);
   pinMode(RELE_UMIDIFIC, OUTPUT);
-  pinMode(RELE_EXAUST_MAX, OUTPUT);
+  pinMode(RELE_EXAUST_INT, OUTPUT);
+  pinMode(RELE_EXAUST_EXT, OUTPUT);
 
   // --- 2. CONFIGURAÇÃO I2C E SHT30 ---
   Wire.begin(I2C_SDA, I2C_SCL);
@@ -112,36 +112,46 @@ void loop() {
 
     bool erroSensores = false;
 
+    Serial.println("\n================ PAINEL DO GROW ================");
+    
+    // Status Externo (DHT11)
     if (isnan(tempExt) || isnan(humExt)) {
-      Serial.println("ERRO: Falha ao ler DHT11 (Externo)!");
+      Serial.println("Sensor Externo (DHT11): FALTANDO / DESCONECTADO");
       erroSensores = true;
+    } else {
+      Serial.printf("Sensor Externo (DHT11): CARREGADO | %.1f C | %.1f %%\n", tempExt, humExt);
     }
+
+    // Status Interno (SHT30)
     if (isnan(tempInt) || isnan(humInt)) {
-      Serial.println("ERRO: Falha ao ler SHT30 (Interno)!");
+      Serial.println("Sensor Interno (SHT30): FALTANDO / DESCONECTADO");
       erroSensores = true;
+    } else {
+      Serial.printf("Sensor Interno (SHT30): CARREGADO | %.1f C | %.1f %%\n", tempInt, humInt);
     }
+
+    Serial.println("------------------------------------------------");
+    
+    // Status dos Relés (Em módulos SSR Low-Level Trigger, LOW = LIGADO)
+    Serial.printf("Rele 1 (Luz):              %s\n", digitalRead(RELE_LUZ) == LOW ? "LIGADO" : "DESLIGADO");
+    Serial.printf("Rele 2 (Umidificador):     %s\n", digitalRead(RELE_UMIDIFIC) == LOW ? "LIGADO" : "DESLIGADO");
+    Serial.printf("Rele 3 (Exaustor Interno): %s\n", digitalRead(RELE_EXAUST_INT) == LOW ? "LIGADO" : "DESLIGADO");
+    Serial.printf("Rele 4 (Exaustor Externo): %s\n", digitalRead(RELE_EXAUST_EXT) == LOW ? "LIGADO" : "DESLIGADO");
+    
+    Serial.println("------------------------------------------------");
 
     // Define o estado do sistema baseado nas leituras e no Wi-Fi
     if (erroSensores) {
       estadoAtual = STATE_ERROR;
     } else if (WiFi.status() != WL_CONNECTED) {
       estadoAtual = STATE_NO_WIFI;
+      Serial.println("WIFI: Desconectado / Buscando...");
     } else {
       estadoAtual = STATE_OK;
+      Serial.printf("WIFI: Conectado (IP: %s)\n", WiFi.localIP().toString().c_str());
     }
-
-    // Imprime status se tudo estiver lendo bem
-    if (!erroSensores) {
-      Serial.println("----------------------------------------");
-      Serial.printf("EXTERNO: Temp = %.1f C  | Umidade = %.1f %%\n", tempExt, humExt);
-      Serial.printf("INTERNO: Temp = %.1f C  | Umidade = %.1f %%\n", tempInt, humInt);
-      if (estadoAtual == STATE_OK) {
-        Serial.printf("WIFI: Conectado (IP: %s)\n", WiFi.localIP().toString().c_str());
-      } else {
-        Serial.println("WIFI: Desconectado / Buscando...");
-      }
-      Serial.println("----------------------------------------\n");
-    }
+    
+    Serial.println("================================================\n");
   }
 
   // --- 2. TAREFA: ATUALIZAR LED DE STATUS (Contínuo) ---
