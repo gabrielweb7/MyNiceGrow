@@ -63,16 +63,18 @@ void setup() {
   Serial.println("========================================");
 
   // --- 1. CONFIGURAÇÃO DOS RELÉS ---
-  // Inicia todos DESLIGADOS (HIGH)
-  digitalWrite(RELE_LUZ, HIGH);
-  digitalWrite(RELE_UMIDIFIC, HIGH);
-  digitalWrite(RELE_EXAUST_INT, HIGH);
-  digitalWrite(RELE_EXAUST_EXT, HIGH);
-
+  // Configura os pinos como SAÍDA
   pinMode(RELE_LUZ, OUTPUT);
   pinMode(RELE_UMIDIFIC, OUTPUT);
   pinMode(RELE_EXAUST_INT, OUTPUT);
   pinMode(RELE_EXAUST_EXT, OUTPUT);
+  
+  // Em módulos SSR Low-Level Trigger, o estado HIGH significa DESLIGADO.
+  // Mandamos HIGH imediatamente para garantir que comecem desligados.
+  digitalWrite(RELE_LUZ, HIGH);
+  digitalWrite(RELE_UMIDIFIC, HIGH);
+  digitalWrite(RELE_EXAUST_INT, HIGH);
+  digitalWrite(RELE_EXAUST_EXT, HIGH);
 
   // --- 2. CONFIGURAÇÃO I2C E SHT30 ---
   Wire.begin(I2C_SDA, I2C_SCL);
