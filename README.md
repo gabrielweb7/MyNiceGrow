@@ -7,10 +7,12 @@ Este repositório contém o firmware para um sistema de automação e monitorame
 - **Microcontrolador:** ESP32-C3-MINI-1-N4 (RISC-V, Wi-Fi, BLE, 4MB Flash)
 - **LED RGB Onboard:** GPIO 8 (Indicador de status do sistema)
 
-**Sensores (I2C):**
-- **Sensor SHT30 (Temperatura e Umidade):**
+**Sensores:**
+- **Sensor SHT30 (Interno - Temperatura e Umidade):** Via I2C
   - **SDA:** GPIO 4
   - **SCL:** GPIO 5
+- **Sensor DHT11 (Externo - Temperatura e Umidade do ambiente de fora):**
+  - **DATA:** GPIO 10
 
 **Atuadores (Módulo SSR G3MB-202P - 5V DC):**
 - **Canal 1 (Luz do Grow):** GPIO 0

@@ -1,76 +1,142 @@
 #include <Arduino.h>
-#include <esp32-hal-rgb-led.h> // Função nativa do core ESP32 para o RGB built-in
+#include <Wire.h>
+#include <Adafruit_SHT31.h>
+#include <DHT.h>
+#include <esp32-hal-rgb-led.h>
 
-// Pino do LED RGB onboard no ESP32-C3 DevKit (costuma ser GPIO 8)
+// ==========================================
+// CONFIGURAÇÃO DOS PINOS
+// ==========================================
+
+// 1. LED RGB Onboard
 #ifndef RGB_BUILTIN
   #define RGB_BUILTIN 8
 #endif
 
-void setup() {
-  // Inicializa o Serial via USB CDC nativo
-  Serial.begin(115200);
-  delay(2000); // Tempo para a porta USB estabilizar no boot
+// 2. Sensores
+#define I2C_SDA     4  // SHT30 (Interno)
+#define I2C_SCL     5  // SHT30 (Interno)
+#define DHT_PIN     10 // DHT11 (Externo)
+#define DHT_TYPE    DHT11
 
-  // Exibição completa das informações do Hardware
+// 3. Relés SSR (Low-Level Trigger)
+#define RELE_LUZ        0
+#define RELE_VENT_INT   1
+#define RELE_UMIDIFIC   3
+#define RELE_EXAUST_MAX 6
+
+// ==========================================
+// OBJETOS E VARIÁVEIS GLOBAIS
+// ==========================================
+Adafruit_SHT31 sht30 = Adafruit_SHT31();
+DHT dht(DHT_PIN, DHT_TYPE);
+
+// Variáveis para controle de tempo (Sem usar delay!)
+unsigned long tempoAnteriorSensores = 0;
+const long intervaloSensores = 2000; // Ler sensores a cada 2 segundos
+
+unsigned long tempoAnteriorLed = 0;
+const long intervaloLed = 20; // Atualiza o LED a cada 20ms
+float theta = 0; // Variável para o efeito do LED
+
+// ==========================================
+// FUNÇÕES DE SETUP
+// ==========================================
+void setup() {
+  Serial.begin(115200);
+  delay(2000); // Tempo para o USB CDC conectar
+
   Serial.println("\n========================================");
-  Serial.println("     ESP32-C3-MINI-1-N4 INICIALIZADO    ");
+  Serial.println("  INICIANDO SISTEMA GROW CONTROLLER     ");
   Serial.println("========================================");
-  Serial.print("Modelo do Chip:         ");
-  Serial.println(ESP.getChipModel());
-  Serial.print("Revisao de Silicio:     ");
-  Serial.println(ESP.getChipRevision());
-  Serial.print("Numero de Nucleos:      ");
-  Serial.println(ESP.getChipCores());
-  Serial.print("Frequencia da CPU:      ");
-  Serial.print(ESP.getCpuFreqMHz());
-  Serial.println(" MHz");
-  Serial.print("Tamanho da Flash:       ");
-  Serial.print(ESP.getFlashChipSize() / (1024 * 1024));
-  Serial.println(" MB");
-  Serial.print("Memoria Heap Livre:     ");
-  Serial.print(ESP.getFreeHeap() / 1024);
-  Serial.println(" KB");
-  Serial.println("========================================");
-  Serial.println(">>> Iniciando Efeito Cosmico Psicodelico!");
+
+  // --- 1. CONFIGURAÇÃO DOS RELÉS ---
+  // Importante: Definir como HIGH *antes* do pinMode para evitar que liguem no boot
+  // Módulos SSR de 5V costumam ligar em LOW (0V). HIGH mantem eles desligados.
+  digitalWrite(RELE_LUZ, HIGH);
+  digitalWrite(RELE_VENT_INT, HIGH);
+  digitalWrite(RELE_UMIDIFIC, HIGH);
+  digitalWrite(RELE_EXAUST_MAX, HIGH);
+
+  pinMode(RELE_LUZ, OUTPUT);
+  pinMode(RELE_VENT_INT, OUTPUT);
+  pinMode(RELE_UMIDIFIC, OUTPUT);
+  pinMode(RELE_EXAUST_MAX, OUTPUT);
+
+  // --- 2. CONFIGURAÇÃO I2C E SHT30 ---
+  Wire.begin(I2C_SDA, I2C_SCL);
+  if (!sht30.begin(0x44)) { // Endereço I2C padrão do SHT30 é 0x44 ou 0x45
+    Serial.println("Erro: Sensor SHT30 (Interno) nao encontrado! Verifique a fiacao.");
+  } else {
+    Serial.println("Sensor SHT30 (Interno) inicializado com sucesso.");
+  }
+
+  // --- 3. CONFIGURAÇÃO DHT11 ---
+  dht.begin();
+  Serial.println("Sensor DHT11 (Externo) inicializado.");
+  
   Serial.println("========================================\n");
 }
 
+
+// ==========================================
+// LOOP PRINCIPAL (NÃO-BLOQUEANTE)
+// ==========================================
 void loop() {
-  // A variável 'theta' aumenta a cada ciclo, gerando o tempo da onda
-  static float theta = 0;
-  theta += 0.02; // Altere este valor para mudar a VELOCIDADE (menor = mais devagar)
+  unsigned long tempoAtual = millis();
 
-  if (theta >= 3.14159 * 2) theta = 0; // Reinicia o ciclo ao completar uma volta completa
+  // 1. TAREFA: LER SENSORES A CADA 2 SEGUNDOS
+  if (tempoAtual - tempoAnteriorSensores >= intervaloSensores) {
+    tempoAnteriorSensores = tempoAtual;
+    
+    // Leitura DHT11 (Externo)
+    float tempExt = dht.readTemperature();
+    float humExt = dht.readHumidity();
 
-  //--- MATEMÁTICA CÓSMICA ---
-  // Usamos funções Seno com fases diferentes para R, G, B.
-  // Isso cria os gradientes e misturas suaves de cores.
+    // Leitura SHT30 (Interno)
+    float tempInt = sht30.readTemperature();
+    float humInt  = sht30.readHumidity();
 
-  // Fase 1: VERMELHO - Ondulando para criar Rosa e Roxo (Fase padrão)
-  float r_onda = sin(theta);
-  
-  // Fase 2: VERDE - Mantemos BAIXO ou com fase oposta para evitar tons amarelados/esverdeados
-  // Usamos uma fase negativa ou seno diferente para misturas como Ciano.
-  float g_onda = sin(theta + (3.14159 / 2)); // Shift de 90 graus
-  
-  // Fase 3: AZUL - Mistura com Vermelho para Roxo, com Verde para Ciano.
-  float b_onda = sin(theta + 3.14159); // Shift de 180 graus (fase oposta do Vermelho)
+    // Checa se as leituras falharam
+    if (isnan(tempExt) || isnan(humExt)) {
+      Serial.println("Falha ao ler do sensor DHT11 (Externo)!");
+    }
+    if (isnan(tempInt) || isnan(humInt)) {
+      Serial.println("Falha ao ler do sensor SHT30 (Interno)!");
+    }
+
+    // Imprime os valores no console
+    Serial.println("----------------------------------------");
+    Serial.printf("EXTERNO (DHT11): Temp = %.1f C  | Umidade = %.1f %%\n", tempExt, humExt);
+    Serial.printf("INTERNO (SHT30): Temp = %.1f C  | Umidade = %.1f %%\n", tempInt, humInt);
+    Serial.println("----------------------------------------\n");
+
+    // ==============================================================
+    // AQUI ENTRARÁ A LÓGICA DOS RELÉS NO FUTURO. Exemplo comentado:
+    // ==============================================================
+    // if (tempInt > 28.0) {
+    //   digitalWrite(RELE_EXAUST_MAX, LOW); // LIGA exaustor se muito quente
+    // } else {
+    //   digitalWrite(RELE_EXAUST_MAX, HIGH); // DESLIGA
+    // }
+  }
 
 
-  //--- PROCESSAMENTO DE BRILHO (PWM) ---
-  // Transformamos as ondas senoidais (-1 a 1) em valores PWM (0 a 255)
-  // Também aplicamos um limite inferior para garantir que o LED nunca apague totalmente (brilho mínimo cósmico).
-  
-  int r_pwm = map((r_onda * 100), -100, 100, 10, 255); // Brilho min: 10
-  int g_pwm = map((g_onda * 100), -100, 100, 0, 100);  // Mantemos o Verde bem baixo para tons 'frios' (0-100)
-  int b_pwm = map((b_onda * 100), -100, 100, 50, 255); // O Azul é a base cósmica, brilha mais (50-255)
+  // 2. TAREFA: ATUALIZAR EFEITO DO LED CONTINUAMENTE (A cada 20ms)
+  if (tempoAtual - tempoAnteriorLed >= intervaloLed) {
+    tempoAnteriorLed = tempoAtual;
 
+    theta += 0.02;
+    if (theta >= 3.14159 * 2) theta = 0;
 
-  //--- ENVIO PARA O LED ---
-  rgbLedWrite(RGB_BUILTIN, r_pwm, g_pwm, b_pwm);
+    float r_onda = sin(theta);
+    float g_onda = sin(theta + (3.14159 / 2));
+    float b_onda = sin(theta + 3.14159);
 
+    int r_pwm = map((r_onda * 100), -100, 100, 10, 255);
+    int g_pwm = map((g_onda * 100), -100, 100, 0, 100);
+    int b_pwm = map((b_onda * 100), -100, 100, 50, 255);
 
-
-  // Pequeno delay para suavizar a transição no loop
-  delay(2);
+    rgbLedWrite(RGB_BUILTIN, r_pwm, g_pwm, b_pwm);
+  }
 }
