@@ -10,11 +10,17 @@ Este repositório contém o código de desenvolvimento para um microcontrolador 
 ## Funcionalidades Atuais
 
 1. **Diagnóstico e Telemetria de Hardware:**
-   - No momento do boot, a placa envia via porta Serial USB (115200 bps) um relatório completo do sistema, incluindo:
-     - Modelo e Revisão do Chip
-     - Número de Núcleos e Frequência da CPU (MHz)
-     - Tamanho da Memória Flash (MB)
-     - Espaço de Memória Heap Livre (KB)
+   - No momento do boot, a placa envia via porta Serial USB (115200 bps) o seguinte relatório de inicialização:
+   ```text
+        ESP32-C3-MINI-1-N4 INICIALIZADO    
+   ========================================
+   Modelo do Chip:         ESP32-C3
+   Revisao de Silicio:     3
+   Numero de Nucleos:      1
+   Frequencia da CPU:      160 MHz
+   Tamanho da Flash:       4 MB
+   Memoria Heap Livre:     284 KB
+   ```
 
 2. **Efeito Cósmico Psicodélico (LED RGB):**
    - O projeto possui um algoritmo gerador de cores suaves utilizando matemática senoidal (`sin()`).
