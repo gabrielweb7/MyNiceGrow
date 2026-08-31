@@ -36,10 +36,11 @@ Este repositório contém o firmware para um sistema de automação e monitorame
    Memoria Heap Livre:     284 KB
    ```
 
-2. **Efeito Cósmico Psicodélico (LED RGB):**
-   - O projeto possui um algoritmo gerador de cores suaves utilizando matemática senoidal (`sin()`).
-   - O mapeamento PWM é configurado para tons "frios" (ciano, roxo, azul espacial). *Futuramente, este LED servirá para indicar visualmente o status climático do Grow (ex: Vermelho para muito quente).*
-
+2. **Indicador de Status do Sistema (LED RGB):**
+   O LED embutido agora funciona como um sistema de diagnóstico visual para a estufa:
+   - 🔴 **Vermelho Piscando:** Erro crítico (Falha na leitura de algum dos sensores).
+   - 🔵 **Azul Piscando:** Sistema operante e sensores normais, mas **sem conexão Wi-Fi**.
+   - 🟢 **Verde Piscando Rápido (Heartbeat):** Sistema 100% operante e conectado ao Wi-Fi com sucesso.
 ## Arquitetura do Software Atual
 - Escrito em C++ (Arduino Core para ESP32).
 - Utiliza a biblioteca nativa `esp32-hal-rgb-led.h` para comunicação com o LED.
