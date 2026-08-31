@@ -114,46 +114,62 @@ void loop() {
 
     bool erroSensores = false;
 
-    Serial.println("\n================ PAINEL DO GROW ================");
+    // Cores ANSI
+    const char* C_RESET   = "\033[0m";
+    const char* C_RED     = "\033[31m";
+    const char* C_GREEN   = "\033[32m";
+    const char* C_YELLOW  = "\033[33m";
+    const char* C_BLUE    = "\033[34m";
+    const char* C_CYAN    = "\033[36m";
+    const char* C_BOLD    = "\033[1m";
+
+    Serial.printf("\n%s%s================ PAINEL DO GROW ================%s\n", C_BOLD, C_CYAN, C_RESET);
     
     // Status Externo (DHT11)
     if (isnan(tempExt) || isnan(humExt)) {
-      Serial.println("Sensor Externo (DHT11): FALTANDO / DESCONECTADO");
+      Serial.printf("Sensor Externo (DHT11): %s%sFALTANDO / DESCONECTADO%s\n", C_BOLD, C_RED, C_RESET);
       erroSensores = true;
     } else {
-      Serial.printf("Sensor Externo (DHT11): CARREGADO | %.1f C | %.1f %%\n", tempExt, humExt);
+      Serial.printf("Sensor Externo (DHT11): %s%sCARREGADO%s | %s%.1f C%s | %s%.1f %%%s\n", 
+        C_BOLD, C_GREEN, C_RESET, C_YELLOW, tempExt, C_RESET, C_BLUE, humExt, C_RESET);
     }
 
     // Status Interno (SHT30)
     if (isnan(tempInt) || isnan(humInt)) {
-      Serial.println("Sensor Interno (SHT30): FALTANDO / DESCONECTADO");
+      Serial.printf("Sensor Interno (SHT30): %s%sFALTANDO / DESCONECTADO%s\n", C_BOLD, C_RED, C_RESET);
       erroSensores = true;
     } else {
-      Serial.printf("Sensor Interno (SHT30): CARREGADO | %.1f C | %.1f %%\n", tempInt, humInt);
+      Serial.printf("Sensor Interno (SHT30): %s%sCARREGADO%s | %s%.1f C%s | %s%.1f %%%s\n", 
+        C_BOLD, C_GREEN, C_RESET, C_YELLOW, tempInt, C_RESET, C_BLUE, humInt, C_RESET);
     }
 
-    Serial.println("------------------------------------------------");
+    Serial.printf("%s------------------------------------------------%s\n", C_CYAN, C_RESET);
     
+    // Helper lambda para colorir status
+    auto colorirRele = [&](int pino) {
+      return digitalRead(pino) == LOW ? String(C_BOLD) + C_GREEN + "LIGADO   " + C_RESET : String(C_RED) + "DESLIGADO" + C_RESET;
+    };
+
     // Status dos Relés (Em módulos SSR Low-Level Trigger, LOW = LIGADO)
-    Serial.printf("Rele 1 (Luz):              %s\n", digitalRead(RELE_LUZ) == LOW ? "LIGADO" : "DESLIGADO");
-    Serial.printf("Rele 2 (Umidificador):     %s\n", digitalRead(RELE_UMIDIFIC) == LOW ? "LIGADO" : "DESLIGADO");
-    Serial.printf("Rele 3 (Exaustor Interno): %s\n", digitalRead(RELE_EXAUST_INT) == LOW ? "LIGADO" : "DESLIGADO");
-    Serial.printf("Rele 4 (Exaustor Externo): %s\n", digitalRead(RELE_EXAUST_EXT) == LOW ? "LIGADO" : "DESLIGADO");
+    Serial.printf("Rele 1 (Luz):              %s\n", colorirRele(RELE_LUZ).c_str());
+    Serial.printf("Rele 2 (Umidificador):     %s\n", colorirRele(RELE_UMIDIFIC).c_str());
+    Serial.printf("Rele 3 (Exaustor Interno): %s\n", colorirRele(RELE_EXAUST_INT).c_str());
+    Serial.printf("Rele 4 (Exaustor Externo): %s\n", colorirRele(RELE_EXAUST_EXT).c_str());
     
-    Serial.println("------------------------------------------------");
+    Serial.printf("%s------------------------------------------------%s\n", C_CYAN, C_RESET);
 
     // Define o estado do sistema baseado nas leituras e no Wi-Fi
     if (erroSensores) {
       estadoAtual = STATE_ERROR;
     } else if (WiFi.status() != WL_CONNECTED) {
       estadoAtual = STATE_NO_WIFI;
-      Serial.println("WIFI: Desconectado / Buscando...");
+      Serial.printf("WIFI: %sDesconectado / Buscando...%s\n", C_YELLOW, C_RESET);
     } else {
       estadoAtual = STATE_OK;
-      Serial.printf("WIFI: Conectado (IP: %s)\n", WiFi.localIP().toString().c_str());
+      Serial.printf("WIFI: %sConectado%s (IP: %s)\n", C_GREEN, C_RESET, WiFi.localIP().toString().c_str());
     }
     
-    Serial.println("================================================\n");
+    Serial.printf("%s%s================================================%s\n", C_BOLD, C_CYAN, C_RESET);
   }
 
   // --- 2. TAREFA: ATUALIZAR LED DE STATUS (Contínuo) ---
