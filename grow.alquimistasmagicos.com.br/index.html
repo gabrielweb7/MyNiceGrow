@@ -461,12 +461,10 @@
                     }
                 }
             }
-            if (!pendente) {
-                renderizarInfoFase(faseString);
-            }
+            renderizarInfoFase(faseString, pendente);
         }
 
-        function renderizarInfoFase(faseNome) {
+        function renderizarInfoFase(faseNome, isPendente = false) {
             const container = document.getElementById('infoFaseContainer');
             if (!faseNome || faseNome === '--') return;
             container.classList.remove('hidden');
@@ -497,7 +495,7 @@
             }
 
             document.getElementById('infoFaseIcon').textContent = icon;
-            document.getElementById('infoFaseTitle').textContent = `Modo Ativo: ${faseNome}`;
+            document.getElementById('infoFaseTitle').textContent = isPendente ? `⏳ MUDANDO P/: ${faseNome}` : `Modo Ativo: ${faseNome}`;
             document.getElementById('infoFaseDesc').textContent = desc;
             document.getElementById('infoFaseTemp').textContent = temp;
             document.getElementById('infoFaseUmid').textContent = umid;
