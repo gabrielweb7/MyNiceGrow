@@ -1,57 +1,76 @@
-# 🍄 Grow IA v4.0 — IoT Cloud & Firmware Inteligente
+# 🍄 Grow do Txai — Sistema Inteligente de Automação IoT (v4.1)
 
-Firmware avançado para automação de estufas de cultivo de cogumelos, rodando em **ESP32-C3**.
-
-Este projeto agora é dividido em duas partes: o **Firmware do Microcontrolador (Local)** e o **Painel de Nuvem (HostGator/cPanel)**.
+Um sistema de nível profissional, autônomo e baseado em IoT para controle e monitoramento de cultivo em ambiente fechado (Grow). Alimentado por um **ESP32-C3**, sensores de precisão e uma arquitetura em nuvem própria baseada em PHP/MySQL.
 
 ---
 
-## ☁️ 1. Ecossistema de Nuvem (HostGator)
+## 🏗️ Arquitetura do Sistema
 
-Você pode acessar seus dados de qualquer lugar do mundo instalando a pasta `grow.alquimistasmagicos.com.br/` na sua hospedagem PHP/MySQL.
+O sistema é dividido em duas camadas principais:
 
-### Como Instalar a Nuvem:
-1. **Banco de Dados:**
-   - Acesse seu cPanel e crie um Banco de Dados MySQL.
-   - Abra o `phpMyAdmin`, selecione o banco criado e rode o código que está no arquivo `database.sql` para criar a tabela de telemetria.
-2. **Configuração:**
-   - Edite o arquivo `config.php` colocando seu `DB_USER`, `DB_PASS` e `DB_NAME`.
-3. **Upload:**
-   - Suba toda a pasta `grow.alquimistasmagicos.com.br` para o diretório raiz (`public_html/grow` ou no domínio configurado).
-4. **Painel Dashboard:**
-   - Acesse `https://grow.alquimistasmagicos.com.br/` para ver o painel rodando *TailwindCSS* e *Chart.js*. Ele exibirá gráficos de Temperatura, Umidade e uma linha do tempo de quando os Relés ligaram/desligaram!
+### 1. Camada de Hardware / Firmware (ESP32-C3)
+- **Máquina de Estados Finita (FSM):** Controle não-bloqueante usando `millis()`.
+- **Datalogger Anti-Apagão (LittleFS):** Se o Wi-Fi ou a internet cair, o ESP32 salva todos os registros na memória flash interna (`/offline.log`). Quando a conexão volta, ele sincroniza tudo em lote.
+- **Telemetria de 1 Minuto:** Envio de dados via requisições HTTPS `POST` a cada 60 segundos com chaves secretas de segurança (API Key).
+- **Filtros de Sanidade Sensorial:** Implementação de Média Móvel Suavizada e descarte de ruídos I2C (ex: leitura falsa de `-45.0°C`).
+- **NVS (Memória Não-Volátil):** Preserva a Fase de Cultivo e métricas de tempo mesmo que a energia caia.
+- **WiFiManager & mDNS:** Portal cativo inteligente para configuração de rede via celular e acesso local via `http://grow.local`.
 
----
-
-## 💻 2. Firmware (ESP32-C3)
-
-*(O firmware base atual é a v3.1. A integração com o envio via HTTP para a Nuvem será adicionada no arquivo `esp32c3.ino` na próxima etapa).*
-
-### Funcionalidades do Firmware:
-| Feature | Descrição |
-|---|---|
-| **Motor Térmico** | Cruza sensor interno (SHT30) com externo (DHT11) para esfriar evaporando ou ventilar. |
-| **Memória Anti-Apagão** | Salva a fase atual e dia de início na Flash interna (`Preferences.h`). Se a luz cair, volta de onde parou. |
-| **Reset Min/Max Diário** | À meia-noite (NTP), zera as mínimas e máximas de temperatura para você acompanhar o dia. |
-| **FAE Inteligente** | Timer automático para expulsar CO2 sem perder umidade desnecessária. |
-| **Watchdog Água** | Desliga o umidificador se ficar 30 min sem atingir a meta (falta d'água). |
-| **Dashboard Local** | Acesso via `grow.local` na sua própria rede Wi-Fi. |
-
-### Esquema de Ligação (Hardware)
-```
-GPIO 4  (SDA)    → SHT30
-GPIO 5  (SCL)    → SHT30
-GPIO 10 (DATA)   → DHT11
-GPIO 0  (CH1)    → Relé Luz
-GPIO 1  (CH2)    → Relé Umidificador
-GPIO 3  (CH3)    → Relé Ventilador Interno
-GPIO 6  (CH4)    → Relé Exaustor Externo
-```
+### 2. Camada Cloud & Dashboard (HostGator)
+- **API REST em PHP:** Recebe as requisições em lote ou em tempo real do ESP32. Protegida contra injeção e blindada por arquivos "ponte" no diretório raiz para compatibilidade total com o *ModSecurity* do cPanel.
+- **Dashboard Glassmorphism:** Interface web ultra-moderna estilizada com *TailwindCSS*.
+- **Gráficos Sincronizados (ApexCharts):** Visualização interativa e responsiva. O zoom e o tracking do mouse (tooltip) são compartilhados entre os painéis de Temperatura, Umidade e Relés, permitindo analisar exatamento qual equipamento influenciou a mudança climática em determinado minuto.
 
 ---
 
-## 🚀 Próximos Passos (Evolução para v4.0)
-Após a infraestrutura da HostGator estar online, o código do Arduino será atualizado com:
-1. Cliente `HTTPClient` para disparar os dados em JSON para `https://grow.alquimistasmagicos.com.br/api/`.
-2. Sistema `LittleFS` (Datalogger) para armazenar os dados caso a casa fique sem internet, enviando tudo em lote quando a rede voltar.
-3. Função `HTTPUpdate` para você atualizar o código do seu ESP32 apertando um botão na HostGator, sem precisar ir até a outra casa.
+## ⚙️ Componentes de Hardware
+
+- Placa: **ESP32-C3 SuperMini**
+- Sensor: **Módulo I2C SHT30** (Temperatura e Umidade de alta precisão)
+- Atuadores: **Módulo Relé 4 Canais**
+  - `Relé 1:` Iluminação
+  - `Relé 2:` Umidificador
+  - `Relé 3:` Ventilador Interno
+  - `Relé 4:` Exaustor
+
+---
+
+## 🚀 Como Instalar e Gravar o Firmware
+
+O projeto utiliza bibliotecas robustas e requer uma configuração específica de partição devido ao uso simultâneo de TLS/SSL (Nuvem) e LittleFS (Arquivos).
+
+### Configuração na Arduino IDE:
+1. Placa: `ESP32C3 Dev Module`
+2. Flash Size: `4MB (32Mb)`
+3. **Partition Scheme:** `Minimal SPIFFS (1.9MB APP with OTA/128KB SPIFFS)` — *Fundamental para evitar erro "Sketch too big"*
+4. JTAG Adapter: `Integrated USB JTAG`
+
+### Bibliotecas Necessárias:
+- `Adafruit SHT31 Library`
+- `WiFiManager` por tzapu
+- `ArduinoJson` por Benoit Blanchon
+- `UniversalTelegramBot` por Brian Lough (Opcional/Alerta)
+
+---
+
+## 🌐 Como Fazer Deploy do Dashboard (cPanel)
+
+Toda a arquitetura Cloud foi desenhada para viver nativamente em hospedagens compartilhadas padrão (HostGator/cPanel) via Git.
+
+1. Acesse o **cPanel**.
+2. Vá em **Git Version Control**.
+3. Crie ou configure um repositório clonando a branch `main` deste projeto.
+4. Clique em **Update from Remote**.
+5. No cPanel, crie o banco de dados via **Bancos de Dados MySQL**.
+6. Importe o arquivo `grow.alquimistasmagicos.com.br/database.sql`.
+7. Ajuste as credenciais no arquivo `grow.alquimistasmagicos.com.br/config.php`.
+
+---
+
+## 📊 Matriz Térmica & FAE (Fator de Aerobiose)
+
+O sistema não se baseia apenas em setpoints estáticos. Ele toma decisões inteligentes:
+- Controla janelas de dissipação térmica cruzando dados da temperatura interna vs. externa.
+- Alterna ciclos de vento para simular trocas de ar sem exaurir a umidade natural da estufa (Resfriamento Evaporativo).
+
+> Desenvolvido com dedicação extrema para o controle de clima mais estável possível.
