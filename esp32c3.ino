@@ -220,9 +220,7 @@ void enviarNuvem(unsigned long agora) {
   json += "}";
 
   if (WiFi.status() != WL_CONNECTED) {
-    Serial.println("[WIFI] Caiu! Tentando forcar reconexao agresiva...");
-    WiFi.disconnect();
-    WiFi.reconnect();
+    Serial.println("[WIFI] Offline. Salvando dados no datalogger local...");
     salvarOffline(json);
     return;
   }
