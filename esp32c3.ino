@@ -34,6 +34,30 @@ Adafruit_SHT31 sht30 = Adafruit_SHT31();
 DHT dht(DHT_PIN, DHT_TYPE);
 WiFiManager wm;
 
+// ==========================================
+// MÁQUINA DE ESTADOS - FASES DO CULTIVO (FUNGI)
+// ==========================================
+enum FaseCultivo {
+  SEM_CULTIVO,
+  PINANDO,
+  FRUTIFICACAO,
+  SEGUNDO_FLUSH
+};
+FaseCultivo faseAtual = SEM_CULTIVO; // Inicia em modo Standby
+
+String getNomeFase(FaseCultivo fase) {
+  switch(fase) {
+    case SEM_CULTIVO: return "Sem Cultivo (Standby)";
+    case PINANDO: return "Pinando (Inducao)";
+    case FRUTIFICACAO: return "Frutificacao";
+    case SEGUNDO_FLUSH: return "Prep. Segundo Flush";
+    default: return "Desconhecida";
+  }
+}
+
+// ==========================================
+// MÁQUINA DE ESTADOS - STATUS DE HARDWARE
+// ==========================================
 enum SystemState {
   STATE_ERROR,    // Vermelho Piscando (Erro nos sensores)
   STATE_NO_WIFI,  // Azul Piscando (Modo AP de configuração / Sem internet)
@@ -129,6 +153,8 @@ void loop() {
     bool erroSensores = false;
 
     Serial.println("\n================ PAINEL DO GROW ================");
+    Serial.printf("FASE ATUAL:        [%s]\n", getNomeFase(faseAtual).c_str());
+    Serial.println("------------------------------------------------");
     
     // Status Externo (DHT11)
     if (isnan(tempExt) || isnan(humExt)) {
@@ -168,12 +194,15 @@ void loop() {
     }
     
     Serial.println("================================================\n");
-    Serial.println("👉 DIGITE 1, 2, 3 ou 4 NO CONSOLE E APERTE ENTER PARA TESTAR OS RELES!");
+    Serial.println("👉 COMANDOS DE TESTE DOS RELÉS: [1], [2], [3] ou [4]");
+    Serial.println("👉 COMANDOS DE FASE: [0]=Sem Cultivo, [P]=Pinando, [F]=Frutificacao, [S]=Segundo Flush");
   }
 
-  // --- 3. TAREFA: TESTE MANUAL DOS RELÉS VIA SERIAL ---
+  // --- 3. TAREFA: TESTE MANUAL E TROCA DE FASE VIA SERIAL ---
   if (Serial.available() > 0) {
     char comando = Serial.read();
+    
+    // Comandos de Relé
     if (comando == '1') {
       estadoLuz = !estadoLuz;
       setRele(RELE_LUZ, estadoLuz);
@@ -193,6 +222,23 @@ void loop() {
       estadoExaustExt = !estadoExaustExt;
       setRele(RELE_EXAUST_EXT, estadoExaustExt);
       Serial.println("\n[COMANDO] Alternando Rele 4 (Exaustor Externo)...");
+    }
+    // Comandos de Fase
+    else if (comando == '0') {
+      faseAtual = SEM_CULTIVO;
+      Serial.println("\n[SISTEMA] Modo alterado para: SEM CULTIVO");
+    }
+    else if (comando == 'P' || comando == 'p') {
+      faseAtual = PINANDO;
+      Serial.println("\n[SISTEMA] Modo alterado para: PINANDO");
+    }
+    else if (comando == 'F' || comando == 'f') {
+      faseAtual = FRUTIFICACAO;
+      Serial.println("\n[SISTEMA] Modo alterado para: FRUTIFICACAO");
+    }
+    else if (comando == 'S' || comando == 's') {
+      faseAtual = SEGUNDO_FLUSH;
+      Serial.println("\n[SISTEMA] Modo alterado para: PREP. SEGUNDO FLUSH");
     }
   }
 
