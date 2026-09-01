@@ -325,10 +325,15 @@ void aplicarReles() {
   digitalWrite(PIN_RELE_LUZ, releLuz?LOW:HIGH); digitalWrite(PIN_RELE_UMIDIFIC, releUmidific?LOW:HIGH);
   digitalWrite(PIN_RELE_VENTO_INT, releVentoInt?LOW:HIGH); digitalWrite(PIN_RELE_EXAUST_EXT, releExaustExt?LOW:HIGH);
 
-  if (releLuz != lastReleLuz) { Serial.printf("💡 ACAO: LUZ %s\n", releLuz ? "LIGADA" : "DESLIGADA"); lastReleLuz = releLuz; }
-  if (releUmidific != lastReleUmidific) { Serial.printf("💧 ACAO: UMIDIFICADOR %s\n", releUmidific ? "LIGADO" : "DESLIGADO"); lastReleUmidific = releUmidific; }
-  if (releVentoInt != lastReleVento) { Serial.printf("💨 ACAO: VENTILADOR INT %s\n", releVentoInt ? "LIGADO" : "DESLIGADO"); lastReleVento = releVentoInt; }
-  if (releExaustExt != lastReleExaust) { Serial.printf("🌪️ ACAO: EXAUSTOR EXT %s\n", releExaustExt ? "LIGADO" : "DESLIGADO"); lastReleExaust = releExaustExt; }
+  bool alterou = false;
+  if (releLuz != lastReleLuz) { Serial.printf("💡 ACAO: LUZ %s\n", releLuz ? "LIGADA" : "DESLIGADA"); lastReleLuz = releLuz; alterou = true; }
+  if (releUmidific != lastReleUmidific) { Serial.printf("💧 ACAO: UMIDIFICADOR %s\n", releUmidific ? "LIGADO" : "DESLIGADO"); lastReleUmidific = releUmidific; alterou = true; }
+  if (releVentoInt != lastReleVento) { Serial.printf("💨 ACAO: VENTILADOR INT %s\n", releVentoInt ? "LIGADO" : "DESLIGADO"); lastReleVento = releVentoInt; alterou = true; }
+  if (releExaustExt != lastReleExaust) { Serial.printf("🌪️ ACAO: EXAUSTOR EXT %s\n", releExaustExt ? "LIGADO" : "DESLIGADO"); lastReleExaust = releExaustExt; alterou = true; }
+
+  // Se a placa tomou alguma decisão e ligou/desligou algo autonomamente, 
+  // força a comunicação imediata com o banco de dados para o painel não ficar defasado
+  if (alterou) ultimoEnvioNuvem = 0; 
 }
 
 void enviarTelegram(String msg) {

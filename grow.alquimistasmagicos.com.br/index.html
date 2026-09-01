@@ -506,9 +506,9 @@
             if (loopTimeout) clearTimeout(loopTimeout);
             await carregarDados(limitAtual);
             
-            // Sincroniza a cada 3s se tiver comando na fila (tolerância de 25s), senão a cada 10s
+            // Sincroniza a cada 2s se tiver comando pendente, senão varre a cada 5s
             let isPendente = (Date.now() - luzPendenteTempo < 25000) || (Date.now() - fasePendenteTempo < 25000);
-            let delay = forceDelay || (isPendente ? 3000 : 10000);
+            let delay = forceDelay || (isPendente ? 2000 : 5000);
             loopTimeout = setTimeout(() => loopDados(), delay);
         }
 
