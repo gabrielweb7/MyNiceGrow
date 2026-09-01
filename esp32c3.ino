@@ -22,17 +22,22 @@ const int   daylightOffset_sec = 0;
 const float TEMP_MINIMA = 25.0;
 const float TEMP_ALVO_MAX = 28.5; // Passou disso, tenta esfriar
 const float TEMP_CRITICA = 30.0;  // Passou disso, entra em modo emergência
+const float TEMP_CORTE_LUZ = 33.0; // Risco de incêndio/Cozimento: Apaga a luz na marra
 
 // Umidade (%)
 const float UMIDADE_MINIMA = 88.0;
 const float UMIDADE_MAXIMA = 95.0;
 
-// Troca de Ar / FAE (Fresh Air Exchange) para evitar excesso de CO2
-// Mesmo se a temperatura estiver perfeita, o vento liga de tempos em tempos
-const unsigned long FAE_TEMPO_ON = 2 * 60 * 1000;   // 2 minutos de vento
-const unsigned long FAE_TEMPO_OFF = 58 * 60 * 1000; // 58 minutos desligado
+// Seguranças e Timers
+const unsigned long FAE_TEMPO_ON = 2 * 60 * 1000;   // 2 min de vento
+const unsigned long FAE_TEMPO_OFF = 58 * 60 * 1000; // 58 min desligado
 unsigned long ultimoCicloFAE = 0;
 bool modoFAELigado = false;
+
+// Cão de Guarda do Umidificador (Anti Falta d'água)
+const unsigned long TIMEOUT_UMIDIFICADOR = 30 * 60 * 1000; // 30 min max contínuo
+unsigned long inicioUmidificacao = 0;
+bool alertaFaltaAgua = false;
 
 
 // ==========================================
@@ -244,49 +249,46 @@ void loop() {
         case FRUTIFICACAO:
         case SEGUNDO_FLUSH:
           
-          // 1. UMIDADE (Controle com Histerese)
-          if (humInt < UMIDADE_MINIMA) estadoUmidific = true;
-          else if (humInt > UMIDADE_MAXIMA) estadoUmidific = false;
+          // 1. UMIDADE (Controle com Histerese e Cão de Guarda)
+          if (!alertaFaltaAgua) {
+            if (humInt < UMIDADE_MINIMA) estadoUmidific = true;
+            else if (humInt > UMIDADE_MAXIMA) estadoUmidific = false;
+          } else {
+            estadoUmidific = false; // Trava desligado se faltou água!
+          }
+
+          // Monitor do Cão de Guarda da Umidade
+          if (estadoUmidific) {
+            if (inicioUmidificacao == 0) inicioUmidificacao = tempoAtual;
+            else if (tempoAtual - inicioUmidificacao > TIMEOUT_UMIDIFICADOR) {
+              alertaFaltaAgua = true;
+              estadoUmidific = false;
+            }
+          } else {
+            inicioUmidificacao = 0; // Reset
+          }
 
           // 2. VENTO INTERNO (Circulação de Névoa)
-          // Sempre que o umidificador ligar, o ventilador interno liga junto para jogar a umidade de baixo para cima.
-          // Quando não está umidificando, ele apenas ajuda no ciclo de FAE.
-          if (estadoUmidific || modoFAELigado) {
-            estadoExaustInt = true;
-          } else {
-            estadoExaustInt = false;
-          }
+          if (estadoUmidific || modoFAELigado) estadoExaustInt = true;
+          else estadoExaustInt = false;
 
           // 3. TEMPERATURA E CO2 (O Escudo Térmico)
           if (tempInt >= TEMP_CRITICA) {
-            // EMERGÊNCIA! Muito quente. 
-            // Verifica o nosso "Termômetro Espião" (DHT11 lá fora):
-            if (tempExt < tempInt) {
-              // Lá fora está mais frio. Abre as comportas!
-              estadoExaustExt = true;
-            } else {
-              // Lá fora está MAIS QUENTE que dentro! Se ligar o exaustor, o Grow vira um forno e a umidade foge.
-              // Então o robô mantém o exaustor externo DESLIGADO para "trancar" o clima.
-              estadoExaustExt = false;
-            }
+            if (tempExt < tempInt) estadoExaustExt = true;
+            else estadoExaustExt = false;
           } 
           else if (tempInt >= TEMP_ALVO_MAX) {
-            // QUENTE: Tenta resfriar suavemente, mas SÓ SE o ar de fora ajudar.
             if (tempExt < tempInt) estadoExaustExt = true;
             else estadoExaustExt = false;
           } 
           else if (tempInt < TEMP_MINIMA) {
-            // FRIO: Tranca o grow para reter o calor das luzes/ambiente.
             estadoExaustExt = false;
           }
           else {
-            // TEMPERATURA IDEAL (Entre 25 e 28.5)
-            // Aqui o exaustor externo fica desligado para proteger a umidade...
-            // MAS ele liga obedecendo o temporizador (FAE) para expulsar o CO2 tóxico!
             estadoExaustExt = modoFAELigado;
           }
 
-          // 4. Iluminação Inteligente (Ciclo Noturno para ajudar na Temperatura)
+          // 4. Iluminação Inteligente (Ciclo Noturno)
           if (modoLuzAtual == LUZ_AUTO) {
             if (horaValida) {
               if (horaAtual >= 20 || horaAtual < 8) estadoLuz = true;
@@ -301,6 +303,13 @@ void loop() {
       // Overrides Manuais da Luz
       if (modoLuzAtual == LUZ_FORCADA_ON) estadoLuz = true;
       else if (modoLuzAtual == LUZ_FORCADA_OFF) estadoLuz = false;
+
+      // ==========================================
+      // CORTE TÉRMICO DE SEGURANÇA MÁXIMA
+      // ==========================================
+      if (tempInt >= TEMP_CORTE_LUZ) {
+        estadoLuz = false; // Desliga a lâmpada na marra independente do timer!
+      }
 
       // APLICA
       setRele(RELE_LUZ, estadoLuz);
@@ -397,20 +406,43 @@ void loop() {
     }
   }
 
-  // --- 4. TAREFA: ATUALIZAR LED DE STATUS (Contínuo) ---
-  if (estadoAtual == STATE_ERROR) {
-    // Vermelho piscando (500ms ON, 500ms OFF)
+  // --- 4. TAREFA: ATUALIZAR LED DE STATUS (DASHBOARD VISUAL) ---
+  if (alertaFaltaAgua) {
+    // VERMELHO RÁPIDO: Emergência (Falta de água no umidificador)
+    if ((tempoAtual % 200) < 100) rgbLedWrite(RGB_BUILTIN, LED_BRIGHTNESS, 0, 0);
+    else rgbLedWrite(RGB_BUILTIN, 0, 0, 0);
+  }
+  else if (estadoAtual == STATE_ERROR) {
+    // VERMELHO LENTO: Erro em algum sensor (I2C travou, fio soltou)
     if ((tempoAtual % 1000) < 500) rgbLedWrite(RGB_BUILTIN, LED_BRIGHTNESS, 0, 0);
     else rgbLedWrite(RGB_BUILTIN, 0, 0, 0);
   } 
   else if (estadoAtual == STATE_NO_WIFI) {
-    // Azul piscando (500ms ON, 500ms OFF)
-    if ((tempoAtual % 1000) < 500) rgbLedWrite(RGB_BUILTIN, 0, 0, LED_BRIGHTNESS);
+    // ROXO PISCANDO: Modo AP / Sem Internet (Esperando Configuração)
+    if ((tempoAtual % 1000) < 500) rgbLedWrite(RGB_BUILTIN, LED_BRIGHTNESS, 0, LED_BRIGHTNESS);
     else rgbLedWrite(RGB_BUILTIN, 0, 0, 0);
   }
-  else if (estadoAtual == STATE_OK) {
-    // Verde piscando rápido com intervalo longo (50ms ON, 1950ms OFF)
-    if ((tempoAtual % 2000) < 50) rgbLedWrite(RGB_BUILTIN, 0, LED_BRIGHTNESS, 0);
+  else if (faseAtual == SEM_CULTIVO) {
+    // BRANCO PISCANDO LENTO: Standby / Dormindo
+    if ((tempoAtual % 3000) < 100) rgbLedWrite(RGB_BUILTIN, LED_BRIGHTNESS, LED_BRIGHTNESS, LED_BRIGHTNESS);
     else rgbLedWrite(RGB_BUILTIN, 0, 0, 0);
+  }
+  else {
+    // ESTADO OPERACIONAL NORMAL (Verde como base, muda cor conforme a ação)
+    if (estadoUmidific) {
+      // AZUL/CIANO PISCANDO: Jogando Névoa!
+      if ((tempoAtual % 1000) < 50) rgbLedWrite(RGB_BUILTIN, 0, LED_BRIGHTNESS, LED_BRIGHTNESS);
+      else rgbLedWrite(RGB_BUILTIN, 0, 0, 0);
+    } 
+    else if (estadoExaustExt) {
+      // AMARELO PISCANDO: Ventilando / Trocando CO2
+      if ((tempoAtual % 1000) < 50) rgbLedWrite(RGB_BUILTIN, LED_BRIGHTNESS, LED_BRIGHTNESS, 0);
+      else rgbLedWrite(RGB_BUILTIN, 0, 0, 0);
+    }
+    else {
+      // VERDE PISCANDO LONGO: Tudo perfeito, parâmetros batidos, apenas existindo.
+      if ((tempoAtual % 2000) < 50) rgbLedWrite(RGB_BUILTIN, 0, LED_BRIGHTNESS, 0);
+      else rgbLedWrite(RGB_BUILTIN, 0, 0, 0);
+    }
   }
 }
