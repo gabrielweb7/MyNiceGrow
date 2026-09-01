@@ -129,10 +129,15 @@ unsigned long ultimoTelegram = 0; bool telegramAlertaEnviado = false;
 // ============================================================
 //  FUNÇÕES AUXILIARES
 // ============================================================
-const char* nomeFase(FaseCultivo f) {
-  if(f==FASE_STANDBY) return "Standby"; if(f==FASE_PINANDO) return "Pinando";
-  if(f==FASE_FRUTIFICACAO) return "Frutificacao"; if(f==FASE_SEGUNDO_FLUSH) return "Segundo Flush";
-  if(f==FASE_SECAGEM) return "Secagem"; return "?";
+const char* nomeFase(int f) {
+  switch(f) {
+    case 0: return "Standby";
+    case 1: return "Pinagem";
+    case 2: return "Frutificacao";
+    case 3: return "Segundo Flush";
+    case 4: return "Secagem Total";
+    default: return "Desconhecida";
+  }
 }
 const char* nomeModoLuz() {
   if(modoLuz==LUZ_AUTO) return "AUTO"; if(modoLuz==LUZ_FORCADA_ON) return "ON"; return "OFF";
@@ -211,24 +216,35 @@ void enviarNuvem(unsigned long agora) {
         LittleFS.remove("/offline.log");
         Serial.println("[NUVEM] Lote offline sincronizado!");
       }
-    }
-  }
-
-  // 2. ENVIA LEITURA ATUAL
+  client.setInsecure();
   HTTPClient http;
   if (http.begin(client, CLOUD_URL)) {
     http.addHeader("Content-Type", "application/json");
     http.addHeader("X-Api-Key", CLOUD_KEY);
-    int code = http.POST("[" + json + "]"); // API sempre espera array
-    http.end();
-
+    int code = http.POST(json);
     if (code == 200) {
-      Serial.println("[NUVEM] Leitura enviada com sucesso!");
+      String response = http.getString();
+      StaticJsonDocument<256> docRes;
+      if (!deserializeJson(docRes, response)) {
+         if (docRes.containsKey("comando_fase")) {
+            int fc = docRes["comando_fase"];
+            if (fc != faseAtual) mudarFase(fc);
+         }
+         if (docRes.containsKey("comando_luz")) {
+            int cl = docRes["comando_luz"];
+            if (cl == 0) modoLuz = LUZ_AUTO;
+            else if (cl == 1) modoLuz = LUZ_FORCADA_ON;
+            else if (cl == 2) modoLuz = LUZ_FORCADA_OFF;
+            Serial.printf("🕹️ ORDEM REMOTA: Luz modo %d\n", cl);
+         }
+      }
+      Serial.println("[NUVEM] Leitura enviada!");
     } else {
       Serial.printf("[NUVEM] Erro %d. Salvo offline.\n", code);
       File f = LittleFS.open("/offline.log", "a");
       if (f) { f.println(json); f.close(); }
     }
+    http.end();
   }
 }
 

@@ -115,7 +115,7 @@
         <section class="fade-in glass rounded-xl p-4 md:p-5 border border-slate-700/30">
             <h2 class="text-xs font-bold text-slate-400 uppercase tracking-wider mb-3">⚡ Status dos Relés (Tempo Real)</h2>
             <div class="grid grid-cols-2 md:grid-cols-4 gap-3">
-                <div id="releLuz" class="rele-off rounded-lg p-3 text-center transition-all duration-500">
+                <div id="releLuz" onclick="mudarLuz()" class="rele-off rounded-lg p-3 text-center transition-all duration-500 cursor-pointer hover:bg-slate-700 border border-transparent" title="Clique para alternar (AUTO / ON / OFF)">
                     <div class="text-2xl mb-1">💡</div>
                     <p class="text-xs font-bold">Luz</p>
                     <p class="text-[10px] text-slate-400 mt-0.5" id="releLuzStatus">OFF</p>
@@ -136,6 +136,42 @@
                     <p class="text-[10px] text-slate-400 mt-0.5" id="releExaustStatus">OFF</p>
                 </div>
             </div>
+        </section>
+
+        <!-- CONTROLE REMOTO DA ESTUFA -->
+        <section class="fade-in glass rounded-xl p-4 md:p-5 border border-slate-700/30">
+            <div class="flex items-center justify-between mb-3">
+                <h2 class="text-xs font-bold text-slate-400 uppercase tracking-wider">🕹️ Controle de Fase (Remoto)</h2>
+                <span id="cmdStatus" class="text-[10px] text-emerald-400 font-bold opacity-0 transition-opacity">Ordem Enviada!</span>
+            </div>
+            <div class="grid grid-cols-2 md:grid-cols-5 gap-3">
+                <!-- Fase 0 -->
+                <button onclick="mudarFase(0)" class="btn-fase rele-off hover:bg-slate-700 rounded-lg p-3 text-center transition-all border border-transparent">
+                    <div class="text-2xl mb-1">⏸️</div>
+                    <p class="text-xs font-bold">Standby</p>
+                </button>
+                <!-- Fase 1 -->
+                <button onclick="mudarFase(1)" class="btn-fase rele-off hover:bg-slate-700 rounded-lg p-3 text-center transition-all border border-transparent">
+                    <div class="text-2xl mb-1">🍄</div>
+                    <p class="text-xs font-bold">Pinagem</p>
+                </button>
+                <!-- Fase 2 -->
+                <button onclick="mudarFase(2)" class="btn-fase rele-off hover:bg-slate-700 rounded-lg p-3 text-center transition-all border border-transparent">
+                    <div class="text-2xl mb-1">🌳</div>
+                    <p class="text-xs font-bold">Frutificação</p>
+                </button>
+                <!-- Fase 3 -->
+                <button onclick="mudarFase(3)" class="btn-fase rele-off hover:bg-slate-700 rounded-lg p-3 text-center transition-all border border-transparent">
+                    <div class="text-2xl mb-1">🔄</div>
+                    <p class="text-[10px] md:text-xs font-bold">Segundo Flush</p>
+                </button>
+                <!-- Fase 4 -->
+                <button onclick="mudarFase(4)" class="btn-fase rele-off hover:bg-slate-700 rounded-lg p-3 text-center transition-all border border-transparent">
+                    <div class="text-2xl mb-1">🏜️</div>
+                    <p class="text-[10px] md:text-xs font-bold">Secagem Total</p>
+                </button>
+            </div>
+            <p class="text-[10px] text-slate-500 mt-3 text-center">*Ao clicar, a ordem será entregue à estufa no próximo ciclo de internet (máx. 1 min).</p>
         </section>
 
         <!-- GRÁFICOS -->
@@ -202,10 +238,37 @@
             tooltip: { shared: true, intersect: false, theme: 'dark', x: { format: 'dd/MM HH:mm' } }
         };
 
+        let luzState = 0; // 0=AUTO, 1=ON, 2=OFF
+
+        async function enviarComando(params) {
+            try {
+                const fd = new FormData();
+                for (let key in params) fd.append(key, params[key]);
+                await fetch('api/comando.php', { method: 'POST', body: fd });
+                const st = document.getElementById('cmdStatus');
+                st.style.opacity = '1'; setTimeout(() => st.style.opacity = '0', 3000);
+            } catch(e) {}
+        }
+        function mudarFase(f) { enviarComando({fase: f}); }
+        function mudarLuz() {
+            luzState = (luzState + 1) % 3;
+            enviarComando({luz: luzState});
+            const rl = document.getElementById('releLuzStatus');
+            if(luzState===0) rl.textContent = "AUTO (Pendente...)";
+            else if(luzState===1) rl.textContent = "ON (Pendente...)";
+            else rl.textContent = "OFF (Pendente...)";
+        }
+
         function initCharts() {
             chartTemp = new ApexCharts(document.querySelector("#chartTemp"), {
                 ...baseChartOpts,
                 chart: { ...baseChartOpts.chart, type: 'area', height: 280, id: 'chartTemp', group: 'syncGrow' },
+                dataLabels: {
+                    enabled: true,
+                    style: { fontSize: '9px', fontWeight: 'bold' },
+                    background: { enabled: true, foreColor: '#000', padding: 2, borderRadius: 2, borderWidth: 0, opacity: 0.8 },
+                    formatter: function (val) { return val !== null ? val.toFixed(1) + '°' : ''; }
+                },
                 series: [{ name: 'Interna', data: [] }, { name: 'Externa', data: [] }],
                 colors: [chartColors.green, chartColors.red],
                 fill: { type: 'gradient', gradient: { shadeIntensity: 1, opacityFrom: 0.3, opacityTo: 0.05, stops: [0, 100] } },
@@ -216,6 +279,12 @@
             chartHum = new ApexCharts(document.querySelector("#chartHum"), {
                 ...baseChartOpts,
                 chart: { ...baseChartOpts.chart, type: 'area', height: 280, id: 'chartHum', group: 'syncGrow' },
+                dataLabels: {
+                    enabled: true,
+                    style: { fontSize: '9px', fontWeight: 'bold' },
+                    background: { enabled: true, foreColor: '#000', padding: 2, borderRadius: 2, borderWidth: 0, opacity: 0.8 },
+                    formatter: function (val) { return val !== null ? val.toFixed(1) + '%' : ''; }
+                },
                 series: [{ name: 'Interna', data: [] }, { name: 'Externa', data: [] }],
                 colors: [chartColors.blue, chartColors.purple],
                 fill: { type: 'gradient', gradient: { shadeIntensity: 1, opacityFrom: 0.3, opacityTo: 0.05, stops: [0, 100] } },

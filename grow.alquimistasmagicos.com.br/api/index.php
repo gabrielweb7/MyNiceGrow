@@ -47,7 +47,16 @@ if ($method === 'POST') {
         if($stmt->execute()) $successCount++;
     }
     $stmt->close();
-    echo json_encode(["status" => "ok", "inseridos" => $successCount]);
+    
+    $resposta = ["status" => "ok", "inseridos" => $successCount];
+    $arquivo_comando = __DIR__ . '/comando_pendente.json';
+    if (file_exists($arquivo_comando)) {
+        $cmd = json_decode(file_get_contents($arquivo_comando), true);
+        if (isset($cmd['fase'])) $resposta['comando_fase'] = $cmd['fase'];
+        if (isset($cmd['luz'])) $resposta['comando_luz'] = $cmd['luz'];
+        unlink($arquivo_comando); // Deleta apos entregar ao ESP32
+    }
+    echo json_encode($resposta);
 } 
 // =======================================================
 // ENTREGAR DADOS PARA O DASHBOARD (Gráficos)
