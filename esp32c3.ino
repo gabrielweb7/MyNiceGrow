@@ -41,7 +41,8 @@ enum FaseCultivo {
   SEM_CULTIVO,
   PINANDO,
   FRUTIFICACAO,
-  SEGUNDO_FLUSH
+  SEGUNDO_FLUSH,
+  MODO_SECAGEM
 };
 FaseCultivo faseAtual = SEM_CULTIVO; // Inicia em modo Standby
 
@@ -51,8 +52,25 @@ String getNomeFase(FaseCultivo fase) {
     case PINANDO: return "Pinando (Inducao)";
     case FRUTIFICACAO: return "Frutificacao";
     case SEGUNDO_FLUSH: return "Prep. Segundo Flush";
+    case MODO_SECAGEM: return "Secagem Extrema (Limpeza)";
     default: return "Desconhecida";
   }
+}
+
+// ==========================================
+// MÁQUINA DE ESTADOS - CONTROLE DA LUZ
+// ==========================================
+enum ModoLuz {
+  LUZ_AUTO,
+  LUZ_FORCADA_ON,
+  LUZ_FORCADA_OFF
+};
+ModoLuz modoLuzAtual = LUZ_AUTO;
+
+String getNomeModoLuz() {
+  if (modoLuzAtual == LUZ_AUTO) return "AUTOMATICO";
+  if (modoLuzAtual == LUZ_FORCADA_ON) return "FORCADO: LIGADO";
+  return "FORCADO: DESLIGADO";
 }
 
 // ==========================================
@@ -152,6 +170,74 @@ void loop() {
 
     bool erroSensores = false;
 
+    // ==============================================================
+    // MOTOR DE AUTOMAÇÃO (A MÁGICA ACONTECE AQUI!)
+    // ==============================================================
+    if (!erroSensores) {
+      switch (faseAtual) {
+        
+        case SEM_CULTIVO:
+          // Desliga tudo no automático
+          estadoUmidific = false;
+          estadoExaustInt = false;
+          estadoExaustExt = false;
+          if (modoLuzAtual == LUZ_AUTO) estadoLuz = false;
+          break;
+
+        case MODO_SECAGEM:
+          // Força exaustores, desliga umidade
+          estadoUmidific = false;
+          estadoExaustInt = true;
+          estadoExaustExt = true;
+          if (modoLuzAtual == LUZ_AUTO) estadoLuz = false;
+          break;
+
+        case PINANDO:
+        case FRUTIFICACAO:
+        case SEGUNDO_FLUSH:
+          // === LÓGICA DE CLIMA BASE (EXEMPLO) ===
+          // Aqui você vai definir as regras exatas. Exemplo básico:
+          
+          // 1. Umidade
+          if (humInt < 85.0) {
+            estadoUmidific = true; // Liga para subir a umidade
+          } else if (humInt > 95.0) {
+            estadoUmidific = false; // Desliga
+          }
+
+          // 2. Temperatura / Ar Fresco (CO2)
+          // Se passar de 27C, liga exaustor para refrescar
+          if (tempInt > 27.0) {
+            estadoExaustExt = true;
+            estadoExaustInt = true; // Ajuda a circular o vento
+          } else {
+            estadoExaustExt = false;
+            estadoExaustInt = false;
+          }
+
+          // 3. Luz Automática (Temporizador no futuro, por enquanto Fixo ON na frutificação)
+          if (modoLuzAtual == LUZ_AUTO) {
+            if (faseAtual == FRUTIFICACAO) estadoLuz = true;
+            else estadoLuz = false;
+          }
+          break;
+      }
+      
+      // Overrides Manuais da Luz (Ignora as regras acima se o usuário mandou)
+      if (modoLuzAtual == LUZ_FORCADA_ON) estadoLuz = true;
+      else if (modoLuzAtual == LUZ_FORCADA_OFF) estadoLuz = false;
+
+      // APLICA OS ESTADOS NOS RELÉS FÍSICOS
+      setRele(RELE_LUZ, estadoLuz);
+      setRele(RELE_UMIDIFIC, estadoUmidific);
+      setRele(RELE_EXAUST_INT, estadoExaustInt);
+      setRele(RELE_EXAUST_EXT, estadoExaustExt);
+    }
+
+    // ==============================================================
+    // FIM DO MOTOR DE AUTOMAÇÃO
+    // ==============================================================
+
     Serial.println("\n================ PAINEL DO GROW ================");
     Serial.printf("FASE ATUAL:        [%s]\n", getNomeFase(faseAtual).c_str());
     Serial.println("------------------------------------------------");
@@ -174,71 +260,61 @@ void loop() {
 
     Serial.println("------------------------------------------------");
     
-    // Status dos Relés (Em módulos SSR Low-Level Trigger, LOW = LIGADO)
-    Serial.printf("Rele 1 (Luz):              %s\n", estadoLuz ? "LIGADO" : "DESLIGADO");
+    // Status dos Relés
+    Serial.printf("Rele 1 (Luz):              %s (Modo: %s)\n", estadoLuz ? "LIGADO" : "DESLIGADO", getNomeModoLuz().c_str());
     Serial.printf("Rele 2 (Umidificador):     %s\n", estadoUmidific ? "LIGADO" : "DESLIGADO");
     Serial.printf("Rele 3 (Exaustor Interno): %s\n", estadoExaustInt ? "LIGADO" : "DESLIGADO");
     Serial.printf("Rele 4 (Exaustor Externo): %s\n", estadoExaustExt ? "LIGADO" : "DESLIGADO");
     
     Serial.println("------------------------------------------------");
 
-    // Define o estado do sistema baseado nas leituras e no Wi-Fi
+    // Define o estado do sistema
     if (erroSensores) {
       estadoAtual = STATE_ERROR;
     } else if (WiFi.status() != WL_CONNECTED) {
       estadoAtual = STATE_NO_WIFI;
-      Serial.println("WIFI: Config Portal [GROW_SETUP] - Entre com o celular para configurar!");
+      Serial.println("WIFI: Config Portal [GROW_SETUP] - Entre com o celular!");
     } else {
       estadoAtual = STATE_OK;
       Serial.printf("WIFI: Conectado (IP: %s)\n", WiFi.localIP().toString().c_str());
     }
     
     Serial.println("================================================\n");
-    Serial.println("👉 COMANDOS DE TESTE DOS RELÉS: [1], [2], [3] ou [4]");
-    Serial.println("👉 COMANDOS DE FASE: [0]=Sem Cultivo, [P]=Pinando, [F]=Frutificacao, [S]=Segundo Flush");
+    Serial.println("👉 COMANDOS DE FASE: [0]=Standby, [P]=Pinando, [F]=Frutificacao, [S]=Flush, [D]=Secagem");
+    Serial.println("👉 LUZ: [L]=Ciclar Modo de Luz (Auto/On/Off)");
   }
 
-  // --- 3. TAREFA: TESTE MANUAL E TROCA DE FASE VIA SERIAL ---
+  // --- 3. TAREFA: COMANDOS DO USUÁRIO VIA SERIAL ---
   if (Serial.available() > 0) {
     char comando = Serial.read();
     
-    // Comandos de Relé
-    if (comando == '1') {
-      estadoLuz = !estadoLuz;
-      setRele(RELE_LUZ, estadoLuz);
-      Serial.println("\n[COMANDO] Alternando Rele 1 (Luz)...");
-    }
-    else if (comando == '2') {
-      estadoUmidific = !estadoUmidific;
-      setRele(RELE_UMIDIFIC, estadoUmidific);
-      Serial.println("\n[COMANDO] Alternando Rele 2 (Umidificador)...");
-    }
-    else if (comando == '3') {
-      estadoExaustInt = !estadoExaustInt;
-      setRele(RELE_EXAUST_INT, estadoExaustInt);
-      Serial.println("\n[COMANDO] Alternando Rele 3 (Exaustor Interno)...");
-    }
-    else if (comando == '4') {
-      estadoExaustExt = !estadoExaustExt;
-      setRele(RELE_EXAUST_EXT, estadoExaustExt);
-      Serial.println("\n[COMANDO] Alternando Rele 4 (Exaustor Externo)...");
+    // Controle da Luz
+    if (comando == 'L' || comando == 'l') {
+      if (modoLuzAtual == LUZ_AUTO) modoLuzAtual = LUZ_FORCADA_ON;
+      else if (modoLuzAtual == LUZ_FORCADA_ON) modoLuzAtual = LUZ_FORCADA_OFF;
+      else modoLuzAtual = LUZ_AUTO;
+      Serial.printf("\n[SISTEMA] Controle da Luz alterado para: %s\n", getNomeModoLuz().c_str());
     }
     // Comandos de Fase
     else if (comando == '0') {
       faseAtual = SEM_CULTIVO;
-      Serial.println("\n[SISTEMA] Modo alterado para: SEM CULTIVO");
+      Serial.println("\n[SISTEMA] Fase: SEM CULTIVO");
     }
     else if (comando == 'P' || comando == 'p') {
       faseAtual = PINANDO;
-      Serial.println("\n[SISTEMA] Modo alterado para: PINANDO");
+      Serial.println("\n[SISTEMA] Fase: PINANDO");
     }
     else if (comando == 'F' || comando == 'f') {
       faseAtual = FRUTIFICACAO;
-      Serial.println("\n[SISTEMA] Modo alterado para: FRUTIFICACAO");
+      Serial.println("\n[SISTEMA] Fase: FRUTIFICACAO");
     }
     else if (comando == 'S' || comando == 's') {
       faseAtual = SEGUNDO_FLUSH;
-      Serial.println("\n[SISTEMA] Modo alterado para: PREP. SEGUNDO FLUSH");
+      Serial.println("\n[SISTEMA] Fase: PREP. SEGUNDO FLUSH");
+    }
+    else if (comando == 'D' || comando == 'd') {
+      faseAtual = MODO_SECAGEM;
+      Serial.println("\n[SISTEMA] Fase: MODO SECAGEM (Limpeza)");
     }
   }
 
