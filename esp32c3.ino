@@ -45,7 +45,23 @@ unsigned long tempoAnteriorSensores = 0;
 const long intervaloSensores = 2000; // Ler sensores a cada 2 segundos
 
 // Brilho do LED de status (0 a 255) - 20 é bom para não cegar
-#define LED_BRIGHTNESS 20 
+#define LED_BRIGHTNESS 20
+
+// Variáveis de estado dos relés
+bool estadoLuz = false;
+bool estadoUmidific = false;
+bool estadoExaustInt = false;
+bool estadoExaustExt = false;
+
+// Função inteligente para ligar/desligar Relés 5V de forma 100% segura no ESP32
+void setRele(int pino, bool ligar) {
+  if (ligar) {
+    pinMode(pino, OUTPUT);
+    digitalWrite(pino, LOW); // Liga (GND)
+  } else {
+    pinMode(pino, INPUT);    // Desliga (Corta a corrente física)
+  }
+}
 
 // ==========================================
 // FUNÇÕES DE SETUP
@@ -59,18 +75,10 @@ void setup() {
   Serial.println("========================================");
 
   // --- 1. CONFIGURAÇÃO DOS RELÉS ---
-  // Configura os pinos como SAÍDA
-  pinMode(RELE_LUZ, OUTPUT);
-  pinMode(RELE_UMIDIFIC, OUTPUT);
-  pinMode(RELE_EXAUST_INT, OUTPUT);
-  pinMode(RELE_EXAUST_EXT, OUTPUT);
-  
-  // Em módulos SSR Low-Level Trigger, o estado HIGH significa DESLIGADO.
-  // Mandamos HIGH imediatamente para garantir que comecem desligados.
-  digitalWrite(RELE_LUZ, HIGH);
-  digitalWrite(RELE_UMIDIFIC, HIGH);
-  digitalWrite(RELE_EXAUST_INT, HIGH);
-  digitalWrite(RELE_EXAUST_EXT, HIGH);
+  setRele(RELE_LUZ, estadoLuz);
+  setRele(RELE_UMIDIFIC, estadoUmidific);
+  setRele(RELE_EXAUST_INT, estadoExaustInt);
+  setRele(RELE_EXAUST_EXT, estadoExaustExt);
 
   // --- 2. CONFIGURAÇÃO I2C E SHT30 ---
   Wire.begin(I2C_SDA, I2C_SCL);
@@ -141,10 +149,10 @@ void loop() {
     Serial.println("------------------------------------------------");
     
     // Status dos Relés (Em módulos SSR Low-Level Trigger, LOW = LIGADO)
-    Serial.printf("Rele 1 (Luz):              %s\n", digitalRead(RELE_LUZ) == LOW ? "LIGADO" : "DESLIGADO");
-    Serial.printf("Rele 2 (Umidificador):     %s\n", digitalRead(RELE_UMIDIFIC) == LOW ? "LIGADO" : "DESLIGADO");
-    Serial.printf("Rele 3 (Exaustor Interno): %s\n", digitalRead(RELE_EXAUST_INT) == LOW ? "LIGADO" : "DESLIGADO");
-    Serial.printf("Rele 4 (Exaustor Externo): %s\n", digitalRead(RELE_EXAUST_EXT) == LOW ? "LIGADO" : "DESLIGADO");
+    Serial.printf("Rele 1 (Luz):              %s\n", estadoLuz ? "LIGADO" : "DESLIGADO");
+    Serial.printf("Rele 2 (Umidificador):     %s\n", estadoUmidific ? "LIGADO" : "DESLIGADO");
+    Serial.printf("Rele 3 (Exaustor Interno): %s\n", estadoExaustInt ? "LIGADO" : "DESLIGADO");
+    Serial.printf("Rele 4 (Exaustor Externo): %s\n", estadoExaustExt ? "LIGADO" : "DESLIGADO");
     
     Serial.println("------------------------------------------------");
 
