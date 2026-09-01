@@ -114,6 +114,16 @@
             </div>
         </section>
 
+        <!-- CÉREBRO IA (Monitor de Protocolos) -->
+        <div class="glass rounded-xl p-4 md:p-5 border border-slate-700/30 relative overflow-hidden mb-6 fade-in shadow-lg">
+            <div class="absolute -top-4 -right-4 p-4 opacity-[0.03] pointer-events-none">
+                <span class="text-8xl">🧠</span>
+            </div>
+            <h2 class="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-2">Decisão da Inteligência Artificial</h2>
+            <div id="iaStatus" class="font-bold text-base md:text-lg text-emerald-400 transition-colors">✅ Analisando...</div>
+            <p id="iaDesc" class="text-xs md:text-sm text-slate-300 mt-1 pr-12 leading-relaxed">Conectando ao núcleo do sistema para interpretar a ação atual.</p>
+        </div>
+
         <!-- STATUS DOS RELÉS -->
         <section class="fade-in glass rounded-xl p-4 md:p-5 border border-slate-700/30">
             <h2 class="text-xs font-bold text-slate-400 uppercase tracking-wider mb-3">⚡ Status dos Relés (Tempo Real)</h2>
@@ -696,6 +706,9 @@
                 setRele('releVento', 'releVentoStatus', parseInt(ultimo.rele_vento));
                 setRele('releExaust', 'releExaustStatus', parseInt(ultimo.rele_exaust));
 
+                // Processa o cérebro / protocolo da Inteligência Artificial
+                atualizarCerebroIA(ultimo);
+
                 // Preparar séries para os gráficos (formato [timestamp, valor])
                 const seriesTempInt = [], seriesTempExt = [], seriesHumInt = [], seriesHumExt = [];
                 const seriesReleLuz = [], seriesReleUmid = [], seriesReleVento = [], seriesReleExaust = [];
@@ -731,6 +744,57 @@
                 document.getElementById('statusText').textContent = 'Erro';
                 document.getElementById('dotColor').className = 'w-2 h-2 rounded-full bg-red-500 pulse-dot';
             }
+        }
+
+        function atualizarCerebroIA(ultimo) {
+            let status = "✅ Clima Estabilizado";
+            let desc = "Todos os parâmetros estão dentro da meta para a fase atual.";
+            let cor = "text-emerald-400";
+            
+            const tI = parseFloat(ultimo.temp_int);
+            const uI = parseFloat(ultimo.hum_int);
+            const tE = parseFloat(ultimo.temp_ext);
+            const rLuz = parseInt(ultimo.rele_luz);
+            const rUmid = parseInt(ultimo.rele_umid);
+            const rVento = parseInt(ultimo.rele_vento);
+            const rExaust = parseInt(ultimo.rele_exaust);
+            
+            let tempMax = 25.0; let tempMin = 20.0;
+            if (ultimo.fase === "Pinagem") { tempMin = 22.0; tempMax = 26.5; }
+            else if (ultimo.fase === "Frutificacao") { tempMin = 20.0; tempMax = 24.5; }
+            else if (ultimo.fase === "Segundo Flush") { tempMin = 20.0; tempMax = 24.5; }
+            else if (ultimo.fase === "Secagem Total") { tempMin = 25.0; tempMax = 30.0; }
+
+            const quente = tI > tempMax;
+            const frio = tI < tempMin;
+            const arFrio = tE < (tI - 1.0);
+            const arQuente = tE > (tI + 1.0);
+
+            if (ultimo.fase === "Standby") {
+                status = "💤 Modo Standby"; desc = "Estufa inativa aguardando comandos."; cor = "text-slate-400";
+            } else if (rUmid === 2) {
+                status = "🚨 Proteção Anti-Queima (Falta D'água)"; desc = "O motor foi desarmado pois a umidade não subiu. Reabasteça o reservatório e resete no painel."; cor = "text-rose-500 animate-pulse";
+            } else if (tI >= 33.0 && rLuz === 0) {
+                status = "🔥 Corte Térmico da Luz"; desc = "Temperatura extremamente crítica! A luz foi forçada a apagar para não gerar mais calor."; cor = "text-rose-500";
+            } else if (quente && arFrio && rExaust === 1 && rVento === 1) {
+                status = "❄️ Injeção de Ar Frio"; desc = "A estufa esquentou. O sistema está sugando o ar fresco da rua para resfriar as paredes."; cor = "text-blue-400";
+            } else if (quente && !arFrio && rUmid === 1 && rExaust === 0) {
+                status = "💧 Defesa de Evaporação"; desc = "Estufa e rua quentes! Umidificador acionado para tentar esfriar o ambiente através da evaporação da água."; cor = "text-cyan-400";
+            } else if (frio && arQuente && rExaust === 1) {
+                status = "☀️ Injeção de Ar Quente"; desc = "A estufa esfriou demais. Sugando ar mais quente da rua para equilibrar."; cor = "text-amber-400";
+            } else if (rExaust === 1 && rVento === 1 && !quente && !frio) {
+                status = "💨 Troca de Ar (FAE)"; desc = "Expulsando o gás carbônico (CO2) pesado e trazendo oxigênio fresco."; cor = "text-teal-400";
+            } else if (rUmid === 1 && rExaust === 0) {
+                status = "💦 Umidificando"; desc = "A umidade caiu abaixo do nível seguro. Corrigindo o clima."; cor = "text-blue-300";
+            } else if (rVento === 1 && rExaust === 0 && rUmid === 0) {
+                status = "🌀 Brisa Preventiva"; desc = "Girando o ar internamente para evitar mofo, teia de aranha ou bolsões de CO2 parado."; cor = "text-indigo-400";
+            } else if (quente && !arFrio && rUmid === 0 && rExaust === 0) {
+                 status = "⚠️ Calor Intratável"; desc = "Está quente, mas a rua também está. Evaporação bloqueada para não molhar cogumelos."; cor = "text-orange-400";
+            }
+
+            document.getElementById('iaStatus').textContent = status;
+            document.getElementById('iaStatus').className = `font-bold text-base md:text-lg transition-colors ${cor}`;
+            document.getElementById('iaDesc').textContent = desc;
         }
 
         async function loopDados(forceDelay = null) {
