@@ -1,18 +1,19 @@
 DirectoryIndex index.html index.php
-
-# Bloqueia acesso a arquivos sensíveis
-<FilesMatch "\.(ino|sql)$">
-    Require all denied
-</FilesMatch>
-
-# Redireciona para a subpasta do painel web
 RewriteEngine On
 RewriteBase /
 
-# Nao redireciona se ja estiver na pasta correta
-RewriteCond %{REQUEST_URI} !^/grow\.alquimistasmagicos\.com\.br/ [NC]
+# Pagina principal
+RewriteRule ^$ grow.alquimistasmagicos.com.br/index.html [L]
 
-# Nao redireciona arquivos que existem na raiz (como .htaccess)
-RewriteCond %{REQUEST_FILENAME} !-f
+# API do ESP32
+RewriteRule ^api/(.*)$ grow.alquimistasmagicos.com.br/api/$1 [L,QSA]
 
-RewriteRule ^(.*)$ grow.alquimistasmagicos.com.br/$1 [L]
+# Qualquer outro arquivo dentro da pasta web
+RewriteCond %{REQUEST_URI} !^/grow\.alquimistasmagicos\.com\.br/
+RewriteCond %{DOCUMENT_ROOT}/grow.alquimistasmagicos.com.br%{REQUEST_URI} -f
+RewriteRule ^(.+)$ grow.alquimistasmagicos.com.br/$1 [L]
+
+# Bloqueia .ino e .sql
+<FilesMatch "\.(ino|sql)$">
+    Require all denied
+</FilesMatch>
