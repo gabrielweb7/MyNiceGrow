@@ -269,16 +269,10 @@
             </div>
             <div class="p-5">
                 <h3 class="text-emerald-400 font-bold text-xs uppercase mb-2">Atualização Remota de Firmware do Microcontrolador ESP32</h3>
-                <p class="text-xs text-slate-400 mb-4">Selecione o arquivo <span class="text-slate-300 font-mono">.bin</span> compilado na Arduino IDE para enviá-lo à placa. O ESP32 será reiniciado automaticamente.</p>
+                <p class="text-xs text-slate-400 mb-4">O sistema usará o último arquivo <span class="text-slate-300 font-mono">.bin</span> enviado para o repositório Git. Clique no botão abaixo para avisar a placa. O ESP32 será reiniciado automaticamente.</p>
                 
-                <div class="border border-slate-700 border-dashed rounded-lg p-4 text-center mb-4">
-                    <input type="file" id="fileOta" accept=".bin" class="hidden" onchange="document.getElementById('fileName').textContent = this.files[0] ? this.files[0].name : 'Nenhum arquivo selecionado'">
-                    <button onclick="document.getElementById('fileOta').click()" class="bg-slate-800 hover:bg-slate-700 text-xs px-4 py-2 rounded text-slate-200 transition border border-slate-600">Selecionar Arquivo .bin</button>
-                    <p id="fileName" class="text-[10px] text-slate-500 mt-2">Nenhum arquivo selecionado</p>
-                </div>
-
                 <button onclick="enviarOTA()" id="btnEnviarOta" class="w-full bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs py-3 rounded-lg transition-all shadow-[0_0_15px_rgba(16,185,129,0.2)]">
-                    Fazer Upload e Atualizar Placa
+                    Baixar do Git e Atualizar Placa
                 </button>
             </div>
         </div>
@@ -423,56 +417,22 @@
         function fecharConfig() { document.getElementById('modalConfig').classList.add('hidden'); }
 
         async function enviarOTA() {
-            const fileInput = document.getElementById('fileOta');
-            if (!fileInput.files.length) {
-                alert("Selecione um arquivo .bin primeiro!");
-                return;
-            }
-            
-            let p = localStorage.getItem('adminPass');
-            if(!p) {
-                p = prompt("Senha de Admin:");
-                if(!p) return;
-                localStorage.setItem('adminPass', p);
-            }
-
             const btn = document.getElementById('btnEnviarOta');
-            btn.textContent = "Enviando arquivo para nuvem...";
+            btn.textContent = "Avisando a Placa...";
             btn.disabled = true;
             btn.classList.add('opacity-50', 'cursor-not-allowed');
 
             try {
-                const fd = new FormData();
-                fd.append('firmware', fileInput.files[0]);
-                
-                const resUpload = await fetch('api/upload.php', {
-                    method: 'POST',
-                    body: fd,
-                    headers: { 'X-Api-Key': p }
-                });
-
-                if (!resUpload.ok) {
-                    if (resUpload.status === 401) {
-                        localStorage.removeItem('adminPass');
-                        throw new Error("Senha Incorreta!");
-                    }
-                    throw new Error("Falha no upload (Status " + resUpload.status + ")");
-                }
-
-                btn.textContent = "Comandando a Placa...";
-                
                 if (await enviarComando({ota: 1})) {
-                    alert("✅ Sucesso! O arquivo foi enviado e a placa já começou a atualização remota.\nEla voltará online em cerca de 1 minuto.");
+                    alert("✅ Sucesso! A placa já foi avisada.\nEla vai baixar o arquivo do Git e voltará online em cerca de 1 minuto.");
                     fecharConfig();
-                    fileInput.value = "";
-                    document.getElementById('fileName').textContent = "Nenhum arquivo selecionado";
                 } else {
-                    alert("⚠️ Arquivo enviado para a nuvem, mas houve uma falha ao avisar a placa.");
+                    alert("⚠️ Houve uma falha ao comunicar com a nuvem.");
                 }
             } catch (e) {
                 alert("❌ Erro: " + e.message);
             } finally {
-                btn.textContent = "Fazer Upload e Atualizar Placa";
+                btn.textContent = "Baixar do Git e Atualizar Placa";
                 btn.disabled = false;
                 btn.classList.remove('opacity-50', 'cursor-not-allowed');
             }

@@ -55,7 +55,7 @@ const char* CLOUD_KEY = "GrowIA_V4_SuperSecreta!";
 const unsigned long INTERVALO_NUVEM = 10UL * 1000; // 10 segundos (Máxima responsividade)
 
 // --- Segurança ---
-const unsigned long TIMEOUT_UMID_MS = 30UL * 60 * 1000;
+const unsigned long TIMEOUT_UMID_MS = 15UL * 60 * 1000;
 const uint8_t LED_BRILHO = 20;
 
 
@@ -291,8 +291,8 @@ void enviarNuvem(unsigned long agora) {
             WiFiClientSecure otaClient; 
             otaClient.setInsecure(); // Ignora validação rigorosa de SSL (HostGator)
             httpUpdate.rebootOnUpdate(true);
-            String fwUrl = String(CLOUD_URL);
-            fwUrl.replace("api/index.php", "firmware.bin"); // Pega o arquivo da mesma pasta do site
+            // Pega o arquivo do diretorio de build sincronizado pelo Git do cPanel
+            String fwUrl = "https://grow.alquimistasmagicos.com.br/build/esp32.esp32.esp32c3/esp32c3.ino.bin";
             t_httpUpdate_return ret = httpUpdate.update(otaClient, fwUrl);
             if (ret == HTTP_UPDATE_FAILED) {
                Serial.printf("❌ Falha no OTA (%d): %s\n", httpUpdate.getLastError(), httpUpdate.getLastErrorString().c_str());
