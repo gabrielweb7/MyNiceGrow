@@ -278,11 +278,29 @@
             }
         }
         
+        let luzPendenteTempo = 0;
+        let fasePendenteTempo = 0;
         let loopTimeout = null;
+
+        function setRele(id, statusId, isOn) {
+            const el = document.getElementById(id);
+            const st = document.getElementById(statusId);
+            const isLuz = (id === 'releLuz');
+
+            if (isOn) {
+                el.className = (isLuz ? 'cursor-pointer hover:bg-emerald-500 ' : '') + 'bg-emerald-600 rounded-lg p-3 text-center transition-all duration-500 shadow-[0_0_15px_rgba(16,185,129,0.4)] border border-emerald-400/50';
+                if (st.textContent.indexOf('⏳') === -1) st.textContent = isLuz ? (luzState === 0 ? 'AUTO (ON)' : 'ON') : 'ON';
+                st.className = 'text-[10px] text-emerald-100 mt-0.5 font-bold tracking-wider';
+            } else {
+                el.className = (isLuz ? 'cursor-pointer hover:bg-slate-700 ' : '') + 'bg-slate-800 rounded-lg p-3 text-center transition-all duration-500 border border-transparent opacity-80';
+                if (st.textContent.indexOf('⏳') === -1) st.textContent = isLuz ? (luzState === 0 ? 'AUTO (OFF)' : 'OFF') : 'OFF';
+                st.className = 'text-[10px] text-slate-500 mt-0.5 font-bold tracking-wider';
+            }
+        }
 
         async function mudarFase(f) { 
             if (await enviarComando({fase: f})) {
-                fasePendente = true;
+                fasePendenteTempo = Date.now();
                 document.getElementById('valFase').textContent = "Pendente ⏳";
                 atualizarBotoesFase(f, true);
                 loopDados(3000); // Força refresh rápido
@@ -293,16 +311,13 @@
             let proxLuz = (luzState + 1) % 3;
             if (await enviarComando({luz: proxLuz})) {
                 luzState = proxLuz;
-                luzPendente = true;
+                luzPendenteTempo = Date.now();
                 
-                // Feedback visual instantâneo para o usuário
-                if (luzState === 1) setRele('releLuz', 'releLuzStatus', true);
-                else if (luzState === 2) setRele('releLuz', 'releLuzStatus', false);
-
+                // Feedback visual instantâneo (gambiarra visual segura)
                 const rl = document.getElementById('releLuzStatus');
-                if(luzState===0) rl.textContent = "AUTO (⏳)";
-                else if(luzState===1) rl.textContent = "ON (⏳)";
-                else rl.textContent = "OFF (⏳)";
+                if (luzState === 1) { setRele('releLuz', 'releLuzStatus', true); rl.textContent = "ON (⏳)"; }
+                else if (luzState === 2) { setRele('releLuz', 'releLuzStatus', false); rl.textContent = "OFF (⏳)"; }
+                else { setRele('releLuz', 'releLuzStatus', false); rl.textContent = "AUTO (⏳)"; }
                 
                 loopDados(3000); // Força refresh rápido
             }
@@ -352,24 +367,7 @@
             chartReles.render();
         }
 
-        let luzPendente = false;
-        let fasePendente = false;
-
-        function setRele(id, statusId, isOn) {
-            const el = document.getElementById(id);
-            const st = document.getElementById(statusId);
-            const isLuz = (id === 'releLuz');
-
-            if (isOn) {
-                el.className = (isLuz ? 'cursor-pointer hover:bg-emerald-500 ' : '') + 'bg-emerald-600 rounded-lg p-3 text-center transition-all duration-500 shadow-[0_0_15px_rgba(16,185,129,0.4)] border border-emerald-400/50';
-                st.textContent = 'ON';
-                st.className = 'text-[10px] text-emerald-100 mt-0.5 font-bold tracking-wider';
-            } else {
-                el.className = (isLuz ? 'cursor-pointer hover:bg-slate-700 ' : '') + 'bg-slate-800 rounded-lg p-3 text-center transition-all duration-500 border border-transparent opacity-80';
-                st.textContent = 'OFF';
-                st.className = 'text-[10px] text-slate-500 mt-0.5 font-bold tracking-wider';
-            }
-        }
+        // Limpando variáveis antigas
 
         function atualizarBotoesFase(faseNome, pendente = false) {
             const mapa = { "Standby": 0, "Pinagem": 1, "Frutificacao": 2, "Segundo Flush": 3, "Secagem Total": 4 };
@@ -423,16 +421,18 @@
                 document.getElementById('valTe').textContent = te.toFixed(1) + ' °C';
                 document.getElementById('valUe').textContent = 'Umid: ' + ue.toFixed(1) + ' %';
                 
-                // BUG 13: Só atualiza fase/luz se não houver comando pendente
-                if (!fasePendente) {
+                let agoraTime = Date.now();
+                
+                // BUG 13: Só atualiza UI da fase se passaram 15s desde o último clique (garante que placa respondeu)
+                if (agoraTime - fasePendenteTempo > 15000) {
                     document.getElementById('valFase').textContent = ultimo.fase || '--';
                     atualizarBotoesFase(ultimo.fase, false);
                 }
-                if (fasePendente) fasePendente = false; // Consome o flag após 1 ciclo
 
                 // Última atualização
-                const dtUlt = new Date(ultimo.timestamp);
-                document.getElementById('valUltimaAtt').textContent = 'Última att: ' + dtUlt.toLocaleTimeString('pt-BR', {hour:'2-digit', minute:'2-digit'});
+                let dataUltima = new Date(ultimo.timestamp.replace(' ', 'T'));
+                let diffMinutos = Math.round((new Date() - dataUltima) / 60000);
+                document.getElementById('valUltimaAtt').textContent = 'Atualizado há ' + diffMinutos + ' min';
 
                 // Min/Max do período
                 let minT = Infinity, maxT = -Infinity, minH = Infinity, maxH = -Infinity;
@@ -444,9 +444,10 @@
                 document.getElementById('minMaxTemp').textContent = `Min ${minT === Infinity ? '--' : minT.toFixed(1)}° / Max ${maxT === -Infinity ? '--' : maxT.toFixed(1)}°`;
                 document.getElementById('minMaxHum').textContent = `Min ${minH === Infinity ? '--' : minH.toFixed(1)}% / Max ${maxH === -Infinity ? '--' : maxH.toFixed(1)}%`;
 
-                // Relés — protege Luz de sobrescrever "Pendente..."
-                if (!luzPendente) setRele('releLuz', 'releLuzStatus', parseInt(ultimo.rele_luz));
-                if (luzPendente) luzPendente = false;
+                // Relés — protege Luz de sobrescrever estado durante a pendência (15s)
+                if (agoraTime - luzPendenteTempo > 15000) {
+                    setRele('releLuz', 'releLuzStatus', parseInt(ultimo.rele_luz));
+                }
                 setRele('releUmid', 'releUmidStatus', parseInt(ultimo.rele_umid));
                 setRele('releVento', 'releVentoStatus', parseInt(ultimo.rele_vento));
                 setRele('releExaust', 'releExaustStatus', parseInt(ultimo.rele_exaust));
@@ -493,7 +494,8 @@
             await carregarDados(limitAtual);
             
             // Sincroniza a cada 3s se tiver comando na fila, senão a cada 10s
-            let delay = forceDelay || ((luzPendente || fasePendente) ? 3000 : 10000);
+            let isPendente = (Date.now() - luzPendenteTempo < 15000) || (Date.now() - fasePendenteTempo < 15000);
+            let delay = forceDelay || (isPendente ? 3000 : 10000);
             loopTimeout = setTimeout(() => loopDados(), delay);
         }
 
