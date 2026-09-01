@@ -171,7 +171,53 @@
                     <p class="text-[10px] md:text-xs font-bold text-slate-300">Secagem Total</p>
                 </button>
             </div>
-            <p class="text-[10px] text-slate-500 mt-3 text-center">*Ao clicar, a ordem será entregue à estufa no próximo ciclo de internet (máx. 1 min).</p>
+            <p class="text-[10px] text-slate-500 mt-3 text-center">*Ao clicar, a ordem é sincronizada instantaneamente com o ESP32.</p>
+
+            <!-- NOVO: Painel de Informações da Fase e Inteligência -->
+            <div id="infoFaseContainer" class="hidden mt-6 pt-5 border-t border-slate-700/50 flex flex-col md:flex-row gap-6">
+                <!-- Esquerda -->
+                <div class="flex-1 md:border-r border-slate-700/50 md:pr-6">
+                    <h3 class="text-emerald-400 font-bold text-[11px] uppercase tracking-widest mb-3 flex items-center gap-2">
+                        <span id="infoFaseIcon">⚙️</span> <span id="infoFaseTitle">Modo Ativo: --</span>
+                    </h3>
+                    <p id="infoFaseDesc" class="text-slate-300 text-xs leading-relaxed mb-4 h-auto md:h-12">Carregando...</p>
+                    <div class="grid grid-cols-2 gap-2 text-xs">
+                        <div class="bg-slate-800/80 p-2.5 rounded-lg border border-slate-700/50">
+                            <span class="text-slate-500 block mb-1 font-semibold text-[10px] uppercase">Temp. Alvo</span>
+                            <span id="infoFaseTemp" class="text-emerald-300 font-bold">--</span>
+                        </div>
+                        <div class="bg-slate-800/80 p-2.5 rounded-lg border border-slate-700/50">
+                            <span class="text-slate-500 block mb-1 font-semibold text-[10px] uppercase">Umid. Alvo</span>
+                            <span id="infoFaseUmid" class="text-blue-300 font-bold">--</span>
+                        </div>
+                        <div class="bg-slate-800/80 p-2.5 rounded-lg border border-slate-700/50 col-span-2">
+                            <span class="text-slate-500 block mb-1 font-semibold text-[10px] uppercase">Renovação de Ar (FAE)</span>
+                            <span id="infoFaseFae" class="text-cyan-300 font-bold">--</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Direita -->
+                <div class="flex-1">
+                    <h3 class="text-rose-400 font-bold text-[11px] uppercase tracking-widest mb-4 flex items-center gap-2">
+                        🛡️ Protocolos de Emergência (Sempre Ativos)
+                    </h3>
+                    <ul class="text-[11px] text-slate-400 space-y-3.5">
+                        <li class="flex items-start gap-2.5">
+                            <span class="text-rose-400 mt-0.5 text-sm">🔥</span>
+                            <span class="leading-relaxed"><b class="text-slate-200">Defesa Térmica (Luz):</b> Bloqueio da luz se a estufa aquecer muito. O ciclo foca na madrugada para evitar efeito estufa artificial.</span>
+                        </li>
+                        <li class="flex items-start gap-2.5">
+                            <span class="text-blue-400 mt-0.5 text-sm">❄️</span>
+                            <span class="leading-relaxed"><b class="text-slate-200">Injeção de Resgate:</b> Se o ar aquecer perigosamente, mas a rua estiver mais fria, o exaustor rompe o timer e puxa o ar de fora como escudo.</span>
+                        </li>
+                        <li class="flex items-start gap-2.5">
+                            <span class="text-amber-400 mt-0.5 text-sm">💧</span>
+                            <span class="leading-relaxed"><b class="text-slate-200">Proteção Anti-Queima:</b> Se o umidificador forçar por muito tempo e o sensor não subir (falta d'água), o relé desarma para proteger a bomba.</span>
+                        </li>
+                    </ul>
+                </div>
+            </div>
         </section>
 
         <!-- GRÁFICOS -->
@@ -384,23 +430,78 @@
             chartReles.render();
         }
 
-        // Limpando variáveis antigas
-
         function atualizarBotoesFase(faseNome, pendente = false) {
             const mapa = { "Standby": 0, "Pinagem": 1, "Frutificacao": 2, "Segundo Flush": 3, "Secagem Total": 4 };
+            const mapaReverso = { 0: "Standby", 1: "Pinagem", 2: "Frutificacao", 3: "Segundo Flush", 4: "Secagem Total" };
+            
             let faseId = -1;
-            if (typeof faseNome === 'number') faseId = faseNome;
-            else if (mapa[faseNome] !== undefined) faseId = mapa[faseNome];
+            let faseString = faseNome;
 
-            for (let i = 0; i <= 4; i++) {
-                const btn = document.getElementById(`btnFase${i}`);
-                if (!btn) continue;
-                if (i === faseId) {
-                    btn.className = `btn-fase cursor-pointer bg-emerald-600 hover:bg-emerald-500 rounded-lg p-3 text-center transition-all duration-300 shadow-[0_0_15px_rgba(16,185,129,0.4)] border border-emerald-400/50 ${pendente ? 'animate-pulse opacity-80' : ''}`;
-                } else {
-                    btn.className = `btn-fase cursor-pointer bg-slate-800 hover:bg-slate-700 rounded-lg p-3 text-center transition-all duration-300 border border-transparent opacity-80`;
+            if (typeof faseNome === 'number') {
+                faseId = faseNome;
+                faseString = mapaReverso[faseNome];
+            } else if (mapa[faseNome] !== undefined) {
+                faseId = mapa[faseNome];
+            }
+
+            document.querySelectorAll('.btn-fase').forEach(b => {
+                b.classList.remove('bg-emerald-600', 'shadow-[0_0_15px_rgba(16,185,129,0.4)]', 'border-emerald-400/50', 'pulse-border');
+                b.classList.add('bg-slate-800', 'border-transparent', 'opacity-80');
+            });
+
+            if (faseId !== -1) {
+                const b = document.getElementById('btnFase' + faseId);
+                if (b) {
+                    b.classList.remove('bg-slate-800', 'border-transparent', 'opacity-80');
+                    b.classList.add('bg-emerald-600', 'border-emerald-400/50');
+                    if (pendente) {
+                        b.classList.add('pulse-border');
+                    } else {
+                        b.classList.add('shadow-[0_0_15px_rgba(16,185,129,0.4)]');
+                    }
                 }
             }
+            if (!pendente) {
+                renderizarInfoFase(faseString);
+            }
+        }
+
+        function renderizarInfoFase(faseNome) {
+            const container = document.getElementById('infoFaseContainer');
+            if (!faseNome || faseNome === '--') return;
+            container.classList.remove('hidden');
+
+            let icon = '⚙️', desc = '', temp = '', umid = '', fae = '';
+
+            switch(faseNome) {
+                case 'Standby':
+                    icon = '⏸️'; temp = 'Desligado'; umid = 'Desligado'; fae = 'Desligado';
+                    desc = 'Sistema em repouso absoluto. Nenhum relé será acionado pelo algoritmo automático. Ideal para higienização da estufa e manutenção dos equipamentos.';
+                    break;
+                case 'Pinagem':
+                    icon = '🍄'; temp = 'Máx 27.5 °C'; umid = '95% a 99%'; fae = '3 min ON / 40 min OFF';
+                    desc = 'Foco total em induzir o micélio a formar primórdios (alfinetes). Exige altíssima umidade e oxigenação constante para simular o orvalho do amanhecer.';
+                    break;
+                case 'Frutificacao':
+                    icon = '🌳'; temp = 'Máx 28.5 °C'; umid = '88% a 92%'; fae = '2 min ON / 60 min OFF';
+                    desc = 'Umidade levemente reduzida para permitir que o suor na pele do cogumelo evapore, o que força as paredes celulares a puxar água do bolo e crescer.';
+                    break;
+                case 'Segundo Flush':
+                    icon = '🔄'; temp = 'Máx 29.0 °C'; umid = '95% a 99%'; fae = '1 min ON / 2h OFF';
+                    desc = 'Modo de recuperação pós-colheita. O bolo está fatiado e perdendo água. O FAE é quase anulado para estancar a perda de umidade e induzir o micélio a pinar por estresse.';
+                    break;
+                case 'Secagem Total':
+                    icon = '🏜️'; temp = 'Ambiente'; umid = 'Mínimo possível'; fae = '100% LIGADO (Direto)';
+                    desc = 'Umidificador bloqueado. Ventilador e Exaustor cravados em ON ininterruptamente. Usado para secar condensação excessiva nas paredes ou processar colheita.';
+                    break;
+            }
+
+            document.getElementById('infoFaseIcon').textContent = icon;
+            document.getElementById('infoFaseTitle').textContent = `Modo Ativo: ${faseNome}`;
+            document.getElementById('infoFaseDesc').textContent = desc;
+            document.getElementById('infoFaseTemp').textContent = temp;
+            document.getElementById('infoFaseUmid').textContent = umid;
+            document.getElementById('infoFaseFae').textContent = fae;
         }
 
         function filtrar(limit, btn) {
