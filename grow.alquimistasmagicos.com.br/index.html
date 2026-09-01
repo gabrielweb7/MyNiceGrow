@@ -183,7 +183,17 @@
             chart: { background: 'transparent', toolbar: { show: true, tools: { download: true, selection: true, zoom: true, zoomin: true, zoomout: true, pan: true, reset: true } }, animations: { enabled: true, easing: 'easeinout', speed: 800 } },
             theme: { mode: 'dark' },
             grid: { borderColor: 'rgba(148,163,184,0.08)', strokeDashArray: 3 },
-            xaxis: { labels: { style: { colors: '#64748b', fontSize: '10px' }, rotate: -45, rotateAlways: false }, axisBorder: { show: false }, axisTicks: { show: false } },
+            xaxis: { 
+                type: 'datetime', 
+                labels: { 
+                    datetimeUTC: false, 
+                    style: { colors: '#64748b', fontSize: '10px' },
+                    datetimeFormatter: { year: 'yyyy', month: 'MMM \'yy', day: 'dd MMM', hour: 'HH:mm' }
+                }, 
+                axisBorder: { show: false }, 
+                axisTicks: { show: false },
+                tooltip: { enabled: false }
+            },
             yaxis: { labels: { style: { colors: '#64748b', fontSize: '10px' } } },
             stroke: { curve: 'smooth', width: 2.5 },
             legend: { position: 'top', horizontalAlign: 'right', fontSize: '11px', labels: { colors: '#94a3b8' }, markers: { radius: 2 } },
@@ -291,7 +301,8 @@
                 const seriesReleLuz = [], seriesReleUmid = [], seriesReleExaust = [];
 
                 data.forEach(d => {
-                    const ts = new Date(d.timestamp).getTime();
+                    const safeDate = d.timestamp.replace(' ', 'T');
+                    const ts = new Date(safeDate).getTime();
                     const tI = parseFloat(d.temp_int);
                     const tE = parseFloat(d.temp_ext);
                     // Filtra dados ruins antes de plotar
@@ -304,15 +315,8 @@
                     seriesReleExaust.push([ts, parseInt(d.rele_exaust)]);
                 });
 
-                const xaxisTime = { type: 'datetime', labels: { style: { colors: '#64748b', fontSize: '10px' }, datetimeUTC: false, format: 'HH:mm' } };
-
-                chartTemp.updateOptions({ xaxis: xaxisTime });
                 chartTemp.updateSeries([{ name: 'Interna', data: seriesTempInt }, { name: 'Externa', data: seriesTempExt }]);
-
-                chartHum.updateOptions({ xaxis: xaxisTime });
                 chartHum.updateSeries([{ name: 'Interna', data: seriesHumInt }, { name: 'Externa', data: seriesHumExt }]);
-
-                chartReles.updateOptions({ xaxis: xaxisTime });
                 chartReles.updateSeries([{ name: 'Luz', data: seriesReleLuz }, { name: 'Umidificador', data: seriesReleUmid }, { name: 'Exaustor', data: seriesReleExaust }]);
 
             } catch (err) {
