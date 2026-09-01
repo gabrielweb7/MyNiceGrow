@@ -1,7 +1,7 @@
 <?php
 header('Content-Type: application/json');
 header('Access-Control-Allow-Origin: *');
-require_once '../config.php';
+require_once __DIR__ . '/../config.php';
 
 $conn = new mysqli(DB_HOST, DB_USER, DB_PASS, DB_NAME);
 if ($conn->connect_error) {
@@ -14,10 +14,10 @@ $method = $_SERVER['REQUEST_METHOD'];
 // RECEBER DADOS DO ESP32 (Modo Online ou Offline/Lote)
 // =======================================================
 if ($method === 'POST') {
-    $headers = getallheaders();
+    // Proteção de Rota (Compatível com FastCGI da HostGator)
+    $apiKey = isset($_SERVER['HTTP_X_API_KEY']) ? $_SERVER['HTTP_X_API_KEY'] : '';
     
-    // Proteção de Rota (Ninguém além do seu ESP32 consegue inserir)
-    if (!isset($headers['X-Api-Key']) || $headers['X-Api-Key'] !== API_KEY) {
+    if ($apiKey !== API_KEY) {
         http_response_code(401);
         die(json_encode(["error" => "Não autorizado. Chave API inválida."]));
     }
