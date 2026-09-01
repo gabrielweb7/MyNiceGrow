@@ -1,5 +1,5 @@
 // ============================================================
-//  GROW IA v3.0 - Firmware Inteligente para Cultivo de Fungi
+//  GROW IA v3.1 - Firmware Inteligente para Cultivo de Fungi
 //  Placa: ESP32-C3-MINI-1-N4
 //  Autor: Gabriel + Antigravity AI
 // ============================================================
@@ -16,6 +16,7 @@
 #include <ArduinoOTA.h>
 #include <WiFiClientSecure.h>
 #include <time.h>
+#include <Preferences.h> // Memória Anti-Apagão
 
 // ============================================================
 //  CONFIGURAÇÕES DO USUÁRIO (EDITE AQUI!)
@@ -51,13 +52,13 @@ const unsigned long TIMEOUT_UMID_MS = 30UL * 60 * 1000;
 const uint8_t LED_BRILHO = 20;
 
 // --- Telegram (Deixe vazio para desativar) ---
-const char* TELEGRAM_TOKEN  = "";  // Ex: "123456:ABC-DEF..."
-const char* TELEGRAM_CHAT   = "";  // Ex: "123456789"
-const unsigned long TELEGRAM_INTERVALO = 60UL * 1000; // Min 1 min entre alertas
+const char* TELEGRAM_TOKEN  = "";
+const char* TELEGRAM_CHAT   = "";
+const unsigned long TELEGRAM_INTERVALO = 60UL * 1000;
 
 // --- Progressão Automática (dias em cada fase, 0 = manual) ---
-const int DIAS_PINANDO     = 0;  // Ex: 7 = troca para Frutificação após 7 dias
-const int DIAS_FRUTIFICACAO = 0; // Ex: 14 = troca para Segundo Flush
+const int DIAS_PINANDO     = 0;
+const int DIAS_FRUTIFICACAO = 0;
 const int DIAS_SEGUNDO_FLUSH = 0;
 
 // ============================================================
@@ -92,13 +93,14 @@ struct PerfilClimatico {
 };
 
 // ============================================================
-//  OBJETOS
+//  OBJETOS E MEMÓRIA
 // ============================================================
 
 Adafruit_SHT31 sht30 = Adafruit_SHT31();
 DHT dht(PIN_DHT, TIPO_DHT);
 WiFiManager wm;
 WebServer server(80);
+Preferences prefs;
 
 // ============================================================
 //  ESTADO GLOBAL
@@ -108,23 +110,24 @@ FaseCultivo faseAtual = FASE_STANDBY;
 ModoLuz     modoLuz   = LUZ_AUTO;
 StatusSis   statusSis = SIS_SEM_WIFI;
 
-// Sensores (valores filtrados)
+// Sensores
 float tempInt = 0, humInt = 0;
 float tempExt = 0, humExt = 0;
 bool  sensorIntOk = false, sensorExtOk = false;
 
-// Filtro Média Móvel (5 amostras)
+// Filtro Média Móvel
 #define FILTRO_N 5
 float bufTempInt[FILTRO_N], bufHumInt[FILTRO_N];
 float bufTempExt[FILTRO_N], bufHumExt[FILTRO_N];
 int   idxFiltro = 0;
 bool  filtroPreenchido = false;
 
-// Min/Max desde o boot
+// Min/Max (Diário)
 float tempIntMin = 999, tempIntMax = -999;
 float humIntMin  = 999, humIntMax  = -999;
 char  horaMinTemp[6] = "--:--", horaMaxTemp[6] = "--:--";
 char  horaMinHum[6]  = "--:--", horaMaxHum[6]  = "--:--";
+int   ultimoDia = -1; // Para reset à meia-noite
 
 // Relés
 bool releLuz = false, releUmidific = false;
@@ -134,23 +137,18 @@ bool releVentoInt = false, releExaustExt = false;
 unsigned long ultimaLeitura = 0;
 unsigned long ultimoCicloFAE = 0;
 bool faeLigado = false;
-
 unsigned long inicioUmidificacao = 0;
 bool alertaFaltaAgua = false;
 
-// Progressão automática
-unsigned long inicioFaseMs = 0;
+// Relógio e Progressão (Memória NVS)
+bool horaValida = false;
+int  horaAtual  = -1;
+time_t inicioFaseTempo = 0; // Timestamp UNIX salvo na flash
+unsigned long bootTime = 0;
 
 // Telegram
 unsigned long ultimoTelegram = 0;
 bool telegramAlertaEnviado = false;
-
-// Relógio
-bool horaValida = false;
-int  horaAtual  = -1;
-
-// Uptime
-unsigned long bootTime = 0;
 
 // ============================================================
 //  FUNÇÕES AUXILIARES
@@ -201,8 +199,29 @@ String formatUptime(unsigned long ms) {
   return String(buf);
 }
 
+// Muda a fase e salva na memória persistente
+void setNovaFase(FaseCultivo nova) {
+  if (faseAtual == nova) return;
+  faseAtual = nova;
+  
+  time_t agora;
+  time(&agora);
+  
+  // Se já tivermos sincronizado o relógio com a internet (ano > 2020)
+  if (agora > 1600000000) {
+    inicioFaseTempo = agora;
+  } else {
+    inicioFaseTempo = 0; // NTP ainda não sincronizou
+  }
+
+  // Grava na Flash para sobreviver a quedas de energia
+  prefs.putInt("fase", (int)faseAtual);
+  prefs.putUInt("inicio", (uint32_t)inicioFaseTempo);
+  Serial.printf("[MEMORIA] Fase salva: %s\n", nomeFase(faseAtual));
+}
+
 // ============================================================
-//  FILTRO MÉDIA MÓVEL
+//  FILTRO E MIN/MAX (DIÁRIO)
 // ============================================================
 
 float mediaBuffer(float* buf, int n) {
@@ -212,31 +231,31 @@ float mediaBuffer(float* buf, int n) {
 }
 
 void atualizarFiltro(float tI, float hI, float tE, float hE) {
-  bufTempInt[idxFiltro] = tI;
-  bufHumInt[idxFiltro]  = hI;
-  bufTempExt[idxFiltro] = tE;
-  bufHumExt[idxFiltro]  = hE;
+  bufTempInt[idxFiltro] = tI; bufHumInt[idxFiltro]  = hI;
+  bufTempExt[idxFiltro] = tE; bufHumExt[idxFiltro]  = hE;
   idxFiltro = (idxFiltro + 1) % FILTRO_N;
   if (idxFiltro == 0) filtroPreenchido = true;
 
   int n = filtroPreenchido ? FILTRO_N : idxFiltro;
   if (n == 0) n = 1;
-  tempInt = mediaBuffer(bufTempInt, n);
-  humInt  = mediaBuffer(bufHumInt, n);
-  tempExt = mediaBuffer(bufTempExt, n);
-  humExt  = mediaBuffer(bufHumExt, n);
+  tempInt = mediaBuffer(bufTempInt, n); humInt  = mediaBuffer(bufHumInt, n);
+  tempExt = mediaBuffer(bufTempExt, n); humExt  = mediaBuffer(bufHumExt, n);
 }
-
-// ============================================================
-//  MIN/MAX
-// ============================================================
 
 void atualizarMinMax() {
   struct tm ti;
-  bool hv = getLocalTime(&ti);
+  if (!getLocalTime(&ti)) return; // Sem relógio = não registra hora
+
+  // RESET DIÁRIO (00:00)
+  if (ultimoDia != -1 && ultimoDia != ti.tm_mday) {
+    tempIntMin = tempInt; tempIntMax = tempInt;
+    humIntMin  = humInt;  humIntMax  = humInt;
+    Serial.println("[INFO] Reset Diario Min/Max efetuado!");
+  }
+  ultimoDia = ti.tm_mday;
+
   char horaStr[6];
-  if (hv) snprintf(horaStr, sizeof(horaStr), "%02d:%02d", ti.tm_hour, ti.tm_min);
-  else    snprintf(horaStr, sizeof(horaStr), "--:--");
+  snprintf(horaStr, sizeof(horaStr), "%02d:%02d", ti.tm_hour, ti.tm_min);
 
   if (tempInt < tempIntMin) { tempIntMin = tempInt; strncpy(horaMinTemp, horaStr, 6); }
   if (tempInt > tempIntMax) { tempIntMax = tempInt; strncpy(horaMaxTemp, horaStr, 6); }
@@ -253,17 +272,6 @@ void aplicarReles() {
   digitalWrite(PIN_RELE_UMIDIFIC,    releUmidific  ? LOW : HIGH);
   digitalWrite(PIN_RELE_VENTO_INT,   releVentoInt  ? LOW : HIGH);
   digitalWrite(PIN_RELE_EXAUST_EXT,  releExaustExt ? LOW : HIGH);
-}
-
-void testarReles() {
-  Serial.println("[TEST] Reles...");
-  int p[] = {PIN_RELE_LUZ, PIN_RELE_UMIDIFIC, PIN_RELE_VENTO_INT, PIN_RELE_EXAUST_EXT};
-  for (int i = 0; i < 4; i++) {
-    Serial.printf("  CH%d (GPIO %d)...", i+1, p[i]);
-    digitalWrite(p[i], LOW); delay(400);
-    digitalWrite(p[i], HIGH); delay(200);
-    Serial.println(" OK");
-  }
 }
 
 // ============================================================
@@ -292,24 +300,24 @@ void enviarTelegram(String msg) {
 //  PROGRESSÃO AUTOMÁTICA
 // ============================================================
 
-void verificarProgressao(unsigned long agora) {
-  if (inicioFaseMs == 0) return;
-  unsigned long diasMs = agora - inicioFaseMs;
-  unsigned long dias = diasMs / (86400UL * 1000);
+void verificarProgressao() {
+  if (inicioFaseTempo == 0) return;
+  time_t agora;
+  time(&agora);
+  if (agora < 1600000000) return; // Internet time not synced
+
+  unsigned long dias = (agora - inicioFaseTempo) / 86400UL;
 
   if (faseAtual == FASE_PINANDO && DIAS_PINANDO > 0 && dias >= (unsigned long)DIAS_PINANDO) {
-    faseAtual = FASE_FRUTIFICACAO;
-    inicioFaseMs = agora;
-    enviarTelegram("🍄 Fase mudou: PINANDO → FRUTIFICACAO");
+    setNovaFase(FASE_FRUTIFICACAO);
+    enviarTelegram("🍄 Fase mudou automaticamente: PINANDO → FRUTIFICACAO");
   }
   else if (faseAtual == FASE_FRUTIFICACAO && DIAS_FRUTIFICACAO > 0 && dias >= (unsigned long)DIAS_FRUTIFICACAO) {
-    faseAtual = FASE_SEGUNDO_FLUSH;
-    inicioFaseMs = agora;
-    enviarTelegram("🍄 Fase mudou: FRUTIFICACAO → SEGUNDO FLUSH");
+    setNovaFase(FASE_SEGUNDO_FLUSH);
+    enviarTelegram("🍄 Fase mudou automaticamente: FRUTIFICACAO → SEGUNDO FLUSH");
   }
   else if (faseAtual == FASE_SEGUNDO_FLUSH && DIAS_SEGUNDO_FLUSH > 0 && dias >= (unsigned long)DIAS_SEGUNDO_FLUSH) {
-    faseAtual = FASE_STANDBY;
-    inicioFaseMs = agora;
+    setNovaFase(FASE_STANDBY);
     enviarTelegram("🍄 Ciclo completo! Voltando para STANDBY.");
   }
 }
@@ -463,7 +471,7 @@ button:active{opacity:.8}
   <button class="btn-g" onclick="cmd('l=1')">💡 Luz: <span id="mL">...</span></button>
   <button class="btn-o" onclick="cmd('r=1')">🚰 Reset Alerta Água</button>
 </div>
-<div class="ft">Grow IA v3.0 · <span id="ip"></span> · grow.local</div>
+<div class="ft">Grow IA v3.1 · <span id="ip"></span> · grow.local</div>
 <script>
 function up(){fetch('/api/data').then(r=>r.json()).then(d=>{
   document.getElementById('tI').innerText=d.tI.toFixed(1)+'°C';
@@ -476,8 +484,8 @@ function up(){fetch('/api/data').then(r=>r.json()).then(d=>{
   document.getElementById('up').innerText=d.uptime;
   document.getElementById('fae').innerText=d.fae;
   document.getElementById('ip').innerText=d.ip;
-  document.getElementById('mmT').innerHTML='↓'+d.tMin+' ↑'+d.tMax;
-  document.getElementById('mmU').innerHTML='↓'+d.uMin+' ↑'+d.uMax;
+  document.getElementById('mmT').innerHTML='Diário: ↓'+d.tMin+' ↑'+d.tMax;
+  document.getElementById('mmU').innerHTML='Diário: ↓'+d.uMin+' ↑'+d.uMax;
   if(d.diasFase>=0) document.getElementById('dias').innerText='Dia '+d.diasFase+' na fase atual';
   else document.getElementById('dias').innerText='';
   ['b1','b2','b3','b4'].forEach((id,i)=>{document.getElementById(id).className='bd '+(d.reles[i]?'on':'off')});
@@ -500,9 +508,10 @@ void webApiData() {
   char hora[10]; if(hv) snprintf(hora,10,"%02d:%02d:%02d",ti.tm_hour,ti.tm_min,ti.tm_sec); else snprintf(hora,10,"--:--:--");
   char faeStr[30]; snprintf(faeStr,30,"FAE: %s", faeLigado ? "Ventilando..." : "Aguardando");
 
-  unsigned long diasFase = -1;
-  if (inicioFaseMs > 0 && faseAtual != FASE_STANDBY && faseAtual != FASE_SECAGEM) {
-    diasFase = (millis() - inicioFaseMs) / (86400UL * 1000);
+  long diasFase = -1;
+  time_t agora; time(&agora);
+  if (inicioFaseTempo > 0 && agora > 1600000000 && faseAtual != FASE_STANDBY && faseAtual != FASE_SECAGEM) {
+    diasFase = (agora - inicioFaseTempo) / 86400L;
   }
 
   String j = "{";
@@ -522,7 +531,7 @@ void webApiData() {
   j += "\"tMax\":\"" + String(tempIntMax,1) + " (" + String(horaMaxTemp) + ")\",";
   j += "\"uMin\":\"" + String(humIntMin,1) + " (" + String(horaMinHum) + ")\",";
   j += "\"uMax\":\"" + String(humIntMax,1) + " (" + String(horaMaxHum) + ")\",";
-  j += "\"diasFase\":" + String((long)diasFase) + ",";
+  j += "\"diasFase\":" + String(diasFase) + ",";
   j += "\"alerta\":" + String(alertaFaltaAgua ? "true" : "false");
   j += "}";
   server.send(200, "application/json", j);
@@ -537,12 +546,12 @@ void webApiCmd() {
     else if (v == "F") nova = FASE_FRUTIFICACAO;
     else if (v == "S") nova = FASE_SEGUNDO_FLUSH;
     else if (v == "D") nova = FASE_SECAGEM;
-    if (nova != faseAtual) { faseAtual = nova; inicioFaseMs = millis(); }
+    setNovaFase(nova);
   }
   if (server.hasArg("l")) {
-    if      (modoLuz == LUZ_AUTO)       modoLuz = LUZ_FORCADA_ON;
-    else if (modoLuz == LUZ_FORCADA_ON) modoLuz = LUZ_FORCADA_OFF;
-    else                                 modoLuz = LUZ_AUTO;
+    if      (modoLuz == LUZ_AUTO)        modoLuz = LUZ_FORCADA_ON;
+    else if (modoLuz == LUZ_FORCADA_ON)  modoLuz = LUZ_FORCADA_OFF;
+    else                                  modoLuz = LUZ_AUTO;
   }
   if (server.hasArg("r")) { alertaFaltaAgua = false; inicioUmidificacao = 0; }
   server.send(200, "text/plain", "OK");
@@ -568,14 +577,12 @@ void atualizarLED(unsigned long t) {
 
 void imprimirPainel() {
   struct tm ti; bool hv = getLocalTime(&ti);
-  Serial.println("\n================ GROW IA v3.0 ================");
+  Serial.println("\n================ GROW IA v3.1 ================");
   if(hv) Serial.printf("RELOGIO:  %02d:%02d:%02d | Uptime: %s\n", ti.tm_hour, ti.tm_min, ti.tm_sec, formatUptime(millis()-bootTime).c_str());
-  Serial.printf("FASE:     %s", nomeFase(faseAtual));
-  if (inicioFaseMs > 0 && faseAtual != FASE_STANDBY) Serial.printf(" (Dia %lu)", (millis()-inicioFaseMs)/(86400UL*1000));
-  Serial.println();
-  Serial.printf("FAE:      %s\n", faeLigado ? "VENTILANDO" : "Aguardando");
+  Serial.printf("FASE:     %s\n", nomeFase(faseAtual));
+  Serial.printf("FAE:      %s\n", faeLigado ? "VENTILANDO CO2" : "Aguardando");
   Serial.println("------------------------------------------------");
-  Serial.printf("SHT30:    %.1fC | %.1f%%  [Min:%.1f Max:%.1f]\n", tempInt, humInt, tempIntMin, tempIntMax);
+  Serial.printf("SHT30:    %.1fC | %.1f%%  [Diario Min:%.1f Max:%.1f]\n", tempInt, humInt, tempIntMin, tempIntMax);
   Serial.printf("DHT11:    %.1fC | %.1f%%\n", tempExt, humExt);
   Serial.println("------------------------------------------------");
   Serial.printf("Luz:%s(%s) Umid:%s Vento:%s Exaust:%s\n",
@@ -584,7 +591,6 @@ void imprimirPainel() {
   Serial.println("------------------------------------------------");
   if(WiFi.status()==WL_CONNECTED) Serial.printf("WIFI: %s | grow.local\n", WiFi.localIP().toString().c_str());
   Serial.println("================================================");
-  Serial.println("[0]Standby [P]Pin [F]Frut [S]Flush [D]Sec [L]Luz [R]Reset");
 }
 
 void processarSerial() {
@@ -605,7 +611,7 @@ void processarSerial() {
     case 'R': case 'r': alertaFaltaAgua=false; inicioUmidificacao=0; return;
     default: return;
   }
-  if (nova != faseAtual) { faseAtual = nova; inicioFaseMs = millis(); }
+  setNovaFase(nova);
 }
 
 // ============================================================
@@ -618,21 +624,24 @@ void setup() {
   bootTime = millis();
 
   Serial.println("\n========================================");
-  Serial.println("       GROW IA v3.0 - Iniciando...      ");
+  Serial.println("       GROW IA v3.1 - Iniciando...      ");
   Serial.println("========================================");
 
   // Relés
   int pr[] = {PIN_RELE_LUZ, PIN_RELE_UMIDIFIC, PIN_RELE_VENTO_INT, PIN_RELE_EXAUST_EXT};
   for (int i = 0; i < 4; i++) { pinMode(pr[i], OUTPUT); digitalWrite(pr[i], HIGH); }
-  Serial.println("[OK] Reles");
-  testarReles();
 
-  // SHT30
+  // Memória Anti-Apagão (NVS)
+  prefs.begin("grow", false);
+  faseAtual = (FaseCultivo)prefs.getInt("fase", (int)FASE_STANDBY);
+  inicioFaseTempo = prefs.getUInt("inicio", 0);
+  Serial.printf("[OK] Memoria recuperada: %s\n", nomeFase(faseAtual));
+
+  // Sensores
   Wire.begin(PIN_SDA, PIN_SCL);
   if (sht30.begin(0x44)) Serial.println("[OK] SHT30");
   else { Serial.println("[ERRO] SHT30!"); statusSis = SIS_ERRO_SENSOR; }
 
-  // DHT11
   dht.begin();
   Serial.println("[OK] DHT11");
 
@@ -641,29 +650,24 @@ void setup() {
   if (wm.autoConnect("GROW_SETUP")) Serial.println("[OK] WiFi");
   else Serial.println("[INFO] Portal GROW_SETUP");
 
-  // mDNS (grow.local)
+  // Serviços Web
   if (MDNS.begin("grow")) Serial.println("[OK] mDNS: grow.local");
-
-  // NTP
   configTime(GMT_OFFSET_SEC, DAYLIGHT_OFF, NTP_SERVER);
-
-  // OTA (Atualização pelo WiFi via Arduino IDE)
+  
   ArduinoOTA.setHostname("grow");
   ArduinoOTA.begin();
-  Serial.println("[OK] OTA ativo");
-
-  // Web Server
+  
   server.on("/", webRoot);
   server.on("/api/data", webApiData);
   server.on("/api/cmd", webApiCmd);
   server.begin();
-  Serial.println("[OK] Web Server :80");
+  Serial.println("[OK] Web Server rodando");
 
   Serial.println("========================================\n");
 }
 
 // ============================================================
-//  LOOP (100% Não-Bloqueante)
+//  LOOP
 // ============================================================
 
 void loop() {
@@ -676,14 +680,12 @@ void loop() {
   if (agora - ultimaLeitura >= 2000) {
     ultimaLeitura = agora;
 
-    // Ler sensores brutos
     float tI = sht30.readTemperature(), hI = sht30.readHumidity();
     float tE = dht.readTemperature(),   hE = dht.readHumidity();
 
     sensorIntOk = !isnan(tI) && !isnan(hI);
     sensorExtOk = !isnan(tE) && !isnan(hE);
 
-    // Aplicar filtro de média móvel
     if (sensorIntOk && sensorExtOk) {
       atualizarFiltro(tI, hI, tE, hE);
       atualizarMinMax();
@@ -692,29 +694,30 @@ void loop() {
       atualizarMinMax();
     }
 
-    // Relógio
     struct tm ti;
     horaValida = getLocalTime(&ti);
     horaAtual = horaValida ? ti.tm_hour : -1;
 
-    // Status
+    // Se é a primeira vez pegando a hora certinha, e o timestamp estava 0, salva.
+    if (horaValida && inicioFaseTempo == 0 && faseAtual != FASE_STANDBY) {
+      time_t stamp; time(&stamp);
+      if (stamp > 1600000000) {
+        inicioFaseTempo = stamp;
+        prefs.putUInt("inicio", (uint32_t)inicioFaseTempo);
+      }
+    }
+
     if (!sensorIntOk)                       statusSis = SIS_ERRO_SENSOR;
     else if (WiFi.status() != WL_CONNECTED) statusSis = SIS_SEM_WIFI;
     else                                    statusSis = SIS_OK;
 
-    // Motor + Segurança
     if (sensorIntOk) {
       executarMotor(agora);
       aplicarSeguranca();
     }
 
-    // Progressão automática
-    verificarProgressao(agora);
-
-    // Aplicar relés
+    verificarProgressao();
     aplicarReles();
-
-    // Serial
     imprimirPainel();
   }
 
