@@ -17,6 +17,7 @@
 #include <ArduinoOTA.h>
 #include <WiFiClientSecure.h>
 #include <HTTPClient.h> // Nuvem
+#include <HTTPUpdate.h> // Atualização Remota via Web (OTA)
 #include <LittleFS.h>   // Datalogger Offline
 #include <time.h>
 #include <Preferences.h> // Memória Anti-Apagão
@@ -36,9 +37,9 @@ const int LUZ_HORA_DESLIGA = 8;
 
 // --- Temperaturas ---
 const float TEMP_MINIMA    = 25.0;
-const float TEMP_ALVO_MAX  = 28.5;
-const float TEMP_CRITICA   = 30.0;
-const float TEMP_CORTE_LUZ = 33.0;
+const float TEMP_ALVO_MAX  = 29.0;
+const float TEMP_CRITICA   = 32.0; // Aumentado para evitar spam no calor de MS
+const float TEMP_CORTE_LUZ = 34.0; // Desliga luz por segurança térmica extrema
 
 // --- Umidade ---
 const float UMIDADE_MINIMA = 88.0;
@@ -143,10 +144,11 @@ const char* nomeModoLuz() {
   if(modoLuz==LUZ_AUTO) return "AUTO"; if(modoLuz==LUZ_FORCADA_ON) return "ON"; return "OFF";
 }
 PerfilClimatico obterPerfil(FaseCultivo f) {
-  // Estufa 1x1x2m (2m cubicos) - Parametros Otimizados P. Cubensis
-  if(f==FASE_PINANDO) return {24.5, 95.0, 99.0, 4UL*60000, 40UL*60000}; // Alta umidade e queda de temp para engatilhar.
-  if(f==FASE_FRUTIFICACAO) return {25.5, 90.0, 95.0, 4UL*60000, 30UL*60000}; // FAE mais frequente (muito CO2 gerado), temp max 25.5C.
-  if(f==FASE_SEGUNDO_FLUSH) return {24.5, 95.0, 99.0, 4UL*60000, 40UL*60000}; // Replica a pinagem para novo ciclo.
+  // CLIMA TROPICAL (Campo Grande/MS) - Genetica Cambodian/TAT (Termotolerantes)
+  // Sem AC: Foco em alta evaporacao (resfriamento) e FAE agressivo devido ao metabolismo acelerado no calor.
+  if(f==FASE_PINANDO) return {28.0, 95.0, 99.0, 5UL*60000, 40UL*60000}; // Pinagem induzida por umidade e FAE, aceitando calor.
+  if(f==FASE_FRUTIFICACAO) return {29.0, 88.0, 95.0, 5UL*60000, 25UL*60000}; // Calor = CO2 extremo. FAE muito agressivo (5m a cada 25m).
+  if(f==FASE_SEGUNDO_FLUSH) return {28.0, 95.0, 99.0, 5UL*60000, 40UL*60000};
   return {TEMP_ALVO_MAX, UMIDADE_MINIMA, UMIDADE_MAXIMA, FAE_ON_MS, FAE_OFF_MS};
 }
 String formatUptime(unsigned long ms) {
@@ -283,6 +285,18 @@ void enviarNuvem(unsigned long agora) {
             alertaFaltaAgua = false;
             inicioUmidificacao = 0;
             ultimoEnvioNuvem = 0; // Atualiza a nuvem pra apagar o alerta
+         }
+         if (docRes.containsKey("comando_ota")) {
+            Serial.println("📥 COMANDO NUVEM: INICIANDO ATUALIZACAO OTA REMOTA!");
+            WiFiClientSecure otaClient; 
+            otaClient.setInsecure(); // Ignora validação rigorosa de SSL (HostGator)
+            httpUpdate.rebootOnUpdate(true);
+            String fwUrl = String(CLOUD_URL);
+            fwUrl.replace("api/index.php", "firmware.bin"); // Pega o arquivo da mesma pasta do site
+            t_httpUpdate_return ret = httpUpdate.update(otaClient, fwUrl);
+            if (ret == HTTP_UPDATE_FAILED) {
+               Serial.printf("❌ Falha no OTA (%d): %s\n", httpUpdate.getLastError(), httpUpdate.getLastErrorString().c_str());
+            }
          }
       }
       Serial.println("[NUVEM] Leitura enviada!");

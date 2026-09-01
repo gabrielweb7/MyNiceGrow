@@ -58,6 +58,9 @@
                     <span class="w-2 h-2 rounded-full bg-slate-500 pulse-dot" id="dotColor"></span>
                     <span id="statusText" class="text-slate-400">Aguardando...</span>
                 </div>
+                <button onclick="dispararOTA()" class="ml-2 px-2.5 py-1 text-[10px] bg-slate-800 hover:bg-emerald-600 border border-slate-700 hover:border-emerald-500 rounded text-slate-300 hover:text-white transition-all font-semibold uppercase tracking-wider hidden sm:block">
+                    OTA
+                </button>
             </div>
             <div class="flex items-center gap-2">
                 <button onclick="filtrar(1440, this)"  class="btn-filter px-3 py-1.5 rounded-lg text-xs font-bold bg-slate-800 hover:bg-slate-700 active">24h</button>
@@ -377,6 +380,14 @@
                 if (await enviarComando({reset_agua: 1})) {
                     document.getElementById('releUmidStatus').textContent = "ENVIANDO...";
                     loopDados(2000);
+                }
+            }
+        }
+
+        async function dispararOTA() {
+            if (confirm("⚠️ ATUALIZAÇÃO REMOTA (OTA)\n\nVocê já compilou o código na Arduino IDE (Export Compiled Binary) e enviou o arquivo 'firmware.bin' para a pasta raiz da HostGator?\n\nSe sim, clique em OK para mandar a placa atualizar.")) {
+                if (await enviarComando({ota: 1})) {
+                    alert("Comando enviado! O ESP32 vai baixar o arquivo firmware.bin e reiniciar automaticamente em cerca de 30 segundos.");
                 }
             }
         }
