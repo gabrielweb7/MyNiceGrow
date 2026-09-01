@@ -181,6 +181,8 @@
         const baseChartOpts = {
             chart: { background: 'transparent', toolbar: { show: true, tools: { download: true, selection: true, zoom: true, zoomin: true, zoomout: true, pan: true, reset: true } }, animations: { enabled: true, easing: 'easeinout', speed: 800 } },
             theme: { mode: 'dark' },
+            dataLabels: { enabled: false },
+            markers: { size: 0, hover: { size: 4 } },
             grid: { borderColor: 'rgba(148,163,184,0.08)', strokeDashArray: 3 },
             xaxis: { 
                 type: 'datetime', 
@@ -191,12 +193,13 @@
                 }, 
                 axisBorder: { show: false }, 
                 axisTicks: { show: false },
-                tooltip: { enabled: false }
+                tooltip: { enabled: false },
+                crosshairs: { show: true, width: 1, stroke: { color: '#334155', width: 1, dashArray: 3 } }
             },
             yaxis: { labels: { style: { colors: '#64748b', fontSize: '10px' } } },
             stroke: { curve: 'smooth', width: 2.5 },
             legend: { position: 'top', horizontalAlign: 'right', fontSize: '11px', labels: { colors: '#94a3b8' }, markers: { radius: 2 } },
-            tooltip: { theme: 'dark', x: { format: 'dd/MM HH:mm' } }
+            tooltip: { shared: true, intersect: false, theme: 'dark', x: { format: 'dd/MM HH:mm' } }
         };
 
         function initCharts() {
