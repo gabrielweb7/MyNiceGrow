@@ -162,26 +162,6 @@ void setNovaFase(FaseCultivo nova) {
 // ============================================================
 //  NUVEM & DATALOGGER OFFLINE (LittleFS)
 // ============================================================
-void enviarNuvem(unsigned long agora) {
-  if (agora - ultimoEnvioNuvem < INTERVALO_NUVEM && ultimoEnvioNuvem != 0) return;
-  ultimoEnvioNuvem = agora;
-
-  time_t ts; time(&ts);
-  if (ts < 1600000000) ts = 0; // NTP não sincronizou
-
-  // Monta JSON da leitura
-void mudarFase(int novaFase) {
-  faseAtual = (FaseCultivo)novaFase;
-  tempoInicioFase = millis();
-  
-  prefs.begin("grow", false);
-  prefs.putInt("fase", (int)faseAtual);
-  prefs.end();
-  
-  Serial.printf("[FSM] Fase alterada para: %s\n", nomeFase(faseAtual).c_str());
-  String msg = "🍄 Grow IA: Nova fase iniciada -> " + nomeFase(faseAtual);
-  enviarTelegram(msg);
-}
 
 // ---------------------------------------------------------
 // OFFLINE DATALOGGER (ANTI-APAGÃO DE INTERNET)
@@ -207,12 +187,32 @@ void salvarOffline(String jsonPayload) {
 // ---------------------------------------------------------
 // COMUNICAÇÃO COM A NUVEM
 // ---------------------------------------------------------
-void enviarNuvem(String jsonPayload) {
+void enviarNuvem(unsigned long agora) {
+  if (agora - ultimoEnvioNuvem < INTERVALO_NUVEM && ultimoEnvioNuvem != 0) return;
+  ultimoEnvioNuvem = agora;
+
+  time_t ts; time(&ts);
+  if (ts < 1600000000) ts = 0; // NTP não sincronizou
+
+  // Monta JSON da leitura
+  String json = "{";
+  json += "\"timestamp\":" + String((uint32_t)ts) + ",";
+  json += "\"tI\":" + String(tempInt, 1) + ",";
+  json += "\"uI\":" + String(humInt, 1) + ",";
+  json += "\"tE\":" + String(tempExt, 1) + ",";
+  json += "\"uE\":" + String(humExt, 1) + ",";
+  json += "\"rLuz\":" + String(releLuz?1:0) + ",";
+  json += "\"rUmid\":" + String(releUmidific?1:0) + ",";
+  json += "\"rVento\":" + String(releVentoInt?1:0) + ",";
+  json += "\"rExaust\":" + String(releExaustExt?1:0) + ",";
+  json += "\"fase\":\"" + String(nomeFase((int)faseAtual)) + "\"";
+  json += "}";
+
   if (WiFi.status() != WL_CONNECTED) {
     Serial.println("[WIFI] Caiu! Tentando forcar reconexao agresiva...");
     WiFi.disconnect();
     WiFi.reconnect();
-    salvarOffline(jsonPayload);
+    salvarOffline(json);
     return;
   }
   
@@ -229,16 +229,22 @@ void enviarNuvem(String jsonPayload) {
     }
     bulk += "]"; f.close();
 
-    HTTPClient http;
-    if (http.begin(client, CLOUD_URL)) {
-      http.addHeader("Content-Type", "application/json");
-      http.addHeader("X-Api-Key", CLOUD_KEY);
-      int code = http.POST(bulk);
-      http.end();
+    WiFiClientSecure clientBulk; clientBulk.setInsecure();
+    HTTPClient httpBulk;
+    if (httpBulk.begin(clientBulk, CLOUD_URL)) {
+      httpBulk.addHeader("Content-Type", "application/json");
+      httpBulk.addHeader("X-Api-Key", CLOUD_KEY);
+      int code = httpBulk.POST(bulk);
+      httpBulk.end();
       if (code == 200) {
         LittleFS.remove("/offline.log");
         Serial.println("[NUVEM] Lote offline sincronizado!");
       }
+    }
+  }
+
+  // 2. ENVIA LEITURA ATUAL
+  WiFiClientSecure client;
   client.setInsecure();
   HTTPClient http;
   if (http.begin(client, CLOUD_URL)) {
@@ -251,7 +257,7 @@ void enviarNuvem(String jsonPayload) {
       if (!deserializeJson(docRes, response)) {
          if (docRes.containsKey("comando_fase")) {
             int fc = docRes["comando_fase"];
-            if (fc != faseAtual) mudarFase(fc);
+            if (fc != (int)faseAtual) setNovaFase((FaseCultivo)fc);
          }
          if (docRes.containsKey("comando_luz")) {
             int cl = docRes["comando_luz"];
@@ -264,8 +270,7 @@ void enviarNuvem(String jsonPayload) {
       Serial.println("[NUVEM] Leitura enviada!");
     } else {
       Serial.printf("[NUVEM] Erro %d. Salvo offline.\n", code);
-      File f = LittleFS.open("/offline.log", "a");
-      if (f) { f.println(json); f.close(); }
+      salvarOffline(json);
     }
     http.end();
   }

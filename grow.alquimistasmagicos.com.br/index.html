@@ -242,16 +242,32 @@
 
         async function enviarComando(params) {
             try {
+                let p = localStorage.getItem('adminPass');
+                if (!p) {
+                    p = prompt("🔒 Senha Admin necessária para comandar a Estufa:");
+                    if (!p) return;
+                    localStorage.setItem('adminPass', p);
+                }
+
                 const fd = new FormData();
                 for (let key in params) fd.append(key, params[key]);
-                await fetch('api/comando.php', { 
+                const res = await fetch('api/comando.php', { 
                     method: 'POST', 
                     body: fd,
-                    headers: { 'X-Api-Key': 'GrowIA_V4_SuperSecreta!' }
+                    headers: { 'X-Api-Key': p }
                 });
+                
+                if (res.status === 401) {
+                    alert("❌ Senha Incorreta!");
+                    localStorage.removeItem('adminPass');
+                    return;
+                }
+
                 const st = document.getElementById('cmdStatus');
                 st.style.opacity = '1'; setTimeout(() => st.style.opacity = '0', 3000);
-            } catch(e) {}
+            } catch(e) {
+                console.error("Falha ao enviar comando", e);
+            }
         }
         function mudarFase(f) { enviarComando({fase: f}); }
         function mudarLuz() {
