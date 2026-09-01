@@ -156,13 +156,13 @@ const char* htmlDashboard PROGMEM = R"rawliteral(
     body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background-color: #121212; color: #ffffff; text-align: center; margin: 0; padding: 20px; }
     h1 { color: #00ff88; margin-bottom: 5px; }
     .subtitle { color: #888; font-size: 14px; margin-bottom: 20px; }
-    .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 15px; max-width: 600px; margin: 0 auto 30px auto; }
-    .card { background: #1e1e1e; padding: 20px; border-radius: 10px; border-left: 4px solid #333; box-shadow: 0 4px 6px rgba(0,0,0,0.3); }
+    .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: 10px; max-width: 650px; margin: 0 auto 30px auto; }
+    .card { background: #1e1e1e; padding: 15px; border-radius: 10px; border-left: 4px solid #333; box-shadow: 0 4px 6px rgba(0,0,0,0.3); }
     .card.blue { border-color: #00bfff; }
     .card.green { border-color: #00ff88; }
     .card.red { border-color: #ff3366; }
-    .card h2 { font-size: 12px; text-transform: uppercase; margin: 0 0 10px 0; color: #aaa; }
-    .card .value { font-size: 24px; font-weight: bold; }
+    .card h2 { font-size: 11px; text-transform: uppercase; margin: 0 0 10px 0; color: #aaa; }
+    .card .value { font-size: 20px; font-weight: bold; }
     .badge { display: inline-block; padding: 5px 10px; border-radius: 20px; font-size: 12px; font-weight: bold; margin: 5px; }
     .badge.on { background: #00ff88; color: #000; }
     .badge.off { background: #555; color: #fff; }
@@ -176,7 +176,7 @@ const char* htmlDashboard PROGMEM = R"rawliteral(
 </head>
 <body>
   <h1>🍄 Grow IA</h1>
-  <div class="subtitle">Fase Atual: <span id="faseName">Carregando...</span></div>
+  <div class="subtitle">Fase Atual: <span id="faseName" style="color:#00bfff;">Carregando...</span></div>
   
   <div class="grid">
     <div class="card green">
@@ -187,13 +187,17 @@ const char* htmlDashboard PROGMEM = R"rawliteral(
       <h2>Umid Interna</h2>
       <div class="value" id="uInt">-- %</div>
     </div>
-    <div class="card">
+    <div class="card red">
       <h2>Temp Externa</h2>
       <div class="value" id="tExt">-- °C</div>
     </div>
+    <div class="card blue">
+      <h2>Umid Externa</h2>
+      <div class="value" id="uExt">-- %</div>
+    </div>
   </div>
 
-  <div class="card" style="max-width: 560px; margin: 0 auto 30px auto;">
+  <div class="card" style="max-width: 610px; margin: 0 auto 30px auto;">
     <h2>Equipamentos</h2>
     <div>
       <span id="r1" class="badge off">Luz</span>
@@ -206,13 +210,14 @@ const char* htmlDashboard PROGMEM = R"rawliteral(
 
   <div class="controls">
     <select id="faseSelect" onchange="mudarFase(this.value)">
+      <option value="0">Mudar Fase (Atual: Aguarde...)</option>
       <option value="0">Sem Cultivo (Standby)</option>
-      <option value="P">Pinando</option>
-      <option value="F">Frutificação</option>
-      <option value="S">Segundo Flush</option>
-      <option value="D">Secagem (Limpeza)</option>
+      <option value="P">Pinando (Alta Umidade)</option>
+      <option value="F">Frutificação (Equilíbrio)</option>
+      <option value="S">Segundo Flush (Reidratação)</option>
+      <option value="D">Secagem (Limpeza extrema)</option>
     </select>
-    <button onclick="ciclarLuz()">Ciclar Luz (Auto/On/Off)</button>
+    <button onclick="ciclarLuz()">Controle da Luz: <span id="modLuz">...</span></button>
   </div>
 
   <script>
@@ -221,7 +226,9 @@ const char* htmlDashboard PROGMEM = R"rawliteral(
         document.getElementById('tInt').innerText = d.tInt.toFixed(1) + ' °C';
         document.getElementById('uInt').innerText = d.uInt.toFixed(1) + ' %';
         document.getElementById('tExt').innerText = d.tExt.toFixed(1) + ' °C';
+        document.getElementById('uExt').innerText = d.uExt.toFixed(1) + ' %';
         document.getElementById('faseName').innerText = d.fase;
+        document.getElementById('modLuz').innerText = d.luzModo;
         
         const setBadge = (id, isOn) => {
           const el = document.getElementById(id);
@@ -234,10 +241,10 @@ const char* htmlDashboard PROGMEM = R"rawliteral(
     }
     
     function mudarFase(val) { fetch('/api/cmd?f=' + val); }
-    function ciclarLuz() { fetch('/api/cmd?l=1'); }
+    function ciclarLuz() { fetch('/api/cmd?l=1'); updateDashboard(); }
 
-    setInterval(updateDashboard, 2000); // Atualiza a cada 2 seg
-    updateDashboard(); // Primeira chamada
+    setInterval(updateDashboard, 2000); 
+    updateDashboard(); 
   </script>
 </body>
 </html>
@@ -262,6 +269,7 @@ void handleApiData() {
   json += "\"r3\":" + String(estadoExaustInt ? "true" : "false") + ",";
   json += "\"r4\":" + String(estadoExaustExt ? "true" : "false") + ",";
   json += "\"fase\":\"" + getNomeFase(faseAtual) + "\",";
+  json += "\"luzModo\":\"" + getNomeModoLuz() + "\",";
   json += "\"alerta\":" + String(alertaFaltaAgua ? "true" : "false");
   json += "}";
   server.send(200, "application/json", json);
@@ -376,106 +384,158 @@ void loop() {
     int horaAtual = horaValida ? timeinfo.tm_hour : -1;
 
     // ==============================================================
-    // MOTOR DE AUTOMAÇÃO (A MÁGICA ACONTECE AQUI!)
+    // MOTOR DE AUTOMAÇÃO (MÁQUINA DE ESTADOS DINÂMICA)
     // ==============================================================
     if (!erroSensores) {
       
-      // Controle do Temporizador de FAE (Fresh Air Exchange)
-      if (modoFAELigado) {
-        if (tempoAtual - ultimoCicloFAE >= FAE_TEMPO_ON) {
-          modoFAELigado = false;
-          ultimoCicloFAE = tempoAtual;
-        }
-      } else {
-        if (tempoAtual - ultimoCicloFAE >= FAE_TEMPO_OFF) {
-          modoFAELigado = true;
-          ultimoCicloFAE = tempoAtual;
-        }
-      }
-
+      // Variáveis dinâmicas que cada fase vai preencher:
+      float alvoTempMin = TEMP_MINIMA; 
+      float alvoTempMax = TEMP_ALVO_MAX;
+      float alvoUmidMin = UMIDADE_MINIMA;
+      float alvoUmidMax = UMIDADE_MAXIMA;
+      unsigned long timerFaeOn = FAE_TEMPO_ON;
+      unsigned long timerFaeOff = FAE_TEMPO_OFF;
+      bool bloquearUmidificador = false;
+      bool manterExaustorExtLigado = false; // Override total
+      
       switch (faseAtual) {
         
         case SEM_CULTIVO:
-          estadoUmidific = false;
-          estadoExaustInt = false;
-          estadoExaustExt = false;
-          if (modoLuzAtual == LUZ_AUTO) estadoLuz = false;
+          bloquearUmidificador = true;
+          // Deixa as variáveis como padrão, a luz será apagada no override
           break;
 
         case MODO_SECAGEM:
-          estadoUmidific = false;
-          estadoExaustInt = true;
-          estadoExaustExt = true;
-          if (modoLuzAtual == LUZ_AUTO) estadoLuz = false;
+          bloquearUmidificador = true;
+          manterExaustorExtLigado = true;
           break;
 
         case PINANDO:
+          // Pinando: Foco no aumento de oxigênio (CO2 baixo) e altíssima umidade. Queda leve de temperatura.
+          alvoTempMax = 27.5; // Mais frio para induzir
+          alvoUmidMin = 95.0; // Umidade Extrema
+          alvoUmidMax = 99.0;
+          timerFaeOn = 3 * 60 * 1000;  // 3 minutos de ar fresco
+          timerFaeOff = 40 * 60 * 1000; // a cada 40 minutos (muito oxigênio)
+          break;
+
         case FRUTIFICACAO:
+          // Frutificação: Foco no equilíbrio e crescimento.
+          alvoTempMax = 28.5; // Suporta um pouquinho mais de calor
+          alvoUmidMin = 88.0; // Umidade um pouco menor que no Pinning
+          alvoUmidMax = 92.0; // Evaporação na superfície do bolo estimula o fruto
+          timerFaeOn = 2 * 60 * 1000;   // 2 minutos
+          timerFaeOff = 60 * 60 * 1000; // a cada 1 hora
+          break;
+
         case SEGUNDO_FLUSH:
-          
-          // 1. UMIDADE (Controle com Histerese e Cão de Guarda)
-          if (!alertaFaltaAgua) {
-            if (humInt < UMIDADE_MINIMA) estadoUmidific = true;
-            else if (humInt > UMIDADE_MAXIMA) estadoUmidific = false;
-          } else {
-            estadoUmidific = false; // Trava desligado se faltou água!
-          }
-
-          // Monitor do Cão de Guarda da Umidade
-          if (estadoUmidific) {
-            if (inicioUmidificacao == 0) inicioUmidificacao = tempoAtual;
-            else if (tempoAtual - inicioUmidificacao > TIMEOUT_UMIDIFICADOR) {
-              alertaFaltaAgua = true;
-              estadoUmidific = false;
-            }
-          } else {
-            inicioUmidificacao = 0; // Reset
-          }
-
-          // 2. VENTO INTERNO (Circulação de Névoa)
-          if (estadoUmidific || modoFAELigado) estadoExaustInt = true;
-          else estadoExaustInt = false;
-
-          // 3. TEMPERATURA E CO2 (O Escudo Térmico)
-          if (tempInt >= TEMP_CRITICA) {
-            if (tempExt < tempInt) estadoExaustExt = true;
-            else estadoExaustExt = false;
-          } 
-          else if (tempInt >= TEMP_ALVO_MAX) {
-            if (tempExt < tempInt) estadoExaustExt = true;
-            else estadoExaustExt = false;
-          } 
-          else if (tempInt < TEMP_MINIMA) {
-            estadoExaustExt = false;
-          }
-          else {
-            estadoExaustExt = modoFAELigado;
-          }
-
-          // 4. Iluminação Inteligente (Ciclo Noturno)
-          if (modoLuzAtual == LUZ_AUTO) {
-            if (horaValida) {
-              if (horaAtual >= 20 || horaAtual < 8) estadoLuz = true;
-              else estadoLuz = false;
-            } else {
-              estadoLuz = false; 
-            }
-          }
+          // Segundo Flush: Muito calor e pouca exaustão para o bolo "suar" e recuperar.
+          alvoTempMax = 29.0; 
+          alvoUmidMin = 95.0; 
+          alvoUmidMax = 99.0; 
+          timerFaeOn = 1 * 60 * 1000;   // Apenas 1 minuto de FAE
+          timerFaeOff = 120 * 60 * 1000; // A cada 2 horas (Quase zero oxigênio novo)
           break;
       }
+
+      // -------------------------------------------------------------
+      // O CÉREBRO DE EXECUÇÃO (Aplica as regras da fase escolhida acima)
+      // -------------------------------------------------------------
+
+      if (faseAtual == SEM_CULTIVO) {
+        estadoUmidific = false;
+        estadoExaustInt = false;
+        estadoExaustExt = false;
+        if (modoLuzAtual == LUZ_AUTO) estadoLuz = false;
+      } 
+      else if (faseAtual == MODO_SECAGEM) {
+        estadoUmidific = false;
+        estadoExaustInt = true;
+        estadoExaustExt = true;
+        if (modoLuzAtual == LUZ_AUTO) estadoLuz = false;
+      } 
+      else {
+        // --- MOTOR DE CULTIVO ATIVO ---
+        
+        // 1. Controle do Temporizador de FAE (Fresh Air Exchange)
+        if (modoFAELigado) {
+          if (tempoAtual - ultimoCicloFAE >= timerFaeOn) {
+            modoFAELigado = false;
+            ultimoCicloFAE = tempoAtual;
+          }
+        } else {
+          if (tempoAtual - ultimoCicloFAE >= timerFaeOff) {
+            modoFAELigado = true;
+            ultimoCicloFAE = tempoAtual;
+          }
+        }
+
+        // 2. UMIDADE (Controle com Histerese e Cão de Guarda)
+        if (!alertaFaltaAgua && !bloquearUmidificador) {
+          if (humInt < alvoUmidMin) estadoUmidific = true;
+          else if (humInt > alvoUmidMax) estadoUmidific = false;
+        } else {
+          estadoUmidific = false; // Trava desligado se faltou água!
+        }
+
+        // Monitor do Cão de Guarda da Umidade
+        if (estadoUmidific) {
+          if (inicioUmidificacao == 0) inicioUmidificacao = tempoAtual;
+          else if (tempoAtual - inicioUmidificacao > TIMEOUT_UMIDIFICADOR) {
+            alertaFaltaAgua = true;
+            estadoUmidific = false;
+          }
+        } else {
+          inicioUmidificacao = 0; // Reset
+        }
+
+        // 3. VENTO INTERNO (Circulação de Névoa)
+        if (estadoUmidific || modoFAELigado) estadoExaustInt = true;
+        else estadoExaustInt = false;
+
+        // 4. TEMPERATURA E CO2 (O Escudo Térmico)
+        if (tempInt >= TEMP_CRITICA) {
+          // EMERGÊNCIA Térmica
+          if (tempExt < tempInt) estadoExaustExt = true;
+          else estadoExaustExt = false;
+        } 
+        else if (tempInt >= alvoTempMax) {
+          // CALOR
+          if (tempExt < tempInt) estadoExaustExt = true;
+          else estadoExaustExt = false;
+        } 
+        else if (tempInt < TEMP_MINIMA) {
+          // FRIO
+          estadoExaustExt = false;
+        }
+        else {
+          // TEMPERATURA IDEAL
+          estadoExaustExt = modoFAELigado;
+        }
+
+        // 5. Iluminação Inteligente (Ciclo Noturno)
+        if (modoLuzAtual == LUZ_AUTO) {
+          if (horaValida) {
+            if (horaAtual >= 20 || horaAtual < 8) estadoLuz = true;
+            else estadoLuz = false;
+          } else {
+            estadoLuz = false; 
+          }
+        }
+      }
       
-      // Overrides Manuais da Luz
+      // -------------------------------------------------------------
+      // OVERRIDES DE SEGURANÇA E USUÁRIO (IGNORAM O MOTOR)
+      // -------------------------------------------------------------
+      
+      // Override Manual da Luz
       if (modoLuzAtual == LUZ_FORCADA_ON) estadoLuz = true;
       else if (modoLuzAtual == LUZ_FORCADA_OFF) estadoLuz = false;
 
-      // ==========================================
       // CORTE TÉRMICO DE SEGURANÇA MÁXIMA
-      // ==========================================
-      if (tempInt >= TEMP_CORTE_LUZ) {
-        estadoLuz = false; // Desliga a lâmpada na marra independente do timer!
-      }
+      if (tempInt >= TEMP_CORTE_LUZ) estadoLuz = false;
 
-      // APLICA
+      // APLICA FISICAMENTE
       setRele(RELE_LUZ, estadoLuz);
       setRele(RELE_UMIDIFIC, estadoUmidific);
       setRele(RELE_EXAUST_INT, estadoExaustInt);
