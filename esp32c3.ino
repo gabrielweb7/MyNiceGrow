@@ -550,13 +550,21 @@ void loop() {
           inicioUmidificacao = 0; // Zera o cronômetro
         }
 
-        // 6. ILUMINAÇÃO INTELIGENTE (Ciclo Noturno)
+        // 6. ILUMINAÇÃO INTELIGENTE (Ciclo Noturno + Aquecedor de Emergência)
         if (modoLuzAtual == LUZ_AUTO) {
-          if (horaValida) {
-            if (horaAtual >= 20 || horaAtual < 8) estadoLuz = true;
-            else estadoLuz = false;
+          
+          // Regra Base: Ciclo 12/12 (Das 20h às 08h)
+          if (horaValida && (horaAtual >= 20 || horaAtual < 8)) {
+            estadoLuz = true;
           } else {
             estadoLuz = false; 
+          }
+
+          // O PULO DO GATO: Usar a lâmpada como Aquecedor!
+          // Se o cultivo estiver morrendo de frio e a rua também estiver congelando (Estratégia D)...
+          // O robô acorda a lâmpada, quebrando a regra da noite, para usar os fótons como fonte de calor físico!
+          if (muitoFrio && !arQuenteLaFora) {
+            estadoLuz = true;
           }
         }
       }
