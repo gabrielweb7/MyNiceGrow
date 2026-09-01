@@ -165,6 +165,7 @@ void setNovaFase(FaseCultivo nova) {
   prefs.putUInt("inicio", (uint32_t)inicioFaseTempo);
   prefs.end();
   Serial.printf("[FSM] Fase -> %s\n", nomeFase((int)faseAtual));
+  ultimoEnvioNuvem = 0; // Força re-envio p/ atualizar o Dashboard imediatamente
 }
 
 // ============================================================
@@ -274,9 +275,11 @@ void enviarNuvem(unsigned long agora) {
          }
          if (docRes.containsKey("comando_luz")) {
             int cl = docRes["comando_luz"];
-            if (cl == 0 && modoLuz != LUZ_AUTO) { modoLuz = LUZ_AUTO; Serial.println("📥 COMANDO NUVEM: Luz mudou para modo AUTO"); }
-            else if (cl == 1 && modoLuz != LUZ_FORCADA_ON) { modoLuz = LUZ_FORCADA_ON; Serial.println("📥 COMANDO NUVEM: Luz mudou para FORCADA LIGADA"); }
-            else if (cl == 2 && modoLuz != LUZ_FORCADA_OFF) { modoLuz = LUZ_FORCADA_OFF; Serial.println("📥 COMANDO NUVEM: Luz mudou para FORCADA DESLIGADA"); }
+            bool luzMudou = false;
+            if (cl == 0 && modoLuz != LUZ_AUTO) { modoLuz = LUZ_AUTO; Serial.println("📥 COMANDO NUVEM: Luz mudou para modo AUTO"); luzMudou = true; }
+            else if (cl == 1 && modoLuz != LUZ_FORCADA_ON) { modoLuz = LUZ_FORCADA_ON; Serial.println("📥 COMANDO NUVEM: Luz mudou para FORCADA LIGADA"); luzMudou = true; }
+            else if (cl == 2 && modoLuz != LUZ_FORCADA_OFF) { modoLuz = LUZ_FORCADA_OFF; Serial.println("📥 COMANDO NUVEM: Luz mudou para FORCADA DESLIGADA"); luzMudou = true; }
+            if (luzMudou) ultimoEnvioNuvem = 0; // Dispara atualização imediata
          }
       }
       Serial.println("[NUVEM] Leitura enviada!");
