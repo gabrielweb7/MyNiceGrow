@@ -128,6 +128,8 @@ bool faeLigado = false, alertaFaltaAgua = false;
 bool horaValida = false; int horaAtual = -1;
 time_t inicioFaseTempo = 0; unsigned long bootTime = 0;
 uint32_t fwAtual = 0;
+uint32_t tempoUmidAcumuladoMs = 0;
+unsigned long ultimoSaveUmidAcum = 0;
 
 // ============================================================
 //  FUNÇÕES AUXILIARES
@@ -284,6 +286,11 @@ void enviarNuvem(unsigned long agora) {
             Serial.println("📥 COMANDO NUVEM: Reset de Alerta de Agua recebido!");
             alertaFaltaAgua = false;
             inicioUmidificacao = 0;
+            tempoUmidAcumuladoMs = 0;
+            prefs.begin("grow", false);
+            prefs.putBool("sem_agua", false);
+            prefs.putUInt("umid_acum", 0);
+            prefs.end();
             ultimoEnvioNuvem = 0; // Atualiza a nuvem pra apagar o alerta
          }
          uint32_t vNuvem = docRes.containsKey("versao_nuvem") ? (uint32_t)docRes["versao_nuvem"] : 0;
@@ -422,17 +429,41 @@ void executarMotor(unsigned long agora) {
   if (!alertaFaltaAgua) {
     if (defesaEvap) releUmidific = true;
     else if (humInt < pf.umidMin) releUmidific = true;
-    else if (humInt > pf.umidMax && !defesaEvap) releUmidific = false;
+    else if (humInt > pf.umidMax && !defesaEvap) {
+      releUmidific = false;
+      if (tempoUmidAcumuladoMs > 0) {
+        tempoUmidAcumuladoMs = 0;
+        prefs.begin("grow", false);
+        prefs.putUInt("umid_acum", 0);
+        prefs.end();
+      }
+    }
   } else { releUmidific = false; }
   
   if (releUmidific) releVentoInt = true;
 
   if (releUmidific) {
     if (inicioUmidificacao == 0) inicioUmidificacao = agora;
-    else if (agora - inicioUmidificacao > TIMEOUT_UMID_MS) {
-      alertaFaltaAgua = true; releUmidific = false;
+    unsigned long decorrido = (agora - inicioUmidificacao) + tempoUmidAcumuladoMs;
+    if (decorrido >= TIMEOUT_UMID_MS) {
+      alertaFaltaAgua = true; 
+      releUmidific = false;
+      tempoUmidAcumuladoMs = 0;
+      inicioUmidificacao = 0;
+      prefs.begin("grow", false);
+      prefs.putBool("sem_agua", true);
+      prefs.putUInt("umid_acum", 0);
+      prefs.end();
+      Serial.println("🚨 SEGURANCA: Falta de Agua detectada (salvo na memoria)!");
+    } else if (agora - ultimoSaveUmidAcum >= 60000) { // Salva o tempo decorrido na memória a cada 1 minuto
+      ultimoSaveUmidAcum = agora;
+      prefs.begin("grow", false);
+      prefs.putUInt("umid_acum", (uint32_t)decorrido);
+      prefs.end();
     }
-  } else { inicioUmidificacao = 0; }
+  } else { 
+    inicioUmidificacao = 0; 
+  }
 
   if (modoLuz == LUZ_AUTO) {
     releLuz = (horaValida && (horaAtual >= LUZ_HORA_LIGA || horaAtual < LUZ_HORA_DESLIGA));
@@ -457,7 +488,10 @@ void webApiCmd() {
     setNovaFase(nova);
   }
   if (server.hasArg("l")) { if(modoLuz==LUZ_AUTO) modoLuz=LUZ_FORCADA_ON; else if(modoLuz==LUZ_FORCADA_ON) modoLuz=LUZ_FORCADA_OFF; else modoLuz=LUZ_AUTO; }
-  if (server.hasArg("r")) { alertaFaltaAgua = false; inicioUmidificacao = 0; }
+  if (server.hasArg("r")) { 
+    alertaFaltaAgua = false; inicioUmidificacao = 0; tempoUmidAcumuladoMs = 0;
+    prefs.begin("grow", false); prefs.putBool("sem_agua", false); prefs.putUInt("umid_acum", 0); prefs.end();
+  }
   server.send(200, "text/plain", "OK");
 }
 
@@ -477,6 +511,8 @@ void setup() {
   faseAtual = (FaseCultivo)prefs.getInt("fase", (int)FASE_STANDBY);
   inicioFaseTempo = prefs.getUInt("inicio", 0);
   fwAtual = prefs.getUInt("fw_ver", 0);
+  alertaFaltaAgua = prefs.getBool("sem_agua", false);
+  tempoUmidAcumuladoMs = prefs.getUInt("umid_acum", 0);
   prefs.end();
   
   Wire.begin(PIN_SDA, PIN_SCL);
