@@ -129,6 +129,161 @@ bool estadoUmidific = false;
 bool estadoExaustInt = false;
 bool estadoExaustExt = false;
 
+// ==========================================
+// VARIÁVEIS GLOBAIS DE SENSORES
+// ==========================================
+float tempExt = 0.0;
+float humExt = 0.0;
+float tempInt = 0.0;
+float humInt = 0.0;
+
+#include <WebServer.h>
+
+// Instância do Servidor Web na porta 80
+WebServer server(80);
+
+// ==========================================
+// CÓDIGO DA PÁGINA WEB (HTML/CSS/JS)
+// ==========================================
+const char* htmlDashboard PROGMEM = R"rawliteral(
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Grow IA Dashboard</title>
+  <style>
+    body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background-color: #121212; color: #ffffff; text-align: center; margin: 0; padding: 20px; }
+    h1 { color: #00ff88; margin-bottom: 5px; }
+    .subtitle { color: #888; font-size: 14px; margin-bottom: 20px; }
+    .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 15px; max-width: 600px; margin: 0 auto 30px auto; }
+    .card { background: #1e1e1e; padding: 20px; border-radius: 10px; border-left: 4px solid #333; box-shadow: 0 4px 6px rgba(0,0,0,0.3); }
+    .card.blue { border-color: #00bfff; }
+    .card.green { border-color: #00ff88; }
+    .card.red { border-color: #ff3366; }
+    .card h2 { font-size: 12px; text-transform: uppercase; margin: 0 0 10px 0; color: #aaa; }
+    .card .value { font-size: 24px; font-weight: bold; }
+    .badge { display: inline-block; padding: 5px 10px; border-radius: 20px; font-size: 12px; font-weight: bold; margin: 5px; }
+    .badge.on { background: #00ff88; color: #000; }
+    .badge.off { background: #555; color: #fff; }
+    .controls { max-width: 600px; margin: 0 auto; display: flex; flex-direction: column; gap: 10px; }
+    select, button { padding: 12px; border-radius: 8px; border: none; font-size: 16px; font-weight: bold; cursor: pointer; }
+    select { background: #333; color: white; border: 1px solid #555; }
+    button { background: #4caf50; color: white; }
+    button:active { background: #45a049; }
+    #alerta { color: #ff3366; font-weight: bold; display: none; margin-top: 15px; }
+  </style>
+</head>
+<body>
+  <h1>🍄 Grow IA</h1>
+  <div class="subtitle">Fase Atual: <span id="faseName">Carregando...</span></div>
+  
+  <div class="grid">
+    <div class="card green">
+      <h2>Temp Interna</h2>
+      <div class="value" id="tInt">-- °C</div>
+    </div>
+    <div class="card blue">
+      <h2>Umid Interna</h2>
+      <div class="value" id="uInt">-- %</div>
+    </div>
+    <div class="card">
+      <h2>Temp Externa</h2>
+      <div class="value" id="tExt">-- °C</div>
+    </div>
+  </div>
+
+  <div class="card" style="max-width: 560px; margin: 0 auto 30px auto;">
+    <h2>Equipamentos</h2>
+    <div>
+      <span id="r1" class="badge off">Luz</span>
+      <span id="r2" class="badge off">Umidificador</span>
+      <span id="r3" class="badge off">Vento Int.</span>
+      <span id="r4" class="badge off">Exaustor Ext.</span>
+    </div>
+    <div id="alerta">⚠️ ALERTA: FALTA D'ÁGUA NO UMIDIFICADOR! ⚠️</div>
+  </div>
+
+  <div class="controls">
+    <select id="faseSelect" onchange="mudarFase(this.value)">
+      <option value="0">Sem Cultivo (Standby)</option>
+      <option value="P">Pinando</option>
+      <option value="F">Frutificação</option>
+      <option value="S">Segundo Flush</option>
+      <option value="D">Secagem (Limpeza)</option>
+    </select>
+    <button onclick="ciclarLuz()">Ciclar Luz (Auto/On/Off)</button>
+  </div>
+
+  <script>
+    function updateDashboard() {
+      fetch('/api/data').then(r => r.json()).then(d => {
+        document.getElementById('tInt').innerText = d.tInt.toFixed(1) + ' °C';
+        document.getElementById('uInt').innerText = d.uInt.toFixed(1) + ' %';
+        document.getElementById('tExt').innerText = d.tExt.toFixed(1) + ' °C';
+        document.getElementById('faseName').innerText = d.fase;
+        
+        const setBadge = (id, isOn) => {
+          const el = document.getElementById(id);
+          el.className = 'badge ' + (isOn ? 'on' : 'off');
+        };
+        setBadge('r1', d.r1); setBadge('r2', d.r2); setBadge('r3', d.r3); setBadge('r4', d.r4);
+        
+        document.getElementById('alerta').style.display = d.alerta ? 'block' : 'none';
+      }).catch(e => console.log('Erro de conexão'));
+    }
+    
+    function mudarFase(val) { fetch('/api/cmd?f=' + val); }
+    function ciclarLuz() { fetch('/api/cmd?l=1'); }
+
+    setInterval(updateDashboard, 2000); // Atualiza a cada 2 seg
+    updateDashboard(); // Primeira chamada
+  </script>
+</body>
+</html>
+)rawliteral";
+
+
+// ==========================================
+// ROTAS DA API WEB
+// ==========================================
+void handleRoot() {
+  server.send(200, "text/html", htmlDashboard);
+}
+
+void handleApiData() {
+  String json = "{";
+  json += "\"tExt\":" + (isnan(tempExt) ? "0" : String(tempExt, 1)) + ",";
+  json += "\"uExt\":" + (isnan(humExt) ? "0" : String(humExt, 1)) + ",";
+  json += "\"tInt\":" + (isnan(tempInt) ? "0" : String(tempInt, 1)) + ",";
+  json += "\"uInt\":" + (isnan(humInt) ? "0" : String(humInt, 1)) + ",";
+  json += "\"r1\":" + String(estadoLuz ? "true" : "false") + ",";
+  json += "\"r2\":" + String(estadoUmidific ? "true" : "false") + ",";
+  json += "\"r3\":" + String(estadoExaustInt ? "true" : "false") + ",";
+  json += "\"r4\":" + String(estadoExaustExt ? "true" : "false") + ",";
+  json += "\"fase\":\"" + getNomeFase(faseAtual) + "\",";
+  json += "\"alerta\":" + String(alertaFaltaAgua ? "true" : "false");
+  json += "}";
+  server.send(200, "application/json", json);
+}
+
+void handleApiCmd() {
+  if (server.hasArg("f")) {
+    String cmd = server.arg("f");
+    if (cmd == "0") faseAtual = SEM_CULTIVO;
+    else if (cmd == "P") faseAtual = PINANDO;
+    else if (cmd == "F") faseAtual = FRUTIFICACAO;
+    else if (cmd == "S") faseAtual = SEGUNDO_FLUSH;
+    else if (cmd == "D") faseAtual = MODO_SECAGEM;
+  }
+  if (server.hasArg("l")) {
+    if (modoLuzAtual == LUZ_AUTO) modoLuzAtual = LUZ_FORCADA_ON;
+    else if (modoLuzAtual == LUZ_FORCADA_ON) modoLuzAtual = LUZ_FORCADA_OFF;
+    else modoLuzAtual = LUZ_AUTO;
+  }
+  server.send(200, "text/plain", "OK");
+}
+
 // Função inteligente para ligar/desligar Relés 5V de forma 100% segura no ESP32
 void setRele(int pino, bool ligar) {
   if (ligar) {
@@ -182,6 +337,13 @@ void setup() {
   // Inicia a sincronização de tempo via internet
   configTime(gmtOffset_sec, daylightOffset_sec, ntpServer);
   
+  // --- 5. INICIAR SERVIDOR WEB DASHBOARD ---
+  server.on("/", handleRoot);
+  server.on("/api/data", handleApiData);
+  server.on("/api/cmd", handleApiCmd);
+  server.begin();
+  Serial.println("Dashboard Web iniciado na porta 80!");
+  
   Serial.println("\n========================================\n");
 }
 
@@ -192,17 +354,19 @@ void setup() {
 void loop() {
   unsigned long tempoAtual = millis();
 
-  // Processa o WiFiManager
+  // Processa Servidor Web e WiFiManager
   wm.process();
+  server.handleClient();
 
   // --- 1. TAREFA: LER SENSORES (A cada 2 seg) ---
   if (tempoAtual - tempoAnteriorSensores >= intervaloSensores) {
     tempoAnteriorSensores = tempoAtual;
     
-    float tempExt = dht.readTemperature();
-    float humExt = dht.readHumidity();
-    float tempInt = sht30.readTemperature();
-    float humInt  = sht30.readHumidity();
+    // Atualiza as variáveis globais
+    tempExt = dht.readTemperature();
+    humExt = dht.readHumidity();
+    tempInt = sht30.readTemperature();
+    humInt  = sht30.readHumidity();
 
     bool erroSensores = false;
 
