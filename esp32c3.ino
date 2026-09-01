@@ -168,9 +168,35 @@ void loop() {
     }
     
     Serial.println("================================================\n");
+    Serial.println("👉 DIGITE 1, 2, 3 ou 4 NO CONSOLE E APERTE ENTER PARA TESTAR OS RELES!");
   }
 
-  // --- 2. TAREFA: ATUALIZAR LED DE STATUS (Contínuo) ---
+  // --- 3. TAREFA: TESTE MANUAL DOS RELÉS VIA SERIAL ---
+  if (Serial.available() > 0) {
+    char comando = Serial.read();
+    if (comando == '1') {
+      estadoLuz = !estadoLuz;
+      setRele(RELE_LUZ, estadoLuz);
+      Serial.println("\n[COMANDO] Alternando Rele 1 (Luz)...");
+    }
+    else if (comando == '2') {
+      estadoUmidific = !estadoUmidific;
+      setRele(RELE_UMIDIFIC, estadoUmidific);
+      Serial.println("\n[COMANDO] Alternando Rele 2 (Umidificador)...");
+    }
+    else if (comando == '3') {
+      estadoExaustInt = !estadoExaustInt;
+      setRele(RELE_EXAUST_INT, estadoExaustInt);
+      Serial.println("\n[COMANDO] Alternando Rele 3 (Exaustor Interno)...");
+    }
+    else if (comando == '4') {
+      estadoExaustExt = !estadoExaustExt;
+      setRele(RELE_EXAUST_EXT, estadoExaustExt);
+      Serial.println("\n[COMANDO] Alternando Rele 4 (Exaustor Externo)...");
+    }
+  }
+
+  // --- 4. TAREFA: ATUALIZAR LED DE STATUS (Contínuo) ---
   if (estadoAtual == STATE_ERROR) {
     // Vermelho piscando (500ms ON, 500ms OFF)
     if ((tempoAtual % 1000) < 500) rgbLedWrite(RGB_BUILTIN, LED_BRIGHTNESS, 0, 0);
