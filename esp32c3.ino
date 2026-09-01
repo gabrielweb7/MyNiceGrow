@@ -5,6 +5,14 @@
 #include <esp32-hal-rgb-led.h>
 #include <WiFi.h>
 #include <WiFiManager.h>
+#include <time.h>
+
+// ==========================================
+// CONFIGURAÇÕES DE RELÓGIO (NTP)
+// ==========================================
+const char* ntpServer = "pool.ntp.org";
+const long  gmtOffset_sec = -10800; // Horário de Brasília (UTC-3)
+const int   daylightOffset_sec = 0;
 
 // ==========================================
 // CONFIGURAÇÃO DOS PINOS
@@ -137,14 +145,16 @@ void setup() {
 
   // --- 4. INICIAR WIFI MANAGER (Não-bloqueante) ---
   Serial.println("Iniciando WiFiManager...");
-  wm.setConfigPortalBlocking(false); // Para o código não travar enquanto aguarda a senha
+  wm.setConfigPortalBlocking(false); 
   
-  // Tenta conectar no Wi-Fi salvo. Se não conseguir, cria a rede "GROW_SETUP"
   if(wm.autoConnect("GROW_SETUP")) {
     Serial.println("WiFi ja estava salvo e conectou com sucesso!");
   } else {
     Serial.println("WiFi nao salvo ou falhou. Portal de configuracao criado: GROW_SETUP");
   }
+
+  // Inicia a sincronização de tempo via internet
+  configTime(gmtOffset_sec, daylightOffset_sec, ntpServer);
   
   Serial.println("\n========================================\n");
 }
@@ -156,7 +166,7 @@ void setup() {
 void loop() {
   unsigned long tempoAtual = millis();
 
-  // Processa o WiFiManager sem travar o Arduino
+  // Processa o WiFiManager
   wm.process();
 
   // --- 1. TAREFA: LER SENSORES (A cada 2 seg) ---
@@ -170,6 +180,11 @@ void loop() {
 
     bool erroSensores = false;
 
+    // Obtém a hora atual da internet
+    struct tm timeinfo;
+    bool horaValida = getLocalTime(&timeinfo);
+    int horaAtual = horaValida ? timeinfo.tm_hour : -1;
+
     // ==============================================================
     // MOTOR DE AUTOMAÇÃO (A MÁGICA ACONTECE AQUI!)
     // ==============================================================
@@ -177,7 +192,6 @@ void loop() {
       switch (faseAtual) {
         
         case SEM_CULTIVO:
-          // Desliga tudo no automático
           estadoUmidific = false;
           estadoExaustInt = false;
           estadoExaustExt = false;
@@ -185,7 +199,6 @@ void loop() {
           break;
 
         case MODO_SECAGEM:
-          // Força exaustores, desliga umidade
           estadoUmidific = false;
           estadoExaustInt = true;
           estadoExaustExt = true;
@@ -195,39 +208,42 @@ void loop() {
         case PINANDO:
         case FRUTIFICACAO:
         case SEGUNDO_FLUSH:
-          // === LÓGICA DE CLIMA BASE (EXEMPLO) ===
-          // Aqui você vai definir as regras exatas. Exemplo básico:
-          
           // 1. Umidade
-          if (humInt < 85.0) {
-            estadoUmidific = true; // Liga para subir a umidade
-          } else if (humInt > 95.0) {
-            estadoUmidific = false; // Desliga
-          }
+          if (humInt < 85.0) estadoUmidific = true;
+          else if (humInt > 95.0) estadoUmidific = false;
 
-          // 2. Temperatura / Ar Fresco (CO2)
-          // Se passar de 27C, liga exaustor para refrescar
+          // 2. Temperatura / Exaustão
           if (tempInt > 27.0) {
             estadoExaustExt = true;
-            estadoExaustInt = true; // Ajuda a circular o vento
+            estadoExaustInt = true;
           } else {
             estadoExaustExt = false;
             estadoExaustInt = false;
           }
 
-          // 3. Luz Automática (Temporizador no futuro, por enquanto Fixo ON na frutificação)
+          // 3. Iluminação Inteligente (Ciclo Frio/Noturno)
+          // Exemplo: 12h ON (das 20:00 da noite até as 08:00 da manhã)
           if (modoLuzAtual == LUZ_AUTO) {
-            if (faseAtual == FRUTIFICACAO) estadoLuz = true;
-            else estadoLuz = false;
+            if (horaValida) {
+              // Se for de noite/madrugada
+              if (horaAtual >= 20 || horaAtual < 8) {
+                estadoLuz = true;
+              } else {
+                estadoLuz = false;
+              }
+            } else {
+              // Failsafe: se estiver sem internet, mantém apagado no automático
+              estadoLuz = false; 
+            }
           }
           break;
       }
       
-      // Overrides Manuais da Luz (Ignora as regras acima se o usuário mandou)
+      // Overrides Manuais da Luz
       if (modoLuzAtual == LUZ_FORCADA_ON) estadoLuz = true;
       else if (modoLuzAtual == LUZ_FORCADA_OFF) estadoLuz = false;
 
-      // APLICA OS ESTADOS NOS RELÉS FÍSICOS
+      // APLICA
       setRele(RELE_LUZ, estadoLuz);
       setRele(RELE_UMIDIFIC, estadoUmidific);
       setRele(RELE_EXAUST_INT, estadoExaustInt);
@@ -239,6 +255,11 @@ void loop() {
     // ==============================================================
 
     Serial.println("\n================ PAINEL DO GROW ================");
+    if (horaValida) {
+      Serial.printf("RELOGIO:           [%02d:%02d:%02d]\n", timeinfo.tm_hour, timeinfo.tm_min, timeinfo.tm_sec);
+    } else {
+      Serial.println("RELOGIO:           [Aguardando Internet...]");
+    }
     Serial.printf("FASE ATUAL:        [%s]\n", getNomeFase(faseAtual).c_str());
     Serial.println("------------------------------------------------");
     
