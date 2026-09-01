@@ -310,7 +310,7 @@ void enviarNuvem(unsigned long agora) {
             }
          }
       }
-      Serial.println("[NUVEM] Leitura enviada! :) =D");
+      Serial.println("[NUVEM] Leitura enviada!  xD XD");
     } else {
       Serial.printf("[NUVEM] Erro %d. Salvo offline.\n", code);
       salvarOffline(json);
