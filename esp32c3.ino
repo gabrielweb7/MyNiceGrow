@@ -107,12 +107,13 @@ FaseCultivo faseAtual = FASE_STANDBY;
 ModoLuz     modoLuz   = LUZ_AUTO;
 StatusSis   statusSis = SIS_SEM_WIFI;
 
-float tempInt = 0, humInt = 0, tempExt = 0, humExt = 0;
+float tempInt = -99.0, humInt = -99.0, tempExt = -99.0, humExt = -99.0;
 bool  sensorIntOk = false, sensorExtOk = false;
 
 #define FILTRO_N 5
 float bufTempInt[FILTRO_N], bufHumInt[FILTRO_N], bufTempExt[FILTRO_N], bufHumExt[FILTRO_N];
-int   idxFiltro = 0; bool filtroPreenchido = false;
+int   idxFiltroInt = 0, idxFiltroExt = 0; 
+bool  filtroIntPreenchido = false, filtroExtPreenchido = false;
 
 float tempIntMin = 999, tempIntMax = -999, humIntMin = 999, humIntMax = -999;
 char  horaMinTemp[6]="--:--", horaMaxTemp[6]="--:--", horaMinHum[6]="--:--", horaMaxHum[6]="--:--";
@@ -195,6 +196,7 @@ void salvarOffline(String jsonPayload) {
 // COMUNICAÇÃO COM A NUVEM
 // ---------------------------------------------------------
 void enviarNuvem(unsigned long agora) {
+  if (tempInt <= -90.0) return; // Aguarda 1ª leitura válida dos sensores antes de enviar
   if (agora - ultimoEnvioNuvem < INTERVALO_NUVEM && ultimoEnvioNuvem != 0) return;
   ultimoEnvioNuvem = agora;
 
@@ -300,13 +302,22 @@ void atualizarMinMax() {
   if (humInt > humIntMax) { humIntMax = humInt; strncpy(horaMaxHum, hr, 6); }
 }
 
-void atualizarFiltro(float tI, float hI, float tE, float hE) {
-  bufTempInt[idxFiltro]=tI; bufHumInt[idxFiltro]=hI; bufTempExt[idxFiltro]=tE; bufHumExt[idxFiltro]=hE;
-  idxFiltro = (idxFiltro + 1) % FILTRO_N; if (idxFiltro == 0) filtroPreenchido = true;
-  int n = filtroPreenchido ? FILTRO_N : (idxFiltro==0?1:idxFiltro);
-  float sTi=0, sHi=0, sTe=0, sHe=0;
-  for(int i=0; i<n; i++){ sTi+=bufTempInt[i]; sHi+=bufHumInt[i]; sTe+=bufTempExt[i]; sHe+=bufHumExt[i]; }
-  tempInt=sTi/n; humInt=sHi/n; tempExt=sTe/n; humExt=sHe/n;
+void atualizarFiltroInt(float tI, float hI) {
+  bufTempInt[idxFiltroInt]=tI; bufHumInt[idxFiltroInt]=hI;
+  idxFiltroInt = (idxFiltroInt + 1) % FILTRO_N; 
+  if (idxFiltroInt == 0) filtroIntPreenchido = true;
+  int n = filtroIntPreenchido ? FILTRO_N : (idxFiltroInt==0?1:idxFiltroInt);
+  float sT=0, sH=0; for(int i=0; i<n; i++){ sT+=bufTempInt[i]; sH+=bufHumInt[i]; }
+  tempInt=sT/n; humInt=sH/n;
+}
+
+void atualizarFiltroExt(float tE, float hE) {
+  bufTempExt[idxFiltroExt]=tE; bufHumExt[idxFiltroExt]=hE;
+  idxFiltroExt = (idxFiltroExt + 1) % FILTRO_N; 
+  if (idxFiltroExt == 0) filtroExtPreenchido = true;
+  int n = filtroExtPreenchido ? FILTRO_N : (idxFiltroExt==0?1:idxFiltroExt);
+  float sT=0, sH=0; for(int i=0; i<n; i++){ sT+=bufTempExt[i]; sH+=bufHumExt[i]; }
+  tempExt=sT/n; humExt=sH/n;
 }
 
 void aplicarReles() {
@@ -458,12 +469,12 @@ void loop() {
     float tI = sht30.readTemperature(), hI = sht30.readHumidity();
     float tE = dht.readTemperature(), hE = dht.readHumidity();
     
-    // Filtro de Sanidade: Ignora picos falsos (-45.0) ou erros de comunicação
-    sensorIntOk = !isnan(tI) && !isnan(hI) && tI > 0.0 && tI < 60.0 && hI > 0.0; 
-    sensorExtOk = !isnan(tE) && !isnan(hE) && tE > 0.0 && tE < 60.0 && hE > 0.0;
+    // Filtro de Sanidade: Ignora picos falsos (-45.0) ou erros de comunicação I2C (exato 0.00)
+    sensorIntOk = !isnan(tI) && !isnan(hI) && tI != 0.0 && hI != 0.0 && tI > -10.0 && tI < 60.0 && hI > 0.0;
+    sensorExtOk = !isnan(tE) && !isnan(hE) && tE != 0.0 && hE != 0.0 && tE > -10.0 && tE < 60.0 && hE > 0.0;
 
-    if (sensorIntOk && sensorExtOk) { atualizarFiltro(tI, hI, tE, hE); atualizarMinMax(); }
-    else if (sensorIntOk) { atualizarFiltro(tI, hI, tempExt, humExt); atualizarMinMax(); }
+    if (sensorIntOk) { atualizarFiltroInt(tI, hI); atualizarMinMax(); }
+    if (sensorExtOk) atualizarFiltroExt(tE, hE);
 
     struct tm ti; horaValida = getLocalTime(&ti); horaAtual = horaValida ? ti.tm_hour : -1;
     if (horaValida && inicioFaseTempo == 0 && faseAtual != FASE_STANDBY) {
