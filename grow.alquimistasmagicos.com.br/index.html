@@ -3,155 +3,329 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Dashboard Nuvem - Grow IA</title>
+    <title>🍄 Grow IA — Painel de Controle</title>
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🍄</text></svg>">
     <script src="https://cdn.tailwindcss.com"></script>
-    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/apexcharts"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    fontFamily: { sans: ['Inter', 'sans-serif'] },
+                    colors: {
+                        dark: { 50: '#f8fafc', 100: '#1e293b', 200: '#162032', 300: '#0f172a', 400: '#0b1120' }
+                    }
+                }
+            }
+        }
+    </script>
     <style>
-        body { background-color: #0f172a; color: #f8fafc; }
-        .card { background-color: #1e293b; border-radius: 0.5rem; padding: 1.5rem; box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1); }
+        body { background: linear-gradient(135deg, #0b1120 0%, #0f172a 50%, #131c2e 100%); }
+        .glass { background: rgba(30, 41, 59, 0.6); backdrop-filter: blur(12px); border: 1px solid rgba(255,255,255,0.05); }
+        .glow-green { box-shadow: 0 0 20px rgba(16, 185, 129, 0.15); }
+        .glow-blue { box-shadow: 0 0 20px rgba(59, 130, 246, 0.15); }
+        .glow-red { box-shadow: 0 0 20px rgba(244, 63, 94, 0.15); }
+        .glow-amber { box-shadow: 0 0 20px rgba(245, 158, 11, 0.15); }
+        .pulse-dot { animation: pulse-dot 2s ease-in-out infinite; }
+        @keyframes pulse-dot { 0%, 100% { opacity: 1; } 50% { opacity: 0.4; } }
+        .fade-in { animation: fadeIn 0.6s ease-out; }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+        .stat-card:hover { transform: translateY(-2px); transition: all 0.3s ease; }
+        .stat-card { transition: all 0.3s ease; }
+        .btn-filter { transition: all 0.2s ease; }
+        .btn-filter.active { background: linear-gradient(135deg, #10b981, #059669); color: white; box-shadow: 0 4px 15px rgba(16, 185, 129, 0.3); }
+        .rele-on { background: linear-gradient(135deg, #10b981, #059669); box-shadow: 0 0 12px rgba(16, 185, 129, 0.4); }
+        .rele-off { background: rgba(51, 65, 85, 0.5); }
+        ::-webkit-scrollbar { width: 6px; } ::-webkit-scrollbar-track { background: #0f172a; } ::-webkit-scrollbar-thumb { background: #334155; border-radius: 3px; }
+        .apexcharts-tooltip { background: #1e293b !important; border: 1px solid rgba(255,255,255,0.1) !important; color: #f8fafc !important; }
+        .apexcharts-tooltip-title { background: #0f172a !important; border-bottom: 1px solid rgba(255,255,255,0.05) !important; color: #94a3b8 !important; }
     </style>
 </head>
-<body class="p-4 md:p-8">
+<body class="min-h-screen text-slate-200 font-sans">
 
-    <header class="mb-8 text-center md:text-left flex flex-col md:flex-row justify-between items-center">
-        <div>
-            <h1 class="text-3xl font-bold text-emerald-400">🍄 Grow IA - Nuvem</h1>
-            <p class="text-slate-400 text-sm mt-1">HostGator Cloud DataLogger</p>
-        </div>
-        <div class="mt-4 md:mt-0 flex gap-2">
-            <button onclick="carregarDados(144)" class="px-4 py-2 bg-slate-700 hover:bg-slate-600 rounded text-sm font-bold">24 Horas</button>
-            <button onclick="carregarDados(1008)" class="px-4 py-2 bg-slate-700 hover:bg-slate-600 rounded text-sm font-bold">7 Dias</button>
+    <!-- HEADER -->
+    <header class="sticky top-0 z-50 glass border-b border-slate-700/50 px-4 md:px-8 py-3">
+        <div class="max-w-7xl mx-auto flex flex-col sm:flex-row justify-between items-center gap-3">
+            <div class="flex items-center gap-3">
+                <div class="text-3xl">🍄</div>
+                <div>
+                    <h1 class="text-xl md:text-2xl font-bold bg-gradient-to-r from-emerald-400 to-cyan-400 bg-clip-text text-transparent">Grow IA</h1>
+                    <p class="text-[10px] md:text-xs text-slate-500 font-medium tracking-wider uppercase">Painel de Controle IoT</p>
+                </div>
+                <div id="statusDot" class="ml-3 flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-slate-800 text-[10px] font-semibold uppercase tracking-wider">
+                    <span class="w-2 h-2 rounded-full bg-slate-500 pulse-dot" id="dotColor"></span>
+                    <span id="statusText" class="text-slate-400">Aguardando...</span>
+                </div>
+            </div>
+            <div class="flex items-center gap-2">
+                <button onclick="filtrar(144, this)"  class="btn-filter px-3 py-1.5 rounded-lg text-xs font-bold bg-slate-800 hover:bg-slate-700 active">24h</button>
+                <button onclick="filtrar(1008, this)" class="btn-filter px-3 py-1.5 rounded-lg text-xs font-bold bg-slate-800 hover:bg-slate-700">7 Dias</button>
+                <button onclick="filtrar(4320, this)" class="btn-filter px-3 py-1.5 rounded-lg text-xs font-bold bg-slate-800 hover:bg-slate-700">30 Dias</button>
+                <button onclick="carregarDados(limitAtual)" class="ml-2 p-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 transition" title="Atualizar">
+                    <svg class="w-4 h-4 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg>
+                </button>
+            </div>
         </div>
     </header>
 
-    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
-        <div class="card border-l-4 border-emerald-500">
-            <h3 class="text-slate-400 text-xs font-bold uppercase">Temp Interna Atual</h3>
-            <p class="text-3xl font-bold mt-2" id="valTi">-- °C</p>
-        </div>
-        <div class="card border-l-4 border-blue-500">
-            <h3 class="text-slate-400 text-xs font-bold uppercase">Umid Interna Atual</h3>
-            <p class="text-3xl font-bold mt-2" id="valUi">-- %</p>
-        </div>
-        <div class="card border-l-4 border-rose-500">
-            <h3 class="text-slate-400 text-xs font-bold uppercase">Temp Externa Atual</h3>
-            <p class="text-3xl font-bold mt-2" id="valTe">-- °C</p>
-        </div>
-        <div class="card border-l-4 border-cyan-500">
-            <h3 class="text-slate-400 text-xs font-bold uppercase">Fase Atual</h3>
-            <p class="text-xl font-bold mt-2 text-cyan-400" id="valFase">--</p>
-        </div>
-    </div>
+    <main class="max-w-7xl mx-auto px-4 md:px-8 py-6 space-y-6">
 
-    <div class="grid grid-cols-1 xl:grid-cols-2 gap-6 mb-6">
-        <div class="card">
-            <h2 class="text-lg font-bold mb-4">🌡️ Temperatura (°C)</h2>
-            <canvas id="chartTemp" height="250"></canvas>
-        </div>
-        <div class="card">
-            <h2 class="text-lg font-bold mb-4">💧 Umidade (%)</h2>
-            <canvas id="chartHum" height="250"></canvas>
-        </div>
-    </div>
+        <!-- CARDS PRINCIPAIS -->
+        <section class="grid grid-cols-2 lg:grid-cols-4 gap-3 md:gap-4 fade-in">
+            <!-- Temp Interna -->
+            <div class="stat-card glass rounded-xl p-4 md:p-5 glow-green border border-emerald-500/20">
+                <div class="flex items-center justify-between mb-3">
+                    <span class="text-[10px] md:text-xs font-semibold text-slate-400 uppercase tracking-wider">Temp Interna</span>
+                    <span class="text-lg">🌡️</span>
+                </div>
+                <p class="text-2xl md:text-3xl font-extrabold text-emerald-400" id="valTi">--</p>
+                <p class="text-[10px] text-slate-500 mt-1" id="minMaxTemp">Min -- / Max --</p>
+            </div>
+            <!-- Umid Interna -->
+            <div class="stat-card glass rounded-xl p-4 md:p-5 glow-blue border border-blue-500/20">
+                <div class="flex items-center justify-between mb-3">
+                    <span class="text-[10px] md:text-xs font-semibold text-slate-400 uppercase tracking-wider">Umid Interna</span>
+                    <span class="text-lg">💧</span>
+                </div>
+                <p class="text-2xl md:text-3xl font-extrabold text-blue-400" id="valUi">--</p>
+                <p class="text-[10px] text-slate-500 mt-1" id="minMaxHum">Min -- / Max --</p>
+            </div>
+            <!-- Temp Externa -->
+            <div class="stat-card glass rounded-xl p-4 md:p-5 glow-red border border-rose-500/20">
+                <div class="flex items-center justify-between mb-3">
+                    <span class="text-[10px] md:text-xs font-semibold text-slate-400 uppercase tracking-wider">Temp Externa</span>
+                    <span class="text-lg">☀️</span>
+                </div>
+                <p class="text-2xl md:text-3xl font-extrabold text-rose-400" id="valTe">--</p>
+                <p class="text-[10px] text-slate-500 mt-1" id="valUe">Umid: --</p>
+            </div>
+            <!-- Fase -->
+            <div class="stat-card glass rounded-xl p-4 md:p-5 glow-amber border border-amber-500/20">
+                <div class="flex items-center justify-between mb-3">
+                    <span class="text-[10px] md:text-xs font-semibold text-slate-400 uppercase tracking-wider">Fase Atual</span>
+                    <span class="text-lg">🔬</span>
+                </div>
+                <p class="text-xl md:text-2xl font-extrabold text-amber-400" id="valFase">--</p>
+                <p class="text-[10px] text-slate-500 mt-1" id="valUltimaAtt">Última att: --</p>
+            </div>
+        </section>
 
-    <div class="card">
-        <h2 class="text-lg font-bold mb-4">⚡ Relés (Tempo de Atividade)</h2>
-        <canvas id="chartReles" height="150"></canvas>
-    </div>
+        <!-- STATUS DOS RELÉS -->
+        <section class="fade-in glass rounded-xl p-4 md:p-5 border border-slate-700/30">
+            <h2 class="text-xs font-bold text-slate-400 uppercase tracking-wider mb-3">⚡ Status dos Relés (Tempo Real)</h2>
+            <div class="grid grid-cols-2 md:grid-cols-4 gap-3">
+                <div id="releLuz" class="rele-off rounded-lg p-3 text-center transition-all duration-500">
+                    <div class="text-2xl mb-1">💡</div>
+                    <p class="text-xs font-bold">Luz</p>
+                    <p class="text-[10px] text-slate-400 mt-0.5" id="releLuzStatus">OFF</p>
+                </div>
+                <div id="releUmid" class="rele-off rounded-lg p-3 text-center transition-all duration-500">
+                    <div class="text-2xl mb-1">💨</div>
+                    <p class="text-xs font-bold">Umidificador</p>
+                    <p class="text-[10px] text-slate-400 mt-0.5" id="releUmidStatus">OFF</p>
+                </div>
+                <div id="releVento" class="rele-off rounded-lg p-3 text-center transition-all duration-500">
+                    <div class="text-2xl mb-1">🌀</div>
+                    <p class="text-xs font-bold">Ventilador</p>
+                    <p class="text-[10px] text-slate-400 mt-0.5" id="releVentoStatus">OFF</p>
+                </div>
+                <div id="releExaust" class="rele-off rounded-lg p-3 text-center transition-all duration-500">
+                    <div class="text-2xl mb-1">🌬️</div>
+                    <p class="text-xs font-bold">Exaustor</p>
+                    <p class="text-[10px] text-slate-400 mt-0.5" id="releExaustStatus">OFF</p>
+                </div>
+            </div>
+        </section>
+
+        <!-- GRÁFICOS -->
+        <section class="grid grid-cols-1 xl:grid-cols-2 gap-4 md:gap-6 fade-in">
+            <div class="glass rounded-xl p-4 md:p-5 border border-slate-700/30">
+                <h2 class="text-sm font-bold text-slate-300 mb-1">🌡️ Temperatura</h2>
+                <p class="text-[10px] text-slate-500 mb-3">Interna vs Externa (°C)</p>
+                <div id="chartTemp" style="min-height: 280px;"></div>
+            </div>
+            <div class="glass rounded-xl p-4 md:p-5 border border-slate-700/30">
+                <h2 class="text-sm font-bold text-slate-300 mb-1">💧 Umidade</h2>
+                <p class="text-[10px] text-slate-500 mb-3">Interna vs Externa (%)</p>
+                <div id="chartHum" style="min-height: 280px;"></div>
+            </div>
+        </section>
+
+        <!-- GRÁFICO RELÉS TIMELINE -->
+        <section class="fade-in glass rounded-xl p-4 md:p-5 border border-slate-700/30">
+            <h2 class="text-sm font-bold text-slate-300 mb-1">⚡ Timeline dos Relés</h2>
+            <p class="text-[10px] text-slate-500 mb-3">Quando cada relé esteve ligado ou desligado ao longo do tempo</p>
+            <div id="chartReles" style="min-height: 200px;"></div>
+        </section>
+
+        <!-- FOOTER -->
+        <footer class="text-center text-[10px] text-slate-600 py-4">
+            Grow IA v4.0 — IoT Cloud System — Dados atualizados a cada 60 segundos
+        </footer>
+    </main>
 
     <script>
         let chartTemp, chartHum, chartReles;
+        let limitAtual = 144;
 
-        const commonOptions = {
-            responsive: true,
-            maintainAspectRatio: false,
-            plugins: { legend: { labels: { color: '#cbd5e1' } } },
-            scales: {
-                x: { ticks: { color: '#94a3b8' }, grid: { color: '#334155' } },
-                y: { ticks: { color: '#94a3b8' }, grid: { color: '#334155' } }
-            }
+        const chartColors = {
+            green: '#10b981', greenFade: 'rgba(16,185,129,0.1)',
+            blue: '#3b82f6', blueFade: 'rgba(59,130,246,0.1)',
+            red: '#f43f5e', redFade: 'rgba(244,63,94,0.1)',
+            purple: '#8b5cf6', purpleFade: 'rgba(139,92,246,0.1)',
+            amber: '#f59e0b', amberFade: 'rgba(245,158,11,0.15)',
+            orange: '#f97316', cyan: '#06b6d4'
+        };
+
+        const baseChartOpts = {
+            chart: { background: 'transparent', toolbar: { show: true, tools: { download: true, selection: true, zoom: true, zoomin: true, zoomout: true, pan: true, reset: true } }, animations: { enabled: true, easing: 'easeinout', speed: 800 } },
+            theme: { mode: 'dark' },
+            grid: { borderColor: 'rgba(148,163,184,0.08)', strokeDashArray: 3 },
+            xaxis: { labels: { style: { colors: '#64748b', fontSize: '10px' }, rotate: -45, rotateAlways: false }, axisBorder: { show: false }, axisTicks: { show: false } },
+            yaxis: { labels: { style: { colors: '#64748b', fontSize: '10px' } } },
+            stroke: { curve: 'smooth', width: 2.5 },
+            legend: { position: 'top', horizontalAlign: 'right', fontSize: '11px', labels: { colors: '#94a3b8' }, markers: { radius: 2 } },
+            tooltip: { theme: 'dark', x: { format: 'dd/MM HH:mm' } }
         };
 
         function initCharts() {
-            const ctxTemp = document.getElementById('chartTemp').getContext('2d');
-            chartTemp = new Chart(ctxTemp, { type: 'line', options: commonOptions, data: { labels: [], datasets: [] } });
-
-            const ctxHum = document.getElementById('chartHum').getContext('2d');
-            chartHum = new Chart(ctxHum, { type: 'line', options: commonOptions, data: { labels: [], datasets: [] } });
-
-            const ctxReles = document.getElementById('chartReles').getContext('2d');
-            chartReles = new Chart(ctxReles, { 
-                type: 'line', 
-                options: {
-                    ...commonOptions,
-                    scales: {
-                        y: { min: 0, max: 1.2, ticks: { stepSize: 1, callback: function(value) { return value === 1 ? 'ON' : (value === 0 ? 'OFF' : ''); } } }
-                    }
-                },
-                data: { labels: [], datasets: [] } 
+            chartTemp = new ApexCharts(document.querySelector("#chartTemp"), {
+                ...baseChartOpts,
+                chart: { ...baseChartOpts.chart, type: 'area', height: 280 },
+                series: [{ name: 'Interna', data: [] }, { name: 'Externa', data: [] }],
+                colors: [chartColors.green, chartColors.red],
+                fill: { type: 'gradient', gradient: { shadeIntensity: 1, opacityFrom: 0.3, opacityTo: 0.05, stops: [0, 100] } },
+                yaxis: { ...baseChartOpts.yaxis, title: { text: '°C', style: { color: '#64748b', fontSize: '11px' } } }
             });
+            chartTemp.render();
+
+            chartHum = new ApexCharts(document.querySelector("#chartHum"), {
+                ...baseChartOpts,
+                chart: { ...baseChartOpts.chart, type: 'area', height: 280 },
+                series: [{ name: 'Interna', data: [] }, { name: 'Externa', data: [] }],
+                colors: [chartColors.blue, chartColors.purple],
+                fill: { type: 'gradient', gradient: { shadeIntensity: 1, opacityFrom: 0.3, opacityTo: 0.05, stops: [0, 100] } },
+                yaxis: { ...baseChartOpts.yaxis, title: { text: '%', style: { color: '#64748b', fontSize: '11px' } } }
+            });
+            chartHum.render();
+
+            chartReles = new ApexCharts(document.querySelector("#chartReles"), {
+                ...baseChartOpts,
+                chart: { ...baseChartOpts.chart, type: 'area', height: 200 },
+                series: [{ name: 'Luz', data: [] }, { name: 'Umidificador', data: [] }, { name: 'Exaustor', data: [] }],
+                colors: [chartColors.amber, chartColors.blue, chartColors.orange],
+                fill: { type: 'solid', opacity: 0.15 },
+                stroke: { ...baseChartOpts.stroke, curve: 'stepline', width: 2 },
+                yaxis: { min: -0.1, max: 1.3, tickAmount: 1, labels: { style: { colors: '#64748b', fontSize: '10px' }, formatter: v => v >= 0.5 ? 'ON' : 'OFF' } }
+            });
+            chartReles.render();
+        }
+
+        function setRele(id, statusId, isOn) {
+            const el = document.getElementById(id);
+            const st = document.getElementById(statusId);
+            if (isOn) { el.className = 'rele-on rounded-lg p-3 text-center transition-all duration-500'; st.textContent = 'ON'; st.className = 'text-[10px] text-white/80 mt-0.5 font-bold'; }
+            else { el.className = 'rele-off rounded-lg p-3 text-center transition-all duration-500'; st.textContent = 'OFF'; st.className = 'text-[10px] text-slate-400 mt-0.5'; }
+        }
+
+        function filtrar(limit, btn) {
+            limitAtual = limit;
+            document.querySelectorAll('.btn-filter').forEach(b => b.classList.remove('active'));
+            btn.classList.add('active');
+            carregarDados(limit);
         }
 
         async function carregarDados(limit) {
             try {
                 const res = await fetch(`api/index.php?limit=${limit}`);
                 const data = await res.json();
-                
-                if (data.length === 0) return;
 
-                // Atualiza Cards
+                if (!data || data.length === 0) {
+                    document.getElementById('statusText').textContent = 'Sem dados';
+                    document.getElementById('dotColor').className = 'w-2 h-2 rounded-full bg-yellow-500 pulse-dot';
+                    return;
+                }
+
+                // Status online
+                document.getElementById('statusText').textContent = 'Online';
+                document.getElementById('dotColor').className = 'w-2 h-2 rounded-full bg-emerald-500 pulse-dot';
+
                 const ultimo = data[data.length - 1];
-                document.getElementById('valTi').innerText = parseFloat(ultimo.temp_int).toFixed(1) + ' °C';
-                document.getElementById('valUi').innerText = parseFloat(ultimo.hum_int).toFixed(1) + ' %';
-                document.getElementById('valTe').innerText = parseFloat(ultimo.temp_ext).toFixed(1) + ' °C';
-                document.getElementById('valFase').innerText = ultimo.fase;
 
-                // Processa p/ Gráficos
-                const labels = data.map(d => {
-                    const dt = new Date(d.timestamp);
-                    return `${dt.getHours().toString().padStart(2,'0')}:${dt.getMinutes().toString().padStart(2,'0')}`;
+                // Cards
+                const ti = parseFloat(ultimo.temp_int);
+                const ui = parseFloat(ultimo.hum_int);
+                const te = parseFloat(ultimo.temp_ext);
+                const ue = parseFloat(ultimo.hum_ext);
+
+                document.getElementById('valTi').textContent = ti.toFixed(1) + ' °C';
+                document.getElementById('valUi').textContent = ui.toFixed(1) + ' %';
+                document.getElementById('valTe').textContent = te.toFixed(1) + ' °C';
+                document.getElementById('valUe').textContent = 'Umid: ' + ue.toFixed(1) + ' %';
+                document.getElementById('valFase').textContent = ultimo.fase || '--';
+
+                // Última atualização
+                const dtUlt = new Date(ultimo.timestamp);
+                document.getElementById('valUltimaAtt').textContent = 'Última att: ' + dtUlt.toLocaleTimeString('pt-BR', {hour:'2-digit', minute:'2-digit'});
+
+                // Min/Max do período
+                let minT = Infinity, maxT = -Infinity, minH = Infinity, maxH = -Infinity;
+                data.forEach(d => {
+                    const t = parseFloat(d.temp_int); const h = parseFloat(d.hum_int);
+                    if (t > -40 && t < 60) { if (t < minT) minT = t; if (t > maxT) maxT = t; }
+                    if (h > 0 && h <= 100) { if (h < minH) minH = h; if (h > maxH) maxH = h; }
+                });
+                document.getElementById('minMaxTemp').textContent = `Min ${minT === Infinity ? '--' : minT.toFixed(1)}° / Max ${maxT === -Infinity ? '--' : maxT.toFixed(1)}°`;
+                document.getElementById('minMaxHum').textContent = `Min ${minH === Infinity ? '--' : minH.toFixed(1)}% / Max ${maxH === -Infinity ? '--' : maxH.toFixed(1)}%`;
+
+                // Relés
+                setRele('releLuz', 'releLuzStatus', parseInt(ultimo.rele_luz));
+                setRele('releUmid', 'releUmidStatus', parseInt(ultimo.rele_umid));
+                setRele('releVento', 'releVentoStatus', parseInt(ultimo.rele_vento));
+                setRele('releExaust', 'releExaustStatus', parseInt(ultimo.rele_exaust));
+
+                // Preparar séries para os gráficos (formato [timestamp, valor])
+                const seriesTempInt = [], seriesTempExt = [], seriesHumInt = [], seriesHumExt = [];
+                const seriesReleLuz = [], seriesReleUmid = [], seriesReleExaust = [];
+
+                data.forEach(d => {
+                    const ts = new Date(d.timestamp).getTime();
+                    const tI = parseFloat(d.temp_int);
+                    const tE = parseFloat(d.temp_ext);
+                    // Filtra dados ruins antes de plotar
+                    if (tI > -40 && tI < 60) seriesTempInt.push([ts, tI]);
+                    if (tE > -40 && tE < 60) seriesTempExt.push([ts, tE]);
+                    seriesHumInt.push([ts, parseFloat(d.hum_int)]);
+                    seriesHumExt.push([ts, parseFloat(d.hum_ext)]);
+                    seriesReleLuz.push([ts, parseInt(d.rele_luz)]);
+                    seriesReleUmid.push([ts, parseInt(d.rele_umid)]);
+                    seriesReleExaust.push([ts, parseInt(d.rele_exaust)]);
                 });
 
-                // Update Temp
-                chartTemp.data = {
-                    labels: labels,
-                    datasets: [
-                        { label: 'Interna', data: data.map(d => d.temp_int), borderColor: '#10b981', tension: 0.4 },
-                        { label: 'Externa', data: data.map(d => d.temp_ext), borderColor: '#f43f5e', tension: 0.4 }
-                    ]
-                };
-                chartTemp.update();
+                const xaxisTime = { type: 'datetime', labels: { style: { colors: '#64748b', fontSize: '10px' }, datetimeUTC: false, format: 'HH:mm' } };
 
-                // Update Hum
-                chartHum.data = {
-                    labels: labels,
-                    datasets: [
-                        { label: 'Interna', data: data.map(d => d.hum_int), borderColor: '#3b82f6', tension: 0.4 },
-                        { label: 'Externa', data: data.map(d => d.hum_ext), borderColor: '#8b5cf6', tension: 0.4 }
-                    ]
-                };
-                chartHum.update();
+                chartTemp.updateOptions({ xaxis: xaxisTime });
+                chartTemp.updateSeries([{ name: 'Interna', data: seriesTempInt }, { name: 'Externa', data: seriesTempExt }]);
 
-                // Update Relés (Step lines)
-                chartReles.data = {
-                    labels: labels,
-                    datasets: [
-                        { label: '💡 Luz', data: data.map(d => d.rele_luz), borderColor: '#fbbf24', stepped: true },
-                        { label: '💨 Umidificador', data: data.map(d => d.rele_umid), borderColor: '#3b82f6', stepped: true },
-                        { label: '🌬️ Exaustor', data: data.map(d => d.rele_exaust), borderColor: '#f97316', stepped: true }
-                    ]
-                };
-                chartReles.update();
+                chartHum.updateOptions({ xaxis: xaxisTime });
+                chartHum.updateSeries([{ name: 'Interna', data: seriesHumInt }, { name: 'Externa', data: seriesHumExt }]);
+
+                chartReles.updateOptions({ xaxis: xaxisTime });
+                chartReles.updateSeries([{ name: 'Luz', data: seriesReleLuz }, { name: 'Umidificador', data: seriesReleUmid }, { name: 'Exaustor', data: seriesReleExaust }]);
 
             } catch (err) {
-                console.error("Erro ao carregar dados", err);
+                console.error("Erro ao carregar dados:", err);
+                document.getElementById('statusText').textContent = 'Erro';
+                document.getElementById('dotColor').className = 'w-2 h-2 rounded-full bg-red-500 pulse-dot';
             }
         }
 
         window.onload = () => {
             initCharts();
-            carregarDados(144); // 24h aprox (se o envio for a cada 10min)
-            setInterval(() => carregarDados(144), 60000); // Atualiza a cada 1 min
+            carregarDados(144);
+            setInterval(() => carregarDados(limitAtual), 60000);
         };
     </script>
 </body>
