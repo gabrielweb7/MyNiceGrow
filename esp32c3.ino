@@ -15,6 +15,27 @@ const long  gmtOffset_sec = -10800; // Horário de Brasília (UTC-3)
 const int   daylightOffset_sec = 0;
 
 // ==========================================
+// ⚙️ PAINEL DE CONFIGURAÇÕES DO CULTIVO ⚙️
+// ==========================================
+
+// Temperaturas (Celsius)
+const float TEMP_MINIMA = 25.0;
+const float TEMP_ALVO_MAX = 28.5; // Passou disso, tenta esfriar
+const float TEMP_CRITICA = 30.0;  // Passou disso, entra em modo emergência
+
+// Umidade (%)
+const float UMIDADE_MINIMA = 88.0;
+const float UMIDADE_MAXIMA = 95.0;
+
+// Troca de Ar / FAE (Fresh Air Exchange) para evitar excesso de CO2
+// Mesmo se a temperatura estiver perfeita, o vento liga de tempos em tempos
+const unsigned long FAE_TEMPO_ON = 2 * 60 * 1000;   // 2 minutos de vento
+const unsigned long FAE_TEMPO_OFF = 58 * 60 * 1000; // 58 minutos desligado
+unsigned long ultimoCicloFAE = 0;
+bool modoFAELigado = false;
+
+
+// ==========================================
 // CONFIGURAÇÃO DOS PINOS
 // ==========================================
 
@@ -189,6 +210,20 @@ void loop() {
     // MOTOR DE AUTOMAÇÃO (A MÁGICA ACONTECE AQUI!)
     // ==============================================================
     if (!erroSensores) {
+      
+      // Controle do Temporizador de FAE (Fresh Air Exchange)
+      if (modoFAELigado) {
+        if (tempoAtual - ultimoCicloFAE >= FAE_TEMPO_ON) {
+          modoFAELigado = false;
+          ultimoCicloFAE = tempoAtual;
+        }
+      } else {
+        if (tempoAtual - ultimoCicloFAE >= FAE_TEMPO_OFF) {
+          modoFAELigado = true;
+          ultimoCicloFAE = tempoAtual;
+        }
+      }
+
       switch (faseAtual) {
         
         case SEM_CULTIVO:
@@ -208,31 +243,50 @@ void loop() {
         case PINANDO:
         case FRUTIFICACAO:
         case SEGUNDO_FLUSH:
-          // 1. Umidade
-          if (humInt < 85.0) estadoUmidific = true;
-          else if (humInt > 95.0) estadoUmidific = false;
+          
+          // 1. Umidade (Controle com Histerese)
+          if (humInt < UMIDADE_MINIMA) estadoUmidific = true;
+          else if (humInt > UMIDADE_MAXIMA) estadoUmidific = false;
 
-          // 2. Temperatura / Exaustão
-          if (tempInt > 27.0) {
+          // 2. Temperatura e CO2 (Motor Inteligente)
+          if (tempInt >= TEMP_CRITICA) {
+            // EMERGÊNCIA (Muito quente!): Liga TUDO para tentar resfriar
             estadoExaustExt = true;
             estadoExaustInt = true;
-          } else {
+            // Dica: Se o umidificador tiver ventilador, ligá-lo também derruba a temp (Resfriamento Evaporativo)
+            // estadoUmidific = true; 
+          } 
+          else if (tempInt >= TEMP_ALVO_MAX) {
+            // QUENTE: Exaustor externo ligado para puxar ar frio de fora, interno mistura o ar.
+            estadoExaustExt = true;
+            estadoExaustInt = true;
+          } 
+          else if (tempInt < TEMP_MINIMA) {
+            // FRIO: Desliga exaustor externo para reter o calor das luzes/ambiente.
             estadoExaustExt = false;
-            estadoExaustInt = false;
+            // O vento interno depende apenas do ciclo de CO2 agora
+            estadoExaustInt = modoFAELigado;
+          }
+          else {
+            // IDEAL: A temperatura está perfeita (entre 25 e 28.5)
+            // Desliga a exaustão externa, mas respeita a respiração do cogumelo (FAE)
+            estadoExaustExt = false;
+            estadoExaustInt = modoFAELigado; // Só liga o vento se for a hora de trocar o ar
           }
 
-          // 3. Iluminação Inteligente (Ciclo Frio/Noturno)
-          // Exemplo: 12h ON (das 20:00 da noite até as 08:00 da manhã)
+          // Ajustes finos baseados na FASE:
+          if (faseAtual == PINANDO) {
+            // Pinando costuma gostar de mais FAE (oxigênio)
+            if (modoFAELigado) estadoExaustExt = true; 
+          }
+
+          // 3. Iluminação Inteligente (Ciclo Noturno para ajudar na Temperatura)
+          // 12h ON (das 20:00 às 08:00) = Luz fria.
           if (modoLuzAtual == LUZ_AUTO) {
             if (horaValida) {
-              // Se for de noite/madrugada
-              if (horaAtual >= 20 || horaAtual < 8) {
-                estadoLuz = true;
-              } else {
-                estadoLuz = false;
-              }
+              if (horaAtual >= 20 || horaAtual < 8) estadoLuz = true;
+              else estadoLuz = false;
             } else {
-              // Failsafe: se estiver sem internet, mantém apagado no automático
               estadoLuz = false; 
             }
           }
@@ -249,7 +303,6 @@ void loop() {
       setRele(RELE_EXAUST_INT, estadoExaustInt);
       setRele(RELE_EXAUST_EXT, estadoExaustExt);
     }
-
     // ==============================================================
     // FIM DO MOTOR DE AUTOMAÇÃO
     // ==============================================================
