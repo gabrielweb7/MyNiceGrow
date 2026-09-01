@@ -60,7 +60,7 @@ if ($method === 'POST') {
     }
     
     // Auto-Update: Usa a data de modificação real do arquivo no servidor
-    $arquivo_bin = __DIR__ . '/../build/esp32.esp32.esp32c3/esp32c3.ino.bin';
+    $arquivo_bin = __DIR__ . '/../../build/esp32.esp32.esp32c3/esp32c3.ino.bin';
     if (file_exists($arquivo_bin)) {
         $resposta['versao_nuvem'] = filemtime($arquivo_bin);
     }
