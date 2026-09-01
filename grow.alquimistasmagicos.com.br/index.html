@@ -60,9 +60,8 @@
                 </div>
             </div>
             <div class="flex items-center gap-2">
-                <button onclick="filtrar(144, this)"  class="btn-filter px-3 py-1.5 rounded-lg text-xs font-bold bg-slate-800 hover:bg-slate-700 active">24h</button>
-                <button onclick="filtrar(1008, this)" class="btn-filter px-3 py-1.5 rounded-lg text-xs font-bold bg-slate-800 hover:bg-slate-700">7 Dias</button>
-                <button onclick="filtrar(4320, this)" class="btn-filter px-3 py-1.5 rounded-lg text-xs font-bold bg-slate-800 hover:bg-slate-700">30 Dias</button>
+                <button onclick="filtrar(1440, this)"  class="btn-filter px-3 py-1.5 rounded-lg text-xs font-bold bg-slate-800 hover:bg-slate-700 active">24h</button>
+                <button onclick="filtrar(10080, this)" class="btn-filter px-3 py-1.5 rounded-lg text-xs font-bold bg-slate-800 hover:bg-slate-700">7 Dias</button>
                 <button onclick="carregarDados(limitAtual)" class="ml-2 p-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 transition" title="Atualizar">
                     <svg class="w-4 h-4 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg>
                 </button>
@@ -203,7 +202,7 @@
         function initCharts() {
             chartTemp = new ApexCharts(document.querySelector("#chartTemp"), {
                 ...baseChartOpts,
-                chart: { ...baseChartOpts.chart, type: 'area', height: 280 },
+                chart: { ...baseChartOpts.chart, type: 'area', height: 280, id: 'chartTemp', group: 'syncGrow' },
                 series: [{ name: 'Interna', data: [] }, { name: 'Externa', data: [] }],
                 colors: [chartColors.green, chartColors.red],
                 fill: { type: 'gradient', gradient: { shadeIntensity: 1, opacityFrom: 0.3, opacityTo: 0.05, stops: [0, 100] } },
@@ -213,7 +212,7 @@
 
             chartHum = new ApexCharts(document.querySelector("#chartHum"), {
                 ...baseChartOpts,
-                chart: { ...baseChartOpts.chart, type: 'area', height: 280 },
+                chart: { ...baseChartOpts.chart, type: 'area', height: 280, id: 'chartHum', group: 'syncGrow' },
                 series: [{ name: 'Interna', data: [] }, { name: 'Externa', data: [] }],
                 colors: [chartColors.blue, chartColors.purple],
                 fill: { type: 'gradient', gradient: { shadeIntensity: 1, opacityFrom: 0.3, opacityTo: 0.05, stops: [0, 100] } },
@@ -223,7 +222,7 @@
 
             chartReles = new ApexCharts(document.querySelector("#chartReles"), {
                 ...baseChartOpts,
-                chart: { ...baseChartOpts.chart, type: 'area', height: 200 },
+                chart: { ...baseChartOpts.chart, type: 'area', height: 200, id: 'chartReles', group: 'syncGrow' },
                 series: [{ name: 'Luz', data: [] }, { name: 'Umidificador', data: [] }, { name: 'Exaustor', data: [] }],
                 colors: [chartColors.amber, chartColors.blue, chartColors.orange],
                 fill: { type: 'solid', opacity: 0.15 },

@@ -50,7 +50,7 @@ const unsigned long FAE_OFF_MS = 58UL * 60 * 1000;
 // --- Nuvem (HostGator) ---
 const char* CLOUD_URL = "https://grow.alquimistasmagicos.com.br/api/index.php";
 const char* CLOUD_KEY = "GrowIA_V4_SuperSecreta!";
-const unsigned long INTERVALO_NUVEM = 5UL * 60 * 1000; // Envia pra nuvem a cada 5 minutos
+const unsigned long INTERVALO_NUVEM = 60UL * 1000; // 1 minuto
 
 // --- Segurança ---
 const unsigned long TIMEOUT_UMID_MS = 30UL * 60 * 1000;
