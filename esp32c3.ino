@@ -57,10 +57,6 @@ const unsigned long INTERVALO_NUVEM = 10UL * 1000; // 10 segundos (Máxima respo
 const unsigned long TIMEOUT_UMID_MS = 30UL * 60 * 1000;
 const uint8_t LED_BRILHO = 20;
 
-// --- Telegram (Opcional) ---
-const char* TELEGRAM_TOKEN  = "";
-const char* TELEGRAM_CHAT   = "";
-const unsigned long TELEGRAM_INTERVALO = 60UL * 1000;
 
 // --- Progressão Automática (dias, 0 = manual) ---
 const int DIAS_PINANDO     = 0;
@@ -128,7 +124,7 @@ bool faeLigado = false, alertaFaltaAgua = false;
 
 bool horaValida = false; int horaAtual = -1;
 time_t inicioFaseTempo = 0; unsigned long bootTime = 0;
-unsigned long ultimoTelegram = 0; bool telegramAlertaEnviado = false;
+
 
 // ============================================================
 //  FUNÇÕES AUXILIARES
@@ -147,9 +143,10 @@ const char* nomeModoLuz() {
   if(modoLuz==LUZ_AUTO) return "AUTO"; if(modoLuz==LUZ_FORCADA_ON) return "ON"; return "OFF";
 }
 PerfilClimatico obterPerfil(FaseCultivo f) {
-  if(f==FASE_PINANDO) return {27.5, 95.0, 99.0, 3UL*60000, 40UL*60000};
-  if(f==FASE_FRUTIFICACAO) return {28.5, 88.0, 92.0, 2UL*60000, 60UL*60000};
-  if(f==FASE_SEGUNDO_FLUSH) return {29.0, 95.0, 99.0, 1UL*60000, 120UL*60000};
+  // Estufa 1x1x2m (2m cubicos) - Parametros Otimizados P. Cubensis
+  if(f==FASE_PINANDO) return {24.5, 95.0, 99.0, 4UL*60000, 40UL*60000}; // Alta umidade e queda de temp para engatilhar.
+  if(f==FASE_FRUTIFICACAO) return {25.5, 90.0, 95.0, 4UL*60000, 30UL*60000}; // FAE mais frequente (muito CO2 gerado), temp max 25.5C.
+  if(f==FASE_SEGUNDO_FLUSH) return {24.5, 95.0, 99.0, 4UL*60000, 40UL*60000}; // Replica a pinagem para novo ciclo.
   return {TEMP_ALVO_MAX, UMIDADE_MINIMA, UMIDADE_MAXIMA, FAE_ON_MS, FAE_OFF_MS};
 }
 String formatUptime(unsigned long ms) {
@@ -345,26 +342,15 @@ void aplicarReles() {
   if (alterou) ultimoEnvioNuvem = 0; 
 }
 
-void enviarTelegram(String msg) {
-  if (strlen(TELEGRAM_TOKEN)==0 || strlen(TELEGRAM_CHAT)==0 || WiFi.status()!=WL_CONNECTED) return;
-  unsigned long agora = millis(); if (agora - ultimoTelegram < TELEGRAM_INTERVALO) return; ultimoTelegram = agora;
-  WiFiClientSecure client; client.setInsecure();
-  if (client.connect("api.telegram.org", 443)) {
-    String url = "/bot" + String(TELEGRAM_TOKEN) + "/sendMessage?chat_id=" + String(TELEGRAM_CHAT) + "&text=" + msg;
-    client.print("GET " + url + " HTTP/1.1\r\nHost: api.telegram.org\r\nConnection: close\r\n\r\n");
-    delay(100); client.stop();
-  }
-}
-
 void verificarProgressao() {
   if (inicioFaseTempo == 0) return; time_t agora; time(&agora); if (agora < 1600000000) return;
   unsigned long dias = (agora - inicioFaseTempo) / 86400UL;
   if (faseAtual==FASE_PINANDO && DIAS_PINANDO>0 && dias>=(unsigned long)DIAS_PINANDO) {
-    setNovaFase(FASE_FRUTIFICACAO); enviarTelegram("🍄 Mudou: PINANDO → FRUTIFICACAO");
+    setNovaFase(FASE_FRUTIFICACAO);
   } else if (faseAtual==FASE_FRUTIFICACAO && DIAS_FRUTIFICACAO>0 && dias>=(unsigned long)DIAS_FRUTIFICACAO) {
-    setNovaFase(FASE_SEGUNDO_FLUSH); enviarTelegram("🍄 Mudou: FRUTIFICACAO → FLUSH 2");
+    setNovaFase(FASE_SEGUNDO_FLUSH);
   } else if (faseAtual==FASE_SEGUNDO_FLUSH && DIAS_SEGUNDO_FLUSH>0 && dias>=(unsigned long)DIAS_SEGUNDO_FLUSH) {
-    setNovaFase(FASE_STANDBY); enviarTelegram("🍄 Ciclo completo! STANDBY.");
+    setNovaFase(FASE_STANDBY);
   }
 }
 
@@ -399,6 +385,17 @@ void executarMotor(unsigned long agora) {
 
   if (faeLigado) { releExaustExt = true; releVentoInt = true; }
 
+  // --- CIRCULACAO INTERNA PREVENTIVA (Estufa Grande) ---
+  // Gira o ar internamente independente do umidificador para evitar bolsões de ar parado e CO2 pesado
+  if (!releVentoInt) { 
+    if (faseAtual == FASE_FRUTIFICACAO) {
+      if ((agora % 600000) < 120000) releVentoInt = true; // Frutificação: 2 min ON a cada 10 min (Mistura CO2 forte)
+    } else {
+      if ((agora % 600000) < 60000) releVentoInt = true;  // Outras fases: 1 min ON a cada 10 min (Brisa leve)
+    }
+  }
+  // -----------------------------------------------------
+
   if (!alertaFaltaAgua) {
     if (defesaEvap) releUmidific = true;
     else if (humInt < pf.umidMin) releUmidific = true;
@@ -410,22 +407,22 @@ void executarMotor(unsigned long agora) {
   if (releUmidific) {
     if (inicioUmidificacao == 0) inicioUmidificacao = agora;
     else if (agora - inicioUmidificacao > TIMEOUT_UMID_MS) {
-      alertaFaltaAgua = true; releUmidific = false; enviarTelegram("🚨 ALERTA: Falta agua!");
+      alertaFaltaAgua = true; releUmidific = false;
     }
   } else { inicioUmidificacao = 0; }
 
   if (modoLuz == LUZ_AUTO) {
     releLuz = (horaValida && (horaAtual >= LUZ_HORA_LIGA || horaAtual < LUZ_HORA_DESLIGA));
-    if (frio && !arQuente) releLuz = true;
+    // LOGICA DE FRIO REMOVIDA AQUI: A luz nao liga para aquecer, preservando o fotoperiodo (12/12).
+    // Um rele de aquecedor sera adicionado em atualizacoes futuras caso o clima exija.
   }
 }
 
 void aplicarSeguranca() {
   if (modoLuz == LUZ_FORCADA_ON) releLuz = true;
   if (modoLuz == LUZ_FORCADA_OFF) releLuz = false;
-  if (tempInt >= TEMP_CORTE_LUZ) { releLuz = false; Serial.println("🔥 SEGURANCA: Corte Termico da LUZ ativado!"); enviarTelegram("🔥 CORTE TERMICO! Temp: " + String(tempInt,1) + "C"); }
-  if (tempInt >= TEMP_CRITICA && !telegramAlertaEnviado) { Serial.println("⚠️ SEGURANCA: Temperatura critica atingida!"); enviarTelegram("⚠️ Temp critica: " + String(tempInt,1) + "C"); telegramAlertaEnviado = true; }
-  if (tempInt < TEMP_CRITICA) telegramAlertaEnviado = false;
+  if (tempInt >= TEMP_CORTE_LUZ) { releLuz = false; Serial.println("🔥 SEGURANCA: Corte Termico da LUZ ativado!"); }
+  if (tempInt >= TEMP_CRITICA) { Serial.println("⚠️ SEGURANCA: Temperatura critica atingida!"); }
 }
 
 // (DASHBOARD WEB LOCAL OMITIDO AQUI PARA ECONOMIA DE MEMORIA - MAS CONTINUA FUNCIONANDO)
