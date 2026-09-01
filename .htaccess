@@ -1,0 +1,10 @@
+# Bloqueia acesso a arquivos do Arduino e de sistema por segurança
+<FilesMatch "\.(ino|md|git|json)$">
+    Order allow,deny
+    Deny from all
+</FilesMatch>
+
+# Redireciona o tráfego silenciosamente para a pasta web
+RewriteEngine On
+RewriteCond %{REQUEST_URI} !^/grow\.alquimistasmagicos\.com\.br/
+RewriteRule ^(.*)$ /grow.alquimistasmagicos.com.br/$1 [L]
