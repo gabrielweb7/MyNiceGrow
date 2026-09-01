@@ -1,8 +1,10 @@
 // ============================================================
-//  GROW IA v4.0 - Firmware Inteligente + Nuvem IoT
+//  GROW IA - Firmware Inteligente + Nuvem IoT
 //  Placa: ESP32-C3-MINI-1-N4
 //  Autor: Gabriel + Antigravity AI
 // ============================================================
+
+#define FW_VERSION 400
 
 #include <Arduino.h>
 #include <ArduinoJson.h>
@@ -125,7 +127,7 @@ bool faeLigado = false, alertaFaltaAgua = false;
 
 bool horaValida = false; int horaAtual = -1;
 time_t inicioFaseTempo = 0; unsigned long bootTime = 0;
-
+uint32_t fwAtual = 0;
 
 // ============================================================
 //  FUNÇÕES AUXILIARES
@@ -286,15 +288,24 @@ void enviarNuvem(unsigned long agora) {
             inicioUmidificacao = 0;
             ultimoEnvioNuvem = 0; // Atualiza a nuvem pra apagar o alerta
          }
-         if (docRes.containsKey("comando_ota")) {
-            Serial.println("📥 COMANDO NUVEM: INICIANDO ATUALIZACAO OTA REMOTA!");
+         uint32_t vNuvem = docRes.containsKey("versao_nuvem") ? (uint32_t)docRes["versao_nuvem"] : 0;
+         if (docRes.containsKey("comando_ota") || (vNuvem > 0 && vNuvem > fwAtual)) {
+            Serial.printf("📥 OTA INICIANDO (Local: %u, Nuvem: %u)\n", fwAtual, vNuvem);
             WiFiClientSecure otaClient; 
-            otaClient.setInsecure(); // Ignora validação rigorosa de SSL (HostGator)
-            httpUpdate.rebootOnUpdate(true);
-            // Pega o arquivo do diretorio de build sincronizado pelo Git do cPanel
+            otaClient.setInsecure();
+            httpUpdate.rebootOnUpdate(false); // Desativa reboot automatico para salvar versao
+            
             String fwUrl = "https://grow.alquimistasmagicos.com.br/build/esp32.esp32.esp32c3/esp32c3.ino.bin";
             t_httpUpdate_return ret = httpUpdate.update(otaClient, fwUrl);
-            if (ret == HTTP_UPDATE_FAILED) {
+            
+            if (ret == HTTP_UPDATE_OK) {
+               Serial.println("✅ OTA CONCLUIDO! Salvando nova versao e reiniciando...");
+               prefs.begin("grow", false);
+               prefs.putUInt("fw_ver", vNuvem);
+               prefs.end();
+               delay(1000);
+               ESP.restart();
+            } else if (ret == HTTP_UPDATE_FAILED) {
                Serial.printf("❌ Falha no OTA (%d): %s\n", httpUpdate.getLastError(), httpUpdate.getLastErrorString().c_str());
             }
          }
@@ -467,6 +478,8 @@ void setup() {
   prefs.begin("grow", false);
   faseAtual = (FaseCultivo)prefs.getInt("fase", (int)FASE_STANDBY);
   inicioFaseTempo = prefs.getUInt("inicio", 0);
+  fwAtual = prefs.getUInt("fw_ver", 0);
+  prefs.end();
   
   Wire.begin(PIN_SDA, PIN_SCL);
   if (sht30.begin(0x44)) Serial.println("[OK] SHT30"); else statusSis = SIS_ERRO_SENSOR;
