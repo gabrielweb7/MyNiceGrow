@@ -58,8 +58,8 @@
                     <span class="w-2 h-2 rounded-full bg-slate-500 pulse-dot" id="dotColor"></span>
                     <span id="statusText" class="text-slate-400">Aguardando...</span>
                 </div>
-                <button onclick="dispararOTA()" class="ml-2 px-2.5 py-1 text-[10px] bg-slate-800 hover:bg-emerald-600 border border-slate-700 hover:border-emerald-500 rounded text-slate-300 hover:text-white transition-all font-semibold uppercase tracking-wider hidden sm:block">
-                    OTA
+                <button onclick="abrirConfig()" class="ml-2 px-2.5 py-1 text-[10px] bg-slate-800 hover:bg-slate-700 border border-slate-700 rounded text-slate-300 hover:text-white transition-all font-semibold uppercase tracking-wider flex items-center gap-1">
+                    <span>⚙️</span> <span class="hidden sm:inline">Configurações</span>
                 </button>
             </div>
             <div class="flex items-center gap-2">
@@ -250,6 +250,31 @@
         </footer>
     </main>
 
+    <!-- Modal Configurações -->
+    <div id="modalConfig" class="fixed inset-0 bg-black/80 backdrop-blur-sm z-[100] hidden flex items-center justify-center p-4">
+        <div class="bg-slate-900 border border-slate-700 rounded-xl w-full max-w-lg overflow-hidden shadow-2xl">
+            <div class="px-5 py-4 border-b border-slate-800 flex justify-between items-center">
+                <h2 class="text-sm font-bold text-slate-200 uppercase tracking-wider">⚙️ Configurações do Sistema</h2>
+                <button onclick="fecharConfig()" class="text-slate-400 hover:text-white text-xl leading-none">&times;</button>
+            </div>
+            <div class="p-5">
+                <h3 class="text-emerald-400 font-bold text-xs uppercase mb-2">Atualização Remota de Firmware do Microcontrolador ESP32</h3>
+                <p class="text-xs text-slate-400 mb-4">Selecione o arquivo <span class="text-slate-300 font-mono">.bin</span> compilado na Arduino IDE para enviá-lo à placa. O ESP32 será reiniciado automaticamente.</p>
+                
+                <div class="border border-slate-700 border-dashed rounded-lg p-4 text-center mb-4">
+                    <input type="file" id="fileOta" accept=".bin" class="hidden" onchange="document.getElementById('fileName').textContent = this.files[0] ? this.files[0].name : 'Nenhum arquivo selecionado'">
+                    <button onclick="document.getElementById('fileOta').click()" class="bg-slate-800 hover:bg-slate-700 text-xs px-4 py-2 rounded text-slate-200 transition border border-slate-600">Selecionar Arquivo .bin</button>
+                    <p id="fileName" class="text-[10px] text-slate-500 mt-2">Nenhum arquivo selecionado</p>
+                </div>
+
+                <button onclick="enviarOTA()" id="btnEnviarOta" class="w-full bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs py-3 rounded-lg transition-all shadow-[0_0_15px_rgba(16,185,129,0.2)]">
+                    Fazer Upload e Atualizar Placa
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/apexcharts"></script>
     <script>
         let chartTemp, chartHum, chartReles;
         let limitAtual = 1440;
@@ -384,11 +409,62 @@
             }
         }
 
-        async function dispararOTA() {
-            if (confirm("⚠️ ATUALIZAÇÃO REMOTA (OTA)\n\nVocê já compilou o código na Arduino IDE (Export Compiled Binary) e enviou o arquivo 'firmware.bin' para a pasta raiz da HostGator?\n\nSe sim, clique em OK para mandar a placa atualizar.")) {
-                if (await enviarComando({ota: 1})) {
-                    alert("Comando enviado! O ESP32 vai baixar o arquivo firmware.bin e reiniciar automaticamente em cerca de 30 segundos.");
+        function abrirConfig() { document.getElementById('modalConfig').classList.remove('hidden'); }
+        function fecharConfig() { document.getElementById('modalConfig').classList.add('hidden'); }
+
+        async function enviarOTA() {
+            const fileInput = document.getElementById('fileOta');
+            if (!fileInput.files.length) {
+                alert("Selecione um arquivo .bin primeiro!");
+                return;
+            }
+            
+            let p = localStorage.getItem('adminPass');
+            if(!p) {
+                p = prompt("Senha de Admin:");
+                if(!p) return;
+                localStorage.setItem('adminPass', p);
+            }
+
+            const btn = document.getElementById('btnEnviarOta');
+            btn.textContent = "Enviando arquivo para nuvem...";
+            btn.disabled = true;
+            btn.classList.add('opacity-50', 'cursor-not-allowed');
+
+            try {
+                const fd = new FormData();
+                fd.append('firmware', fileInput.files[0]);
+                
+                const resUpload = await fetch('api/upload.php', {
+                    method: 'POST',
+                    body: fd,
+                    headers: { 'X-Api-Key': p }
+                });
+
+                if (!resUpload.ok) {
+                    if (resUpload.status === 401) {
+                        localStorage.removeItem('adminPass');
+                        throw new Error("Senha Incorreta!");
+                    }
+                    throw new Error("Falha no upload (Status " + resUpload.status + ")");
                 }
+
+                btn.textContent = "Comandando a Placa...";
+                
+                if (await enviarComando({ota: 1})) {
+                    alert("✅ Sucesso! O arquivo foi enviado e a placa já começou a atualização remota.\nEla voltará online em cerca de 1 minuto.");
+                    fecharConfig();
+                    fileInput.value = "";
+                    document.getElementById('fileName').textContent = "Nenhum arquivo selecionado";
+                } else {
+                    alert("⚠️ Arquivo enviado para a nuvem, mas houve uma falha ao avisar a placa.");
+                }
+            } catch (e) {
+                alert("❌ Erro: " + e.message);
+            } finally {
+                btn.textContent = "Fazer Upload e Atualizar Placa";
+                btn.disabled = false;
+                btn.classList.remove('opacity-50', 'cursor-not-allowed');
             }
         }
 

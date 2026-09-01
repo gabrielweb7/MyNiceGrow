@@ -526,16 +526,7 @@ void loop() {
     enviarNuvem(agora);
   }
 
-  // Comandos serial via teclado
-  if (Serial.available()) {
-    char c = Serial.read(); FaseCultivo nova = faseAtual;
-    if(c=='0') nova=FASE_STANDBY; else if(c=='P'||c=='p') nova=FASE_PINANDO;
-    else if(c=='F'||c=='f') nova=FASE_FRUTIFICACAO; else if(c=='S'||c=='s') nova=FASE_SEGUNDO_FLUSH;
-    else if(c=='D'||c=='d') nova=FASE_SECAGEM;
-    else if(c=='L'||c=='l') { modoLuz = (modoLuz==LUZ_AUTO)?LUZ_FORCADA_ON:(modoLuz==LUZ_FORCADA_ON?LUZ_FORCADA_OFF:LUZ_AUTO); }
-    else if(c=='R'||c=='r') { alertaFaltaAgua=false; inicioUmidificacao=0; }
-    setNovaFase(nova);
-  }
+
 
   // Dashboard LED RGB
   if (alertaFaltaAgua) rgbLedWrite(RGB_BUILTIN, (agora%200<100)?LED_BRILHO:0,0,0);
