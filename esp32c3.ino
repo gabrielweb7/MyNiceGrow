@@ -257,6 +257,7 @@ void enviarNuvem(unsigned long agora) {
   client.setInsecure();
   HTTPClient http;
   if (http.begin(client, CLOUD_URL)) {
+    http.setTimeout(5000); // Tenta por max 5s, depois desiste pra não travar a placa
     http.addHeader("Content-Type", "application/json");
     http.addHeader("X-Api-Key", CLOUD_KEY);
     int code = http.POST(json);

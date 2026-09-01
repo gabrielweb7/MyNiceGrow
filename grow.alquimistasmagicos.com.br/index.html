@@ -240,22 +240,35 @@
 
         let luzState = 0; // 0=AUTO, 1=ON, 2=OFF
 
+        // Wrapper de segurança para cancelar requests se demorarem mais que X milissegundos
+        async function fetchComTimeout(url, options = {}, tempoMs = 5000) {
+            const controller = new AbortController();
+            const id = setTimeout(() => controller.abort(), tempoMs);
+            try {
+                const response = await fetch(url, { ...options, signal: controller.signal });
+                clearTimeout(id);
+                return response;
+            } catch (err) {
+                clearTimeout(id);
+                throw err;
+            }
+        }
+
         async function enviarComando(params) {
             try {
                 let p = localStorage.getItem('adminPass');
-                if (!p) {
-                    p = prompt("🔒 Senha Admin necessária para comandar a Estufa:");
-                    if (!p) return false;
+                if(!p) {
+                    p = prompt("Senha de Admin:");
+                    if(!p) return false;
                     localStorage.setItem('adminPass', p);
                 }
-
                 const fd = new FormData();
                 for (let key in params) fd.append(key, params[key]);
-                const res = await fetch('api/comando.php', { 
-                    method: 'POST', 
+                const res = await fetchComTimeout('api/comando.php', {
+                    method: 'POST',
                     body: fd,
                     headers: { 'X-Api-Key': p }
-                });
+                }, 5000); // Falha rápida se servidor travar
                 
                 if (res.status === 401) {
                     alert("❌ Senha Incorreta!");
@@ -395,7 +408,7 @@
 
         async function carregarDados(limit) {
             try {
-                const res = await fetch(`api/index.php?limit=${limit}`);
+                const res = await fetchComTimeout(`api/index.php?limit=${limit}`, {}, 8000);
                 const data = await res.json();
 
                 if (!data || data.length === 0) {
