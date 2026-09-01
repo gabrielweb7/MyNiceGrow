@@ -262,7 +262,7 @@
         function initCharts() {
             chartTemp = new ApexCharts(document.querySelector("#chartTemp"), {
                 ...baseChartOpts,
-                chart: { ...baseChartOpts.chart, type: 'area', height: 280, id: 'chartTemp', group: 'syncGrow' },
+                chart: { ...baseChartOpts.chart, type: 'area', height: 280, id: 'apexTemp', group: 'syncGrow' },
                 dataLabels: {
                     enabled: true,
                     style: { fontSize: '9px', fontWeight: 'bold' },
@@ -278,7 +278,7 @@
 
             chartHum = new ApexCharts(document.querySelector("#chartHum"), {
                 ...baseChartOpts,
-                chart: { ...baseChartOpts.chart, type: 'area', height: 280, id: 'chartHum', group: 'syncGrow' },
+                chart: { ...baseChartOpts.chart, type: 'area', height: 280, id: 'apexHum', group: 'syncGrow' },
                 dataLabels: {
                     enabled: true,
                     style: { fontSize: '9px', fontWeight: 'bold' },
@@ -294,7 +294,7 @@
 
             chartReles = new ApexCharts(document.querySelector("#chartReles"), {
                 ...baseChartOpts,
-                chart: { ...baseChartOpts.chart, type: 'area', height: 200, id: 'chartReles', group: 'syncGrow' },
+                chart: { ...baseChartOpts.chart, type: 'area', height: 200, id: 'apexReles', group: 'syncGrow' },
                 series: [{ name: 'Luz', data: [] }, { name: 'Umidificador', data: [] }, { name: 'Exaustor', data: [] }],
                 colors: [chartColors.amber, chartColors.blue, chartColors.orange],
                 fill: { type: 'solid', opacity: 0.15 },
@@ -307,8 +307,8 @@
         function setRele(id, statusId, isOn) {
             const el = document.getElementById(id);
             const st = document.getElementById(statusId);
-            if (isOn) { el.className = 'rele-on rounded-lg p-3 text-center transition-all duration-500'; st.textContent = 'ON'; st.className = 'text-[10px] text-white/80 mt-0.5 font-bold'; }
-            else { el.className = 'rele-off rounded-lg p-3 text-center transition-all duration-500'; st.textContent = 'OFF'; st.className = 'text-[10px] text-slate-400 mt-0.5'; }
+            if (isOn) { el.className = 'rele-on rounded-lg p-3 text-center transition-all duration-500 cursor-pointer hover:bg-emerald-600 border border-transparent'; st.textContent = 'ON'; st.className = 'text-[10px] text-white/80 mt-0.5 font-bold'; }
+            else { el.className = 'rele-off rounded-lg p-3 text-center transition-all duration-500 cursor-pointer hover:bg-slate-700 border border-transparent'; st.textContent = 'OFF'; st.className = 'text-[10px] text-slate-400 mt-0.5'; }
         }
 
         function filtrar(limit, btn) {
@@ -371,18 +371,20 @@
                 const seriesTempInt = [], seriesTempExt = [], seriesHumInt = [], seriesHumExt = [];
                 const seriesReleLuz = [], seriesReleUmid = [], seriesReleExaust = [];
 
+                let lastTi = 0, lastTe = 0; // fallback para erros
+
                 data.forEach(d => {
                     const safeDate = d.timestamp.replace(' ', 'T');
                     const ts = new Date(safeDate).getTime();
                     const tI = parseFloat(d.temp_int);
                     const tE = parseFloat(d.temp_ext);
                     
-                    // Substitui ruídos por null (vazio) pra não quebrar a linha do tempo (sync)
-                    const valTi = (tI > -40 && tI < 60) ? tI : null;
-                    const valTe = (tE > -40 && tE < 60) ? tE : null;
+                    // Mantém a última leitura boa para não quebrar a sincronização
+                    if (tI > -40 && tI < 60) lastTi = tI;
+                    if (tE > -40 && tE < 60) lastTe = tE;
 
-                    seriesTempInt.push([ts, valTi]);
-                    seriesTempExt.push([ts, valTe]);
+                    seriesTempInt.push([ts, lastTi]);
+                    seriesTempExt.push([ts, lastTe]);
                     seriesHumInt.push([ts, parseFloat(d.hum_int)]);
                     seriesHumExt.push([ts, parseFloat(d.hum_ext)]);
                     seriesReleLuz.push([ts, parseInt(d.rele_luz)]);
