@@ -1,10 +1,18 @@
-# Bloqueia acesso a arquivos do Arduino e de sistema por segurança
-<FilesMatch "\.(ino|md|git|json)$">
-    Order allow,deny
-    Deny from all
+DirectoryIndex index.html index.php
+
+# Bloqueia acesso a arquivos sensíveis
+<FilesMatch "\.(ino|sql)$">
+    Require all denied
 </FilesMatch>
 
-# Redireciona o tráfego silenciosamente para a pasta web
+# Redireciona para a subpasta do painel web
 RewriteEngine On
-RewriteCond %{REQUEST_URI} !^/grow\.alquimistasmagicos\.com\.br/
-RewriteRule ^(.*)$ /grow.alquimistasmagicos.com.br/$1 [L]
+RewriteBase /
+
+# Nao redireciona se ja estiver na pasta correta
+RewriteCond %{REQUEST_URI} !^/grow\.alquimistasmagicos\.com\.br/ [NC]
+
+# Nao redireciona arquivos que existem na raiz (como .htaccess)
+RewriteCond %{REQUEST_FILENAME} !-f
+
+RewriteRule ^(.*)$ grow.alquimistasmagicos.com.br/$1 [L]
