@@ -146,29 +146,29 @@
             </div>
             <div class="grid grid-cols-2 md:grid-cols-5 gap-3">
                 <!-- Fase 0 -->
-                <button onclick="mudarFase(0)" class="btn-fase rele-off hover:bg-slate-700 rounded-lg p-3 text-center transition-all border border-transparent">
+                <button id="btnFase0" onclick="mudarFase(0)" class="btn-fase bg-slate-800 hover:bg-slate-700 rounded-lg p-3 text-center transition-all duration-300 border border-transparent opacity-80">
                     <div class="text-2xl mb-1">⏸️</div>
-                    <p class="text-xs font-bold">Standby</p>
+                    <p class="text-xs font-bold text-slate-300">Standby</p>
                 </button>
                 <!-- Fase 1 -->
-                <button onclick="mudarFase(1)" class="btn-fase rele-off hover:bg-slate-700 rounded-lg p-3 text-center transition-all border border-transparent">
+                <button id="btnFase1" onclick="mudarFase(1)" class="btn-fase bg-slate-800 hover:bg-slate-700 rounded-lg p-3 text-center transition-all duration-300 border border-transparent opacity-80">
                     <div class="text-2xl mb-1">🍄</div>
-                    <p class="text-xs font-bold">Pinagem</p>
+                    <p class="text-xs font-bold text-slate-300">Pinagem</p>
                 </button>
                 <!-- Fase 2 -->
-                <button onclick="mudarFase(2)" class="btn-fase rele-off hover:bg-slate-700 rounded-lg p-3 text-center transition-all border border-transparent">
+                <button id="btnFase2" onclick="mudarFase(2)" class="btn-fase bg-slate-800 hover:bg-slate-700 rounded-lg p-3 text-center transition-all duration-300 border border-transparent opacity-80">
                     <div class="text-2xl mb-1">🌳</div>
-                    <p class="text-xs font-bold">Frutificação</p>
+                    <p class="text-xs font-bold text-slate-300">Frutificação</p>
                 </button>
                 <!-- Fase 3 -->
-                <button onclick="mudarFase(3)" class="btn-fase rele-off hover:bg-slate-700 rounded-lg p-3 text-center transition-all border border-transparent">
+                <button id="btnFase3" onclick="mudarFase(3)" class="btn-fase bg-slate-800 hover:bg-slate-700 rounded-lg p-3 text-center transition-all duration-300 border border-transparent opacity-80">
                     <div class="text-2xl mb-1">🔄</div>
-                    <p class="text-[10px] md:text-xs font-bold">Segundo Flush</p>
+                    <p class="text-[10px] md:text-xs font-bold text-slate-300">Segundo Flush</p>
                 </button>
                 <!-- Fase 4 -->
-                <button onclick="mudarFase(4)" class="btn-fase rele-off hover:bg-slate-700 rounded-lg p-3 text-center transition-all border border-transparent">
+                <button id="btnFase4" onclick="mudarFase(4)" class="btn-fase bg-slate-800 hover:bg-slate-700 rounded-lg p-3 text-center transition-all duration-300 border border-transparent opacity-80">
                     <div class="text-2xl mb-1">🏜️</div>
-                    <p class="text-[10px] md:text-xs font-bold">Secagem Total</p>
+                    <p class="text-[10px] md:text-xs font-bold text-slate-300">Secagem Total</p>
                 </button>
             </div>
             <p class="text-[10px] text-slate-500 mt-3 text-center">*Ao clicar, a ordem será entregue à estufa no próximo ciclo de internet (máx. 1 min).</p>
@@ -284,6 +284,7 @@
             if (await enviarComando({fase: f})) {
                 fasePendente = true;
                 document.getElementById('valFase').textContent = "Pendente ⏳";
+                atualizarBotoesFase(f, true);
                 loopDados(3000); // Força refresh rápido
             }
         }
@@ -370,6 +371,23 @@
             }
         }
 
+        function atualizarBotoesFase(faseNome, pendente = false) {
+            const mapa = { "Standby": 0, "Pinagem": 1, "Frutificacao": 2, "Segundo Flush": 3, "Secagem Total": 4 };
+            let faseId = -1;
+            if (typeof faseNome === 'number') faseId = faseNome;
+            else if (mapa[faseNome] !== undefined) faseId = mapa[faseNome];
+
+            for (let i = 0; i <= 4; i++) {
+                const btn = document.getElementById(`btnFase${i}`);
+                if (!btn) continue;
+                if (i === faseId) {
+                    btn.className = `btn-fase cursor-pointer bg-emerald-600 hover:bg-emerald-500 rounded-lg p-3 text-center transition-all duration-300 shadow-[0_0_15px_rgba(16,185,129,0.4)] border border-emerald-400/50 ${pendente ? 'animate-pulse opacity-80' : ''}`;
+                } else {
+                    btn.className = `btn-fase cursor-pointer bg-slate-800 hover:bg-slate-700 rounded-lg p-3 text-center transition-all duration-300 border border-transparent opacity-80`;
+                }
+            }
+        }
+
         function filtrar(limit, btn) {
             limitAtual = limit;
             document.querySelectorAll('.btn-filter').forEach(b => b.classList.remove('active'));
@@ -406,7 +424,10 @@
                 document.getElementById('valUe').textContent = 'Umid: ' + ue.toFixed(1) + ' %';
                 
                 // BUG 13: Só atualiza fase/luz se não houver comando pendente
-                if (!fasePendente) document.getElementById('valFase').textContent = ultimo.fase || '--';
+                if (!fasePendente) {
+                    document.getElementById('valFase').textContent = ultimo.fase || '--';
+                    atualizarBotoesFase(ultimo.fase, false);
+                }
                 if (fasePendente) fasePendente = false; // Consome o flag após 1 ciclo
 
                 // Última atualização
