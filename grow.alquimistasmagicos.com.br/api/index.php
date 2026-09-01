@@ -54,6 +54,7 @@ if ($method === 'POST') {
         $cmd = json_decode(file_get_contents($arquivo_comando), true);
         if (isset($cmd['fase'])) $resposta['comando_fase'] = $cmd['fase'];
         if (isset($cmd['luz'])) $resposta['comando_luz'] = $cmd['luz'];
+        if (isset($cmd['reset_agua'])) $resposta['comando_reset_agua'] = 1;
         unlink($arquivo_comando); // Deleta apos entregar ao ESP32
     }
     echo json_encode($resposta);

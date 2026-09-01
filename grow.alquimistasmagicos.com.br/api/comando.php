@@ -29,6 +29,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
     if (isset($_POST['fase'])) $cmd['fase'] = (int)$_POST['fase'];
     if (isset($_POST['luz'])) $cmd['luz'] = (int)$_POST['luz']; // 0: AUTO, 1: ON, 2: OFF
+    if (isset($_POST['reset_agua'])) $cmd['reset_agua'] = 1;
 
     file_put_contents($arquivo_comando, json_encode($cmd));
     echo json_encode(["status" => "Comando salvo na fila!", "cmd" => $cmd]);

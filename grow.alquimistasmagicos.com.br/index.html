@@ -342,10 +342,24 @@
         let fasePendenteAlvo = null; // Guarda qual fase o usuário clicou para desbloquear a UI assim que o banco confirmar
         let loopTimeout = null;
 
-        function setRele(id, statusId, isOn) {
+        function setRele(id, statusId, estadoRele) {
             const el = document.getElementById(id);
             const st = document.getElementById(statusId);
             const isLuz = (id === 'releLuz');
+
+            // Estado 2: Falta de Água / Alerta
+            if (estadoRele === 2) {
+                el.className = 'bg-rose-900/80 rounded-lg p-3 text-center transition-all duration-500 shadow-[0_0_15px_rgba(225,29,72,0.6)] border border-rose-500 cursor-pointer animate-pulse';
+                el.onclick = () => resetarAgua(); // Permite clicar para resetar
+                st.innerHTML = '🚨 SEM ÁGUA<br><span class="text-[8px] font-normal">CLIQUE P/ RESETAR</span>';
+                st.className = 'text-[10px] text-white mt-0.5 font-bold tracking-wider leading-tight';
+                return;
+            } else if (id === 'releUmid') {
+                // Se não for alerta, removemos o onclick especial
+                el.onclick = null;
+            }
+
+            const isOn = (estadoRele === 1);
 
             if (isOn) {
                 el.className = (isLuz ? 'cursor-pointer hover:bg-emerald-500 ' : '') + 'bg-emerald-600 rounded-lg p-3 text-center transition-all duration-500 shadow-[0_0_15px_rgba(16,185,129,0.4)] border border-emerald-400/50';
@@ -355,6 +369,15 @@
                 el.className = (isLuz ? 'cursor-pointer hover:bg-slate-700 ' : '') + 'bg-slate-800 rounded-lg p-3 text-center transition-all duration-500 border border-transparent opacity-80';
                 st.textContent = isLuz ? (luzState === 0 ? 'AUTO (OFF)' : 'OFF') : 'OFF';
                 st.className = 'text-[10px] text-slate-500 mt-0.5 font-bold tracking-wider';
+            }
+        }
+
+        async function resetarAgua() {
+            if (confirm("Você reabasteceu o reservatório de água?")) {
+                if (await enviarComando({reset_agua: 1})) {
+                    document.getElementById('releUmidStatus').textContent = "ENVIANDO...";
+                    loopDados(2000);
+                }
             }
         }
 

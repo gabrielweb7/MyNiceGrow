@@ -212,7 +212,7 @@ void enviarNuvem(unsigned long agora) {
   json += "\"tE\":" + String(tempExt, 1) + ",";
   json += "\"uE\":" + String(humExt, 1) + ",";
   json += "\"rLuz\":" + String(releLuz?1:0) + ",";
-  json += "\"rUmid\":" + String(releUmidific?1:0) + ",";
+  json += "\"rUmid\":" + String(alertaFaltaAgua ? 2 : (releUmidific?1:0)) + ",";
   json += "\"rVento\":" + String(releVentoInt?1:0) + ",";
   json += "\"rExaust\":" + String(releExaustExt?1:0) + ",";
   json += "\"fase\":\"" + String(nomeFase((int)faseAtual)) + "\"";
@@ -280,6 +280,12 @@ void enviarNuvem(unsigned long agora) {
             else if (cl == 1 && modoLuz != LUZ_FORCADA_ON) { modoLuz = LUZ_FORCADA_ON; Serial.println("📥 COMANDO NUVEM: Luz mudou para FORCADA LIGADA"); luzMudou = true; }
             else if (cl == 2 && modoLuz != LUZ_FORCADA_OFF) { modoLuz = LUZ_FORCADA_OFF; Serial.println("📥 COMANDO NUVEM: Luz mudou para FORCADA DESLIGADA"); luzMudou = true; }
             if (luzMudou) ultimoEnvioNuvem = 0; // Dispara atualização imediata
+         }
+         if (docRes.containsKey("comando_reset_agua")) {
+            Serial.println("📥 COMANDO NUVEM: Reset de Alerta de Agua recebido!");
+            alertaFaltaAgua = false;
+            inicioUmidificacao = 0;
+            ultimoEnvioNuvem = 0; // Atualiza a nuvem pra apagar o alerta
          }
       }
       Serial.println("[NUVEM] Leitura enviada!");
