@@ -307,9 +307,13 @@
                     const ts = new Date(safeDate).getTime();
                     const tI = parseFloat(d.temp_int);
                     const tE = parseFloat(d.temp_ext);
-                    // Filtra dados ruins antes de plotar
-                    if (tI > -40 && tI < 60) seriesTempInt.push([ts, tI]);
-                    if (tE > -40 && tE < 60) seriesTempExt.push([ts, tE]);
+                    
+                    // Substitui ruídos por null (vazio) pra não quebrar a linha do tempo (sync)
+                    const valTi = (tI > -40 && tI < 60) ? tI : null;
+                    const valTe = (tE > -40 && tE < 60) ? tE : null;
+
+                    seriesTempInt.push([ts, valTi]);
+                    seriesTempExt.push([ts, valTe]);
                     seriesHumInt.push([ts, parseFloat(d.hum_int)]);
                     seriesHumExt.push([ts, parseFloat(d.hum_ext)]);
                     seriesReleLuz.push([ts, parseInt(d.rele_luz)]);
