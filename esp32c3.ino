@@ -170,29 +170,52 @@ void enviarNuvem(unsigned long agora) {
   if (ts < 1600000000) ts = 0; // NTP não sincronizou
 
   // Monta JSON da leitura
-  String json = "{";
-  json += "\"timestamp\":" + String((uint32_t)ts) + ",";
-  json += "\"tI\":" + String(tempInt, 1) + ",";
-  json += "\"uI\":" + String(humInt, 1) + ",";
-  json += "\"tE\":" + String(tempExt, 1) + ",";
-  json += "\"uE\":" + String(humExt, 1) + ",";
-  json += "\"rLuz\":" + String(releLuz?1:0) + ",";
-  json += "\"rUmid\":" + String(releUmidific?1:0) + ",";
-  json += "\"rVento\":" + String(releVentoInt?1:0) + ",";
-  json += "\"rExaust\":" + String(releExaustExt?1:0) + ",";
-  json += "\"fase\":\"" + String(nomeFase(faseAtual)) + "\"";
-  json += "}";
+void mudarFase(int novaFase) {
+  faseAtual = (FaseCultivo)novaFase;
+  tempoInicioFase = millis();
+  
+  prefs.begin("grow", false);
+  prefs.putInt("fase", (int)faseAtual);
+  prefs.end();
+  
+  Serial.printf("[FSM] Fase alterada para: %s\n", nomeFase(faseAtual).c_str());
+  String msg = "🍄 Grow IA: Nova fase iniciada -> " + nomeFase(faseAtual);
+  enviarTelegram(msg);
+}
 
-  // Se estiver sem internet, grava no "HD" (LittleFS)
+// ---------------------------------------------------------
+// OFFLINE DATALOGGER (ANTI-APAGÃO DE INTERNET)
+// ---------------------------------------------------------
+void salvarOffline(String jsonPayload) {
+  File f = LittleFS.open("/offline.log", "r");
+  if (f && f.size() > 80000) { 
+    f.close();
+    LittleFS.remove("/offline.log");
+    Serial.println("[LITTLEFS] Overflow! Log apagado p/ seguranca.");
+  } else if (f) {
+    f.close();
+  }
+  
+  f = LittleFS.open("/offline.log", "a");
+  if (f) {
+    f.println(jsonPayload);
+    f.close();
+    Serial.println("[LITTLEFS] Salvo na memoria interna.");
+  }
+}
+
+// ---------------------------------------------------------
+// COMUNICAÇÃO COM A NUVEM
+// ---------------------------------------------------------
+void enviarNuvem(String jsonPayload) {
   if (WiFi.status() != WL_CONNECTED) {
-    File f = LittleFS.open("/offline.log", "a");
-    if (f) { f.println(json); f.close(); Serial.println("[NUVEM] Sem Wi-Fi. Salvo offline no LittleFS."); }
+    Serial.println("[WIFI] Caiu! Tentando forcar reconexao agresiva...");
+    WiFi.disconnect();
+    WiFi.reconnect();
+    salvarOffline(jsonPayload);
     return;
   }
-
-  WiFiClientSecure client;
-  client.setInsecure(); // Ignora validade de certificado pra não dar erro se NTP falhar
-
+  
   // 1. TENTA ENVIAR DADOS ATRASADOS (OFFLINE BACKLOG)
   if (LittleFS.exists("/offline.log")) {
     File f = LittleFS.open("/offline.log", "r");

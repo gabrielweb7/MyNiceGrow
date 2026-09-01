@@ -244,7 +244,11 @@
             try {
                 const fd = new FormData();
                 for (let key in params) fd.append(key, params[key]);
-                await fetch('api/comando.php', { method: 'POST', body: fd });
+                await fetch('api/comando.php', { 
+                    method: 'POST', 
+                    body: fd,
+                    headers: { 'X-Api-Key': 'GrowIA_V4_SuperSecreta!' }
+                });
                 const st = document.getElementById('cmdStatus');
                 st.style.opacity = '1'; setTimeout(() => st.style.opacity = '0', 3000);
             } catch(e) {}
