@@ -51,7 +51,7 @@ const unsigned long FAE_OFF_MS = 58UL * 60 * 1000;
 // --- Nuvem (HostGator) ---
 const char* CLOUD_URL = "https://grow.alquimistasmagicos.com.br/api/index.php";
 const char* CLOUD_KEY = "GrowIA_V4_SuperSecreta!";
-const unsigned long INTERVALO_NUVEM = 60UL * 1000; // 1 minuto
+const unsigned long INTERVALO_NUVEM = 10UL * 1000; // 10 segundos (Máxima responsividade)
 
 // --- Segurança ---
 const unsigned long TIMEOUT_UMID_MS = 30UL * 60 * 1000;
@@ -119,8 +119,10 @@ char  horaMinTemp[6]="--:--", horaMaxTemp[6]="--:--", horaMinHum[6]="--:--", hor
 int   ultimoDia = -1;
 
 bool releLuz = false, releUmidific = false, releVentoInt = false, releExaustExt = false;
+bool lastReleLuz = false, lastReleUmidific = false, lastReleVento = false, lastReleExaust = false;
 
 unsigned long ultimaLeitura = 0, ultimoCicloFAE = 0, inicioUmidificacao = 0, ultimoEnvioNuvem = 0;
+unsigned long ultimoLogSerial = 0;
 bool faeLigado = false, alertaFaltaAgua = false;
 
 bool horaValida = false; int horaAtual = -1;
@@ -262,14 +264,16 @@ void enviarNuvem(unsigned long agora) {
       if (!deserializeJson(docRes, response)) {
          if (docRes.containsKey("comando_fase")) {
             int fc = docRes["comando_fase"];
-            if (fc != (int)faseAtual) setNovaFase((FaseCultivo)fc);
+            if (fc != (int)faseAtual) {
+               Serial.printf("📥 COMANDO NUVEM: Alterar fase para %s\n", nomeFase(fc));
+               setNovaFase((FaseCultivo)fc);
+            }
          }
          if (docRes.containsKey("comando_luz")) {
             int cl = docRes["comando_luz"];
-            if (cl == 0) modoLuz = LUZ_AUTO;
-            else if (cl == 1) modoLuz = LUZ_FORCADA_ON;
-            else if (cl == 2) modoLuz = LUZ_FORCADA_OFF;
-            Serial.printf("🕹️ ORDEM REMOTA: Luz modo %d\n", cl);
+            if (cl == 0 && modoLuz != LUZ_AUTO) { modoLuz = LUZ_AUTO; Serial.println("📥 COMANDO NUVEM: Luz mudou para modo AUTO"); }
+            else if (cl == 1 && modoLuz != LUZ_FORCADA_ON) { modoLuz = LUZ_FORCADA_ON; Serial.println("📥 COMANDO NUVEM: Luz mudou para FORCADA LIGADA"); }
+            else if (cl == 2 && modoLuz != LUZ_FORCADA_OFF) { modoLuz = LUZ_FORCADA_OFF; Serial.println("📥 COMANDO NUVEM: Luz mudou para FORCADA DESLIGADA"); }
          }
       }
       Serial.println("[NUVEM] Leitura enviada!");
@@ -308,6 +312,11 @@ void atualizarFiltro(float tI, float hI, float tE, float hE) {
 void aplicarReles() {
   digitalWrite(PIN_RELE_LUZ, releLuz?LOW:HIGH); digitalWrite(PIN_RELE_UMIDIFIC, releUmidific?LOW:HIGH);
   digitalWrite(PIN_RELE_VENTO_INT, releVentoInt?LOW:HIGH); digitalWrite(PIN_RELE_EXAUST_EXT, releExaustExt?LOW:HIGH);
+
+  if (releLuz != lastReleLuz) { Serial.printf("💡 ACAO: LUZ %s\n", releLuz ? "LIGADA" : "DESLIGADA"); lastReleLuz = releLuz; }
+  if (releUmidific != lastReleUmidific) { Serial.printf("💧 ACAO: UMIDIFICADOR %s\n", releUmidific ? "LIGADO" : "DESLIGADO"); lastReleUmidific = releUmidific; }
+  if (releVentoInt != lastReleVento) { Serial.printf("💨 ACAO: VENTILADOR INT %s\n", releVentoInt ? "LIGADO" : "DESLIGADO"); lastReleVento = releVentoInt; }
+  if (releExaustExt != lastReleExaust) { Serial.printf("🌪️ ACAO: EXAUSTOR EXT %s\n", releExaustExt ? "LIGADO" : "DESLIGADO"); lastReleExaust = releExaustExt; }
 }
 
 void enviarTelegram(String msg) {
@@ -344,8 +353,12 @@ void executarMotor(unsigned long agora) {
   }
 
   PerfilClimatico pf = obterPerfil(faseAtual);
-  if (faeLigado) { if (agora - ultimoCicloFAE >= pf.faeOnMs) { faeLigado = false; ultimoCicloFAE = agora; } }
-  else { if (agora - ultimoCicloFAE >= pf.faeOffMs) { faeLigado = true; ultimoCicloFAE = agora; } }
+  if (faeLigado) { 
+    if (agora - ultimoCicloFAE >= pf.faeOnMs) { faeLigado = false; ultimoCicloFAE = agora; Serial.println("⏱️ PROCESSO FAE: Ciclo concluido (Ar Renovado)."); } 
+  }
+  else { 
+    if (agora - ultimoCicloFAE >= pf.faeOffMs) { faeLigado = true; ultimoCicloFAE = agora; Serial.println("⏱️ PROCESSO FAE: Iniciando renovacao de ar..."); } 
+  }
 
   bool quente = (tempInt >= pf.tempMax), frio = (tempInt <= TEMP_MINIMA);
   bool arFrio = (tempExt < tempInt), arQuente = (tempExt > tempInt), defesaEvap = false;
@@ -384,8 +397,8 @@ void executarMotor(unsigned long agora) {
 void aplicarSeguranca() {
   if (modoLuz == LUZ_FORCADA_ON) releLuz = true;
   if (modoLuz == LUZ_FORCADA_OFF) releLuz = false;
-  if (tempInt >= TEMP_CORTE_LUZ) { releLuz = false; enviarTelegram("🔥 CORTE TERMICO! Temp: " + String(tempInt,1) + "C"); }
-  if (tempInt >= TEMP_CRITICA && !telegramAlertaEnviado) { enviarTelegram("⚠️ Temp critica: " + String(tempInt,1) + "C"); telegramAlertaEnviado = true; }
+  if (tempInt >= TEMP_CORTE_LUZ) { releLuz = false; Serial.println("🔥 SEGURANCA: Corte Termico da LUZ ativado!"); enviarTelegram("🔥 CORTE TERMICO! Temp: " + String(tempInt,1) + "C"); }
+  if (tempInt >= TEMP_CRITICA && !telegramAlertaEnviado) { Serial.println("⚠️ SEGURANCA: Temperatura critica atingida!"); enviarTelegram("⚠️ Temp critica: " + String(tempInt,1) + "C"); telegramAlertaEnviado = true; }
   if (tempInt < TEMP_CRITICA) telegramAlertaEnviado = false;
 }
 
@@ -464,6 +477,13 @@ void loop() {
 
     if (sensorIntOk) { executarMotor(agora); aplicarSeguranca(); }
     verificarProgressao(); aplicarReles();
+
+    // LOG PERIÓDICO (A cada 10 segundos)
+    if (agora - ultimoLogSerial >= 10000) {
+       ultimoLogSerial = agora;
+       Serial.printf("[STATUS] In: %.1fC %.1f%% | Ex: %.1fC %.1f%% | Fase: %s | Luz: %s\n", 
+                     tempInt, humInt, tempExt, humExt, nomeFase((int)faseAtual), nomeModoLuz());
+    }
 
     // ROTINA DE NUVEM
     enviarNuvem(agora);

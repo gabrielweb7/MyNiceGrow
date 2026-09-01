@@ -278,10 +278,13 @@
             }
         }
         
+        let loopTimeout = null;
+
         async function mudarFase(f) { 
             if (await enviarComando({fase: f})) {
                 fasePendente = true;
-                document.getElementById('valFase').textContent = "Pendente...";
+                document.getElementById('valFase').textContent = "Pendente ⏳";
+                loopDados(3000); // Força refresh rápido
             }
         }
         
@@ -290,10 +293,17 @@
             if (await enviarComando({luz: proxLuz})) {
                 luzState = proxLuz;
                 luzPendente = true;
+                
+                // Feedback visual instantâneo para o usuário
+                if (luzState === 1) setRele('releLuz', 'releLuzStatus', true);
+                else if (luzState === 2) setRele('releLuz', 'releLuzStatus', false);
+
                 const rl = document.getElementById('releLuzStatus');
-                if(luzState===0) rl.textContent = "AUTO (Pendente...)";
-                else if(luzState===1) rl.textContent = "ON (Pendente...)";
-                else rl.textContent = "OFF (Pendente...)";
+                if(luzState===0) rl.textContent = "AUTO (⏳)";
+                else if(luzState===1) rl.textContent = "ON (⏳)";
+                else rl.textContent = "OFF (⏳)";
+                
+                loopDados(3000); // Força refresh rápido
             }
         }
 
@@ -347,8 +357,17 @@
         function setRele(id, statusId, isOn) {
             const el = document.getElementById(id);
             const st = document.getElementById(statusId);
-            if (isOn) { el.className = 'rele-on rounded-lg p-3 text-center transition-all duration-500 cursor-pointer hover:bg-emerald-600 border border-transparent'; st.textContent = 'ON'; st.className = 'text-[10px] text-white/80 mt-0.5 font-bold'; }
-            else { el.className = 'rele-off rounded-lg p-3 text-center transition-all duration-500 cursor-pointer hover:bg-slate-700 border border-transparent'; st.textContent = 'OFF'; st.className = 'text-[10px] text-slate-400 mt-0.5'; }
+            const isLuz = (id === 'releLuz');
+
+            if (isOn) {
+                el.className = (isLuz ? 'cursor-pointer hover:bg-emerald-500 ' : '') + 'bg-emerald-600 rounded-lg p-3 text-center transition-all duration-500 shadow-[0_0_15px_rgba(16,185,129,0.4)] border border-emerald-400/50';
+                st.textContent = 'ON';
+                st.className = 'text-[10px] text-emerald-100 mt-0.5 font-bold tracking-wider';
+            } else {
+                el.className = (isLuz ? 'cursor-pointer hover:bg-slate-700 ' : '') + 'bg-slate-800 rounded-lg p-3 text-center transition-all duration-500 border border-transparent opacity-80';
+                st.textContent = 'OFF';
+                st.className = 'text-[10px] text-slate-500 mt-0.5 font-bold tracking-wider';
+            }
         }
 
         function filtrar(limit, btn) {
@@ -448,10 +467,18 @@
             }
         }
 
+        async function loopDados(forceDelay = null) {
+            if (loopTimeout) clearTimeout(loopTimeout);
+            await carregarDados(limitAtual);
+            
+            // Sincroniza a cada 3s se tiver comando na fila, senão a cada 10s
+            let delay = forceDelay || ((luzPendente || fasePendente) ? 3000 : 10000);
+            loopTimeout = setTimeout(() => loopDados(), delay);
+        }
+
         window.onload = () => {
             initCharts();
-            carregarDados(1440);
-            setInterval(() => carregarDados(limitAtual), 60000);
+            loopDados(); // Inicia o motor em tempo real
         };
     </script>
 </body>
