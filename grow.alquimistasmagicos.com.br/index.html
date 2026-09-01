@@ -1,0 +1,158 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dashboard Nuvem - Grow IA</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        body { background-color: #0f172a; color: #f8fafc; }
+        .card { background-color: #1e293b; border-radius: 0.5rem; padding: 1.5rem; box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1); }
+    </style>
+</head>
+<body class="p-4 md:p-8">
+
+    <header class="mb-8 text-center md:text-left flex flex-col md:flex-row justify-between items-center">
+        <div>
+            <h1 class="text-3xl font-bold text-emerald-400">🍄 Grow IA - Nuvem</h1>
+            <p class="text-slate-400 text-sm mt-1">HostGator Cloud DataLogger</p>
+        </div>
+        <div class="mt-4 md:mt-0 flex gap-2">
+            <button onclick="carregarDados(144)" class="px-4 py-2 bg-slate-700 hover:bg-slate-600 rounded text-sm font-bold">24 Horas</button>
+            <button onclick="carregarDados(1008)" class="px-4 py-2 bg-slate-700 hover:bg-slate-600 rounded text-sm font-bold">7 Dias</button>
+        </div>
+    </header>
+
+    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
+        <div class="card border-l-4 border-emerald-500">
+            <h3 class="text-slate-400 text-xs font-bold uppercase">Temp Interna Atual</h3>
+            <p class="text-3xl font-bold mt-2" id="valTi">-- °C</p>
+        </div>
+        <div class="card border-l-4 border-blue-500">
+            <h3 class="text-slate-400 text-xs font-bold uppercase">Umid Interna Atual</h3>
+            <p class="text-3xl font-bold mt-2" id="valUi">-- %</p>
+        </div>
+        <div class="card border-l-4 border-rose-500">
+            <h3 class="text-slate-400 text-xs font-bold uppercase">Temp Externa Atual</h3>
+            <p class="text-3xl font-bold mt-2" id="valTe">-- °C</p>
+        </div>
+        <div class="card border-l-4 border-cyan-500">
+            <h3 class="text-slate-400 text-xs font-bold uppercase">Fase Atual</h3>
+            <p class="text-xl font-bold mt-2 text-cyan-400" id="valFase">--</p>
+        </div>
+    </div>
+
+    <div class="grid grid-cols-1 xl:grid-cols-2 gap-6 mb-6">
+        <div class="card">
+            <h2 class="text-lg font-bold mb-4">🌡️ Temperatura (°C)</h2>
+            <canvas id="chartTemp" height="250"></canvas>
+        </div>
+        <div class="card">
+            <h2 class="text-lg font-bold mb-4">💧 Umidade (%)</h2>
+            <canvas id="chartHum" height="250"></canvas>
+        </div>
+    </div>
+
+    <div class="card">
+        <h2 class="text-lg font-bold mb-4">⚡ Relés (Tempo de Atividade)</h2>
+        <canvas id="chartReles" height="150"></canvas>
+    </div>
+
+    <script>
+        let chartTemp, chartHum, chartReles;
+
+        const commonOptions = {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: { legend: { labels: { color: '#cbd5e1' } } },
+            scales: {
+                x: { ticks: { color: '#94a3b8' }, grid: { color: '#334155' } },
+                y: { ticks: { color: '#94a3b8' }, grid: { color: '#334155' } }
+            }
+        };
+
+        function initCharts() {
+            const ctxTemp = document.getElementById('chartTemp').getContext('2d');
+            chartTemp = new Chart(ctxTemp, { type: 'line', options: commonOptions, data: { labels: [], datasets: [] } });
+
+            const ctxHum = document.getElementById('chartHum').getContext('2d');
+            chartHum = new Chart(ctxHum, { type: 'line', options: commonOptions, data: { labels: [], datasets: [] } });
+
+            const ctxReles = document.getElementById('chartReles').getContext('2d');
+            chartReles = new Chart(ctxReles, { 
+                type: 'line', 
+                options: {
+                    ...commonOptions,
+                    scales: {
+                        y: { min: 0, max: 1.2, ticks: { stepSize: 1, callback: function(value) { return value === 1 ? 'ON' : (value === 0 ? 'OFF' : ''); } } }
+                    }
+                },
+                data: { labels: [], datasets: [] } 
+            });
+        }
+
+        async function carregarDados(limit) {
+            try {
+                const res = await fetch(`api/index.php?limit=${limit}`);
+                const data = await res.json();
+                
+                if (data.length === 0) return;
+
+                // Atualiza Cards
+                const ultimo = data[data.length - 1];
+                document.getElementById('valTi').innerText = parseFloat(ultimo.temp_int).toFixed(1) + ' °C';
+                document.getElementById('valUi').innerText = parseFloat(ultimo.hum_int).toFixed(1) + ' %';
+                document.getElementById('valTe').innerText = parseFloat(ultimo.temp_ext).toFixed(1) + ' °C';
+                document.getElementById('valFase').innerText = ultimo.fase;
+
+                // Processa p/ Gráficos
+                const labels = data.map(d => {
+                    const dt = new Date(d.timestamp);
+                    return `${dt.getHours().toString().padStart(2,'0')}:${dt.getMinutes().toString().padStart(2,'0')}`;
+                });
+
+                // Update Temp
+                chartTemp.data = {
+                    labels: labels,
+                    datasets: [
+                        { label: 'Interna', data: data.map(d => d.temp_int), borderColor: '#10b981', tension: 0.4 },
+                        { label: 'Externa', data: data.map(d => d.temp_ext), borderColor: '#f43f5e', tension: 0.4 }
+                    ]
+                };
+                chartTemp.update();
+
+                // Update Hum
+                chartHum.data = {
+                    labels: labels,
+                    datasets: [
+                        { label: 'Interna', data: data.map(d => d.hum_int), borderColor: '#3b82f6', tension: 0.4 },
+                        { label: 'Externa', data: data.map(d => d.hum_ext), borderColor: '#8b5cf6', tension: 0.4 }
+                    ]
+                };
+                chartHum.update();
+
+                // Update Relés (Step lines)
+                chartReles.data = {
+                    labels: labels,
+                    datasets: [
+                        { label: '💡 Luz', data: data.map(d => d.rele_luz), borderColor: '#fbbf24', stepped: true },
+                        { label: '💨 Umidificador', data: data.map(d => d.rele_umid), borderColor: '#3b82f6', stepped: true },
+                        { label: '🌬️ Exaustor', data: data.map(d => d.rele_exaust), borderColor: '#f97316', stepped: true }
+                    ]
+                };
+                chartReles.update();
+
+            } catch (err) {
+                console.error("Erro ao carregar dados", err);
+            }
+        }
+
+        window.onload = () => {
+            initCharts();
+            carregarDados(144); // 24h aprox (se o envio for a cada 10min)
+            setInterval(() => carregarDados(144), 60000); // Atualiza a cada 1 min
+        };
+    </script>
+</body>
+</html>
