@@ -270,7 +270,7 @@ void testarReles() {
 //  TELEGRAM
 // ============================================================
 
-void enviarTelegram(const char* msg) {
+void enviarTelegram(String msg) {
   if (strlen(TELEGRAM_TOKEN) == 0 || strlen(TELEGRAM_CHAT) == 0) return;
   if (WiFi.status() != WL_CONNECTED) return;
   unsigned long agora = millis();
@@ -282,7 +282,7 @@ void enviarTelegram(const char* msg) {
   if (!client.connect("api.telegram.org", 443)) return;
 
   String url = "/bot" + String(TELEGRAM_TOKEN) + "/sendMessage?chat_id="
-             + String(TELEGRAM_CHAT) + "&text=" + String(msg);
+             + String(TELEGRAM_CHAT) + "&text=" + msg;
   client.print("GET " + url + " HTTP/1.1\r\nHost: api.telegram.org\r\nConnection: close\r\n\r\n");
   delay(100);
   client.stop();
