@@ -4,12 +4,7 @@
 #include <DHT.h>
 #include <esp32-hal-rgb-led.h>
 #include <WiFi.h>
-
-// ==========================================
-// CONFIGURAÇÕES DE REDE (WIFI)
-// ==========================================
-const char* ssid = "NOME_DO_SEU_WIFI";
-const char* password = "SENHA_DO_SEU_WIFI";
+#include <WiFiManager.h>
 
 // ==========================================
 // CONFIGURAÇÃO DOS PINOS
@@ -37,10 +32,11 @@ const char* password = "SENHA_DO_SEU_WIFI";
 // ==========================================
 Adafruit_SHT31 sht30 = Adafruit_SHT31();
 DHT dht(DHT_PIN, DHT_TYPE);
+WiFiManager wm;
 
 enum SystemState {
   STATE_ERROR,    // Vermelho Piscando (Erro nos sensores)
-  STATE_NO_WIFI,  // Azul Piscando (Iniciado, sensores OK, sem internet)
+  STATE_NO_WIFI,  // Azul Piscando (Modo AP de configuração / Sem internet)
   STATE_OK        // Verde Piscando Rápido/Longo (Tudo OK e conectado)
 };
 SystemState estadoAtual = STATE_NO_WIFI;
@@ -89,9 +85,16 @@ void setup() {
   dht.begin();
   Serial.println("DHT11 (Externo) OK.");
 
-  // --- 4. INICIAR WIFI (Não-bloqueante) ---
-  Serial.print("Conectando ao WiFi...");
-  WiFi.begin(ssid, password);
+  // --- 4. INICIAR WIFI MANAGER (Não-bloqueante) ---
+  Serial.println("Iniciando WiFiManager...");
+  wm.setConfigPortalBlocking(false); // Para o código não travar enquanto aguarda a senha
+  
+  // Tenta conectar no Wi-Fi salvo. Se não conseguir, cria a rede "GROW_SETUP"
+  if(wm.autoConnect("GROW_SETUP")) {
+    Serial.println("WiFi ja estava salvo e conectou com sucesso!");
+  } else {
+    Serial.println("WiFi nao salvo ou falhou. Portal de configuracao criado: GROW_SETUP");
+  }
   
   Serial.println("\n========================================\n");
 }
@@ -102,6 +105,9 @@ void setup() {
 // ==========================================
 void loop() {
   unsigned long tempoAtual = millis();
+
+  // Processa o WiFiManager sem travar o Arduino
+  wm.process();
 
   // --- 1. TAREFA: LER SENSORES (A cada 2 seg) ---
   if (tempoAtual - tempoAnteriorSensores >= intervaloSensores) {
@@ -147,7 +153,7 @@ void loop() {
       estadoAtual = STATE_ERROR;
     } else if (WiFi.status() != WL_CONNECTED) {
       estadoAtual = STATE_NO_WIFI;
-      Serial.println("WIFI: Desconectado / Buscando...");
+      Serial.println("WIFI: Config Portal [GROW_SETUP] - Entre com o celular para configurar!");
     } else {
       estadoAtual = STATE_OK;
       Serial.printf("WIFI: Conectado (IP: %s)\n", WiFi.localIP().toString().c_str());
