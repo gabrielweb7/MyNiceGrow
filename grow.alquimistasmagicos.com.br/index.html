@@ -263,11 +263,17 @@
                     return false;
                 }
 
+                if (!res.ok) {
+                    alert("❌ Erro no servidor (" + res.status + "). Tente novamente.");
+                    return false;
+                }
+
                 const st = document.getElementById('cmdStatus');
                 st.style.opacity = '1'; setTimeout(() => st.style.opacity = '0', 3000);
                 return true;
             } catch(e) {
                 console.error("Falha ao enviar comando", e);
+                alert("❌ Falha de conexão. Verifique sua internet.");
                 return false;
             }
         }
