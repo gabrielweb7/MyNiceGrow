@@ -395,7 +395,10 @@ void loop() {
     ultimaLeitura = agora;
     float tI = sht30.readTemperature(), hI = sht30.readHumidity();
     float tE = dht.readTemperature(), hE = dht.readHumidity();
-    sensorIntOk = !isnan(tI) && !isnan(hI); sensorExtOk = !isnan(tE) && !isnan(hE);
+    
+    // Filtro de Sanidade: Ignora picos falsos (-45.0) ou erros de comunicação
+    sensorIntOk = !isnan(tI) && !isnan(hI) && tI > 0.0 && tI < 60.0 && hI > 0.0; 
+    sensorExtOk = !isnan(tE) && !isnan(hE) && tE > 0.0 && tE < 60.0 && hE > 0.0;
 
     if (sensorIntOk && sensorExtOk) { atualizarFiltro(tI, hI, tE, hE); atualizarMinMax(); }
     else if (sensorIntOk) { atualizarFiltro(tI, hI, tempExt, humExt); atualizarMinMax(); }
