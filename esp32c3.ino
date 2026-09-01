@@ -244,44 +244,49 @@ void loop() {
         case FRUTIFICACAO:
         case SEGUNDO_FLUSH:
           
-          // 1. Umidade (Controle com Histerese)
+          // 1. UMIDADE (Controle com Histerese)
           if (humInt < UMIDADE_MINIMA) estadoUmidific = true;
           else if (humInt > UMIDADE_MAXIMA) estadoUmidific = false;
 
-          // 2. Temperatura e CO2 (Motor Inteligente)
-          if (tempInt >= TEMP_CRITICA) {
-            // EMERGÊNCIA (Muito quente!): Liga TUDO para tentar resfriar
-            estadoExaustExt = true;
+          // 2. VENTO INTERNO (Circulação de Névoa)
+          // Sempre que o umidificador ligar, o ventilador interno liga junto para jogar a umidade de baixo para cima.
+          // Quando não está umidificando, ele apenas ajuda no ciclo de FAE.
+          if (estadoUmidific || modoFAELigado) {
             estadoExaustInt = true;
-            // Dica: Se o umidificador tiver ventilador, ligá-lo também derruba a temp (Resfriamento Evaporativo)
-            // estadoUmidific = true; 
+          } else {
+            estadoExaustInt = false;
+          }
+
+          // 3. TEMPERATURA E CO2 (O Escudo Térmico)
+          if (tempInt >= TEMP_CRITICA) {
+            // EMERGÊNCIA! Muito quente. 
+            // Verifica o nosso "Termômetro Espião" (DHT11 lá fora):
+            if (tempExt < tempInt) {
+              // Lá fora está mais frio. Abre as comportas!
+              estadoExaustExt = true;
+            } else {
+              // Lá fora está MAIS QUENTE que dentro! Se ligar o exaustor, o Grow vira um forno e a umidade foge.
+              // Então o robô mantém o exaustor externo DESLIGADO para "trancar" o clima.
+              estadoExaustExt = false;
+            }
           } 
           else if (tempInt >= TEMP_ALVO_MAX) {
-            // QUENTE: Exaustor externo ligado para puxar ar frio de fora, interno mistura o ar.
-            estadoExaustExt = true;
-            estadoExaustInt = true;
+            // QUENTE: Tenta resfriar suavemente, mas SÓ SE o ar de fora ajudar.
+            if (tempExt < tempInt) estadoExaustExt = true;
+            else estadoExaustExt = false;
           } 
           else if (tempInt < TEMP_MINIMA) {
-            // FRIO: Desliga exaustor externo para reter o calor das luzes/ambiente.
+            // FRIO: Tranca o grow para reter o calor das luzes/ambiente.
             estadoExaustExt = false;
-            // O vento interno depende apenas do ciclo de CO2 agora
-            estadoExaustInt = modoFAELigado;
           }
           else {
-            // IDEAL: A temperatura está perfeita (entre 25 e 28.5)
-            // Desliga a exaustão externa, mas respeita a respiração do cogumelo (FAE)
-            estadoExaustExt = false;
-            estadoExaustInt = modoFAELigado; // Só liga o vento se for a hora de trocar o ar
+            // TEMPERATURA IDEAL (Entre 25 e 28.5)
+            // Aqui o exaustor externo fica desligado para proteger a umidade...
+            // MAS ele liga obedecendo o temporizador (FAE) para expulsar o CO2 tóxico!
+            estadoExaustExt = modoFAELigado;
           }
 
-          // Ajustes finos baseados na FASE:
-          if (faseAtual == PINANDO) {
-            // Pinando costuma gostar de mais FAE (oxigênio)
-            if (modoFAELigado) estadoExaustExt = true; 
-          }
-
-          // 3. Iluminação Inteligente (Ciclo Noturno para ajudar na Temperatura)
-          // 12h ON (das 20:00 às 08:00) = Luz fria.
+          // 4. Iluminação Inteligente (Ciclo Noturno para ajudar na Temperatura)
           if (modoLuzAtual == LUZ_AUTO) {
             if (horaValida) {
               if (horaAtual >= 20 || horaAtual < 8) estadoLuz = true;
