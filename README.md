@@ -47,14 +47,15 @@ Este repositório contém o firmware para um sistema de automação e monitorame
 - Processamento em loop único contínuo.
 
 ## Próximos Passos (Roadmap de Design)
-- [ ] **Integração SHT30:** Adicionar biblioteca e leitura do sensor SHT30 via I2C.
-- [ ] **Setup dos Relés:** Configurar os pinos GPIO como saída e definir seus estados iniciais (evitar acionamento durante boot).
+- [x] **Integração SHT30 e DHT11:** Leitura de sensores via I2C e 1-Wire.
+- [x] **Setup dos Relés:** Pinos GPIO configurados como saída iniciando em HIGH (seguro).
+- [x] **Otimização de Tempo:** Substituição de `delay()` por `millis()` para evitar travamentos.
+- [x] **Conectividade Inteligente (WiFiManager):** Sistema cria um AP próprio para configuração inicial sem precisar mexer no código.
 - [ ] **Lógica de Controle Ambiental:** Criar regras (IFs) para acionar os relés baseado nas leituras de temperatura e umidade.
-- [ ] **Otimização de Tempo:** Substituir `delay()` por `millis()` para evitar travamentos.
-- [ ] **Conectividade Wi-Fi e Dashboard:** Criar servidor web para acompanhar os dados pelo celular.
 
 ## Como Executar
-1. Abra o arquivo `esp32c3/esp32c3.ino` na Arduino IDE.
+1. Instale as bibliotecas na Arduino IDE: `Adafruit SHT31 Library`, `DHT sensor library`, `Adafruit Unified Sensor` e `WiFiManager` (por tzapu).
+2. Abra o arquivo `esp32c3/esp32c3.ino`.
 2. Certifique-se de ter o core do ESP32 (da Espressif) instalado no "Boards Manager".
 3. Selecione a placa apropriada (ex: `ESP32C3 Dev Module`).
 4. **Importante:** Se estiver usando a porta USB nativa da placa, lembre-se de ativar o "USB CDC On Boot" (Tools > USB CDC On Boot: "Enabled").
