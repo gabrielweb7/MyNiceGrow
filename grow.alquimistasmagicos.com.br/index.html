@@ -245,7 +245,7 @@
                 let p = localStorage.getItem('adminPass');
                 if (!p) {
                     p = prompt("🔒 Senha Admin necessária para comandar a Estufa:");
-                    if (!p) return;
+                    if (!p) return false;
                     localStorage.setItem('adminPass', p);
                 }
 
@@ -260,23 +260,33 @@
                 if (res.status === 401) {
                     alert("❌ Senha Incorreta!");
                     localStorage.removeItem('adminPass');
-                    return;
+                    return false;
                 }
 
                 const st = document.getElementById('cmdStatus');
                 st.style.opacity = '1'; setTimeout(() => st.style.opacity = '0', 3000);
+                return true;
             } catch(e) {
                 console.error("Falha ao enviar comando", e);
+                return false;
             }
         }
-        function mudarFase(f) { enviarComando({fase: f}); }
-        function mudarLuz() {
-            luzState = (luzState + 1) % 3;
-            enviarComando({luz: luzState});
-            const rl = document.getElementById('releLuzStatus');
-            if(luzState===0) rl.textContent = "AUTO (Pendente...)";
-            else if(luzState===1) rl.textContent = "ON (Pendente...)";
-            else rl.textContent = "OFF (Pendente...)";
+        
+        async function mudarFase(f) { 
+            if (await enviarComando({fase: f})) {
+                document.getElementById('valFase').textContent = "Pendente...";
+            }
+        }
+        
+        async function mudarLuz() {
+            let proxLuz = (luzState + 1) % 3;
+            if (await enviarComando({luz: proxLuz})) {
+                luzState = proxLuz;
+                const rl = document.getElementById('releLuzStatus');
+                if(luzState===0) rl.textContent = "AUTO (Pendente...)";
+                else if(luzState===1) rl.textContent = "ON (Pendente...)";
+                else rl.textContent = "OFF (Pendente...)";
+            }
         }
 
         function initCharts() {
