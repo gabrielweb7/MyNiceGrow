@@ -292,13 +292,12 @@ void handleApiCmd() {
   server.send(200, "text/plain", "OK");
 }
 
-// Função inteligente para ligar/desligar Relés 5V de forma 100% segura no ESP32
+// Função padrão do Arduino para Relés Low-Level Trigger
 void setRele(int pino, bool ligar) {
   if (ligar) {
-    pinMode(pino, OUTPUT);
-    digitalWrite(pino, LOW); // Liga (GND)
+    digitalWrite(pino, LOW);  // Aciona o Relé (Liga a luzinha)
   } else {
-    pinMode(pino, INPUT);    // Desliga (Corta a corrente física)
+    digitalWrite(pino, HIGH); // Desliga o Relé (Apaga a luzinha)
   }
 }
 
@@ -313,7 +312,19 @@ void setup() {
   Serial.println("  INICIANDO GROW CONTROLLER             ");
   Serial.println("========================================");
 
-  // --- 1. CONFIGURAÇÃO DOS RELÉS ---
+  // --- 1. CONFIGURAÇÃO DOS RELÉS (Pinos como Saída) ---
+  pinMode(RELE_LUZ, OUTPUT);
+  pinMode(RELE_UMIDIFIC, OUTPUT);
+  pinMode(RELE_EXAUST_INT, OUTPUT);
+  pinMode(RELE_EXAUST_EXT, OUTPUT);
+
+  // Garante que todos começam DESLIGADOS (HIGH em relé Low-Trigger é desligado)
+  digitalWrite(RELE_LUZ, HIGH);
+  digitalWrite(RELE_UMIDIFIC, HIGH);
+  digitalWrite(RELE_EXAUST_INT, HIGH);
+  digitalWrite(RELE_EXAUST_EXT, HIGH);
+
+  // Aplica o estado inicial da memória
   setRele(RELE_LUZ, estadoLuz);
   setRele(RELE_UMIDIFIC, estadoUmidific);
   setRele(RELE_EXAUST_INT, estadoExaustInt);
