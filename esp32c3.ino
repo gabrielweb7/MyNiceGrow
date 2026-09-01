@@ -439,7 +439,7 @@ void loop() {
       }
 
       // -------------------------------------------------------------
-      // O CÉREBRO DE EXECUÇÃO (Aplica as regras da fase escolhida acima)
+      // O CÉREBRO DE EXECUÇÃO (MOTOR CLIMÁTICO INTELIGENTE)
       // -------------------------------------------------------------
 
       if (faseAtual == SEM_CULTIVO) {
@@ -457,7 +457,7 @@ void loop() {
       else {
         // --- MOTOR DE CULTIVO ATIVO ---
         
-        // 1. Controle do Temporizador de FAE (Fresh Air Exchange)
+        // 1. Controle do Temporizador de FAE (Fresh Air Exchange - Expulsar CO2)
         if (modoFAELigado) {
           if (tempoAtual - ultimoCicloFAE >= timerFaeOn) {
             modoFAELigado = false;
@@ -470,50 +470,87 @@ void loop() {
           }
         }
 
-        // 2. UMIDADE (Controle com Histerese e Cão de Guarda)
-        if (!alertaFaltaAgua && !bloquearUmidificador) {
-          if (humInt < alvoUmidMin) estadoUmidific = true;
-          else if (humInt > alvoUmidMax) estadoUmidific = false;
-        } else {
-          estadoUmidific = false; // Trava desligado se faltou água!
+        // 2. MATRIZ TÉRMICA E TERMODINÂMICA
+        bool muitoQuente = (tempInt >= alvoTempMax);
+        bool muitoFrio   = (tempInt <= TEMP_MINIMA);
+        
+        bool arFrescoLaFora = (tempExt < tempInt);
+        bool arQuenteLaFora = (tempExt > tempInt);
+
+        // Inicializamos os relés da matriz
+        estadoExaustExt = false;
+        estadoExaustInt = false;
+        bool defesaEvaporativa = false;
+
+        if (muitoQuente) {
+          if (arFrescoLaFora) {
+            // ESTRATÉGIA A: Puxar ar gelado da rua (Tradicional)
+            estadoExaustExt = true;
+            estadoExaustInt = true; // Mistura o ar frio que entra
+          } else {
+            // ESTRATÉGIA B: Escudo Térmico + Resfriamento Evaporativo!
+            // Tranca o ar de 32C lá fora. Força vento interno + névoa para a termodinâmica roubar o calor interno.
+            estadoExaustExt = false; 
+            if (humInt < 98.0 && !alertaFaltaAgua) {
+              defesaEvaporativa = true; 
+              estadoExaustInt = true;
+            }
+          }
+        }
+        else if (muitoFrio) {
+          if (arQuenteLaFora) {
+            // ESTRATÉGIA C: Puxar ar quente da rua (Aquecimento Natural)
+            estadoExaustExt = true;
+            estadoExaustInt = true;
+          } else {
+            // ESTRATÉGIA D: Frio mortal lá fora. Tranca a estufa!
+            estadoExaustExt = false;
+          }
+        }
+        else {
+          // CLIMA PERFEITO (Estabilidade)
+          // Exaustores ficam desligados, aguardando o cronômetro do FAE.
         }
 
-        // Monitor do Cão de Guarda da Umidade
+        // 3. RESPIRAÇÃO DO COGUMELO (Sobrescreve a estabilidade)
+        if (modoFAELigado) {
+          // A vida pede oxigênio. Abre as comportas independentemente do clima (por apenas 2 minutinhos).
+          estadoExaustExt = true;
+          estadoExaustInt = true; 
+        }
+
+        // 4. UMIDADE (Controle com Histerese e Defesa Termodinâmica)
+        if (!alertaFaltaAgua && !bloquearUmidificador) {
+          if (defesaEvaporativa) {
+             estadoUmidific = true; // Ligado pra esfriar a caixa
+          }
+          else if (humInt < alvoUmidMin) {
+            estadoUmidific = true; // Ligado pra bater a meta da fase
+          } 
+          else if (humInt > alvoUmidMax && !defesaEvaporativa) {
+            estadoUmidific = false; // Meta batida, desliga (se não estivermos em emergência térmica)
+          }
+        } else {
+          estadoUmidific = false; 
+        }
+
+        // Vento Interno: Sempre liga junto com a água para jogar a névoa de baixo pra cima!
+        if (estadoUmidific) {
+          estadoExaustInt = true;
+        }
+
+        // 5. CÃO DE GUARDA (Watchdog da Água)
         if (estadoUmidific) {
           if (inicioUmidificacao == 0) inicioUmidificacao = tempoAtual;
           else if (tempoAtual - inicioUmidificacao > TIMEOUT_UMIDIFICADOR) {
             alertaFaltaAgua = true;
-            estadoUmidific = false;
+            estadoUmidific = false; // TRAVA POR SEGURANÇA!
           }
         } else {
-          inicioUmidificacao = 0; // Reset
+          inicioUmidificacao = 0; // Zera o cronômetro
         }
 
-        // 3. VENTO INTERNO (Circulação de Névoa)
-        if (estadoUmidific || modoFAELigado) estadoExaustInt = true;
-        else estadoExaustInt = false;
-
-        // 4. TEMPERATURA E CO2 (O Escudo Térmico)
-        if (tempInt >= TEMP_CRITICA) {
-          // EMERGÊNCIA Térmica
-          if (tempExt < tempInt) estadoExaustExt = true;
-          else estadoExaustExt = false;
-        } 
-        else if (tempInt >= alvoTempMax) {
-          // CALOR
-          if (tempExt < tempInt) estadoExaustExt = true;
-          else estadoExaustExt = false;
-        } 
-        else if (tempInt < TEMP_MINIMA) {
-          // FRIO
-          estadoExaustExt = false;
-        }
-        else {
-          // TEMPERATURA IDEAL
-          estadoExaustExt = modoFAELigado;
-        }
-
-        // 5. Iluminação Inteligente (Ciclo Noturno)
+        // 6. ILUMINAÇÃO INTELIGENTE (Ciclo Noturno)
         if (modoLuzAtual == LUZ_AUTO) {
           if (horaValida) {
             if (horaAtual >= 20 || horaAtual < 8) estadoLuz = true;
