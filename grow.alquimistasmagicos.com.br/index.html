@@ -289,11 +289,11 @@
 
             if (isOn) {
                 el.className = (isLuz ? 'cursor-pointer hover:bg-emerald-500 ' : '') + 'bg-emerald-600 rounded-lg p-3 text-center transition-all duration-500 shadow-[0_0_15px_rgba(16,185,129,0.4)] border border-emerald-400/50';
-                if (st.textContent.indexOf('⏳') === -1) st.textContent = isLuz ? (luzState === 0 ? 'AUTO (ON)' : 'ON') : 'ON';
+                st.textContent = isLuz ? (luzState === 0 ? 'AUTO (ON)' : 'ON') : 'ON';
                 st.className = 'text-[10px] text-emerald-100 mt-0.5 font-bold tracking-wider';
             } else {
                 el.className = (isLuz ? 'cursor-pointer hover:bg-slate-700 ' : '') + 'bg-slate-800 rounded-lg p-3 text-center transition-all duration-500 border border-transparent opacity-80';
-                if (st.textContent.indexOf('⏳') === -1) st.textContent = isLuz ? (luzState === 0 ? 'AUTO (OFF)' : 'OFF') : 'OFF';
+                st.textContent = isLuz ? (luzState === 0 ? 'AUTO (OFF)' : 'OFF') : 'OFF';
                 st.className = 'text-[10px] text-slate-500 mt-0.5 font-bold tracking-wider';
             }
         }
@@ -423,8 +423,8 @@
                 
                 let agoraTime = Date.now();
                 
-                // BUG 13: Só atualiza UI da fase se passaram 15s desde o último clique (garante que placa respondeu)
-                if (agoraTime - fasePendenteTempo > 15000) {
+                // BUG 13: Só atualiza UI da fase se passaram 25s desde o último clique (garante que placa respondeu)
+                if (agoraTime - fasePendenteTempo > 25000) {
                     document.getElementById('valFase').textContent = ultimo.fase || '--';
                     atualizarBotoesFase(ultimo.fase, false);
                 }
@@ -444,8 +444,8 @@
                 document.getElementById('minMaxTemp').textContent = `Min ${minT === Infinity ? '--' : minT.toFixed(1)}° / Max ${maxT === -Infinity ? '--' : maxT.toFixed(1)}°`;
                 document.getElementById('minMaxHum').textContent = `Min ${minH === Infinity ? '--' : minH.toFixed(1)}% / Max ${maxH === -Infinity ? '--' : maxH.toFixed(1)}%`;
 
-                // Relés — protege Luz de sobrescrever estado durante a pendência (15s)
-                if (agoraTime - luzPendenteTempo > 15000) {
+                // Relés — protege Luz de sobrescrever estado durante a pendência (25s)
+                if (agoraTime - luzPendenteTempo > 25000) {
                     setRele('releLuz', 'releLuzStatus', parseInt(ultimo.rele_luz));
                 }
                 setRele('releUmid', 'releUmidStatus', parseInt(ultimo.rele_umid));
@@ -493,8 +493,8 @@
             if (loopTimeout) clearTimeout(loopTimeout);
             await carregarDados(limitAtual);
             
-            // Sincroniza a cada 3s se tiver comando na fila, senão a cada 10s
-            let isPendente = (Date.now() - luzPendenteTempo < 15000) || (Date.now() - fasePendenteTempo < 15000);
+            // Sincroniza a cada 3s se tiver comando na fila (tolerância de 25s), senão a cada 10s
+            let isPendente = (Date.now() - luzPendenteTempo < 25000) || (Date.now() - fasePendenteTempo < 25000);
             let delay = forceDelay || (isPendente ? 3000 : 10000);
             loopTimeout = setTimeout(() => loopDados(), delay);
         }
