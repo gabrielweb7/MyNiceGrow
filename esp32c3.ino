@@ -157,7 +157,11 @@ void setNovaFase(FaseCultivo nova) {
   if (faseAtual == nova) return;
   faseAtual = nova; time_t agora; time(&agora);
   inicioFaseTempo = (agora > 1600000000) ? agora : 0;
-  prefs.putInt("fase", (int)faseAtual); prefs.putUInt("inicio", (uint32_t)inicioFaseTempo);
+  prefs.begin("grow", false);
+  prefs.putInt("fase", (int)faseAtual);
+  prefs.putUInt("inicio", (uint32_t)inicioFaseTempo);
+  prefs.end();
+  Serial.printf("[FSM] Fase -> %s\n", nomeFase((int)faseAtual));
 }
 
 // ============================================================

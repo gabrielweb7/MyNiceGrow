@@ -62,10 +62,9 @@ if ($method === 'POST') {
 // ENTREGAR DADOS PARA O DASHBOARD (Gráficos)
 // =======================================================
 elseif ($method === 'GET') {
-    // Quantidade de registros. Se ESP32 envia a cada 10 min, 144 = 24 horas
-    $limit = isset($_GET['limit']) ? (int)$_GET['limit'] : 144; 
+    $limit = isset($_GET['limit']) ? (int)$_GET['limit'] : 1440;
+    $limit = max(1, min(20000, $limit)); // Clamp: evita queries gigantes
     
-    // Pega os mais recentes
     $sql = "SELECT * FROM telemetria ORDER BY id DESC LIMIT $limit";
     $result = $conn->query($sql);
     
@@ -77,6 +76,9 @@ elseif ($method === 'GET') {
     // Inverte a ordem para o gráfico ficar cronológico (da esquerda pra direita)
     $rows = array_reverse($rows);
     echo json_encode($rows);
+    
+    // Auto-purge: remove registros com mais de 90 dias (executa 1x a cada GET)
+    $conn->query("DELETE FROM telemetria WHERE timestamp < DATE_SUB(NOW(), INTERVAL 90 DAY)");
 }
 
 $conn->close();
