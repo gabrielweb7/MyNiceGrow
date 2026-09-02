@@ -98,6 +98,7 @@ elseif ($method === 'GET') {
 
     $rows = [];
     while($r = $result->fetch_assoc()) {
+        $r['unix_ts'] = strtotime($r['timestamp']);
         $rows[] = $r;
     }
     
