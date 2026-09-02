@@ -131,6 +131,15 @@ uint32_t fwAtual = 0;
 uint32_t tempoUmidAcumuladoMs = 0;
 unsigned long ultimoSaveUmidAcum = 0;
 
+// --- Proteção Anti-Fricção de Relés (Minimo Dwell Time) ---
+const unsigned long MIN_DWELL_RELE_MS = 15000; // Minimo 15s entre ligar/desligar
+unsigned long lastSwitchLuz = 0, lastSwitchUmid = 0, lastSwitchVento = 0, lastSwitchExaust = 0;
+
+// --- Horímetro de Manutenção Preventiva (Segundos de Uso NVS) ---
+uint32_t segLuzTotal = 0, segUmidTotal = 0, segVentoTotal = 0, segExaustTotal = 0;
+unsigned long ultimoTickHorimetro = 0;
+unsigned long ultimoSaveHorimetro = 0;
+
 // ============================================================
 //  FUNÇÕES AUXILIARES
 // ============================================================
@@ -214,11 +223,15 @@ void enviarNuvem(unsigned long agora) {
   json += "\"uI\":" + String(humInt, 1) + ",";
   json += "\"tE\":" + String(tempExt, 1) + ",";
   json += "\"uE\":" + String(humExt, 1) + ",";
-  json += "\"rLuz\":" + String(releLuz?1:0) + ",";
-  json += "\"rUmid\":" + String(alertaFaltaAgua ? 2 : (releUmidific?1:0)) + ",";
-  json += "\"rVento\":" + String(releVentoInt?1:0) + ",";
-  json += "\"rExaust\":" + String(releExaustExt?1:0) + ",";
-  json += "\"fase\":\"" + String(nomeFase((int)faseAtual)) + "\"";
+  json += "\"rLuz\":" + String(lastReleLuz?1:0) + ",";
+  json += "\"rUmid\":" + String(alertaFaltaAgua ? 2 : (lastReleUmidific?1:0)) + ",";
+  json += "\"rVento\":" + String(lastReleVento?1:0) + ",";
+  json += "\"rExaust\":" + String(lastReleExaust?1:0) + ",";
+  json += "\"fase\":\"" + String(nomeFase((int)faseAtual)) + "\",";
+  json += "\"hLuz\":" + String(segLuzTotal / 3600.0, 1) + ",";
+  json += "\"hUmid\":" + String(segUmidTotal / 3600.0, 1) + ",";
+  json += "\"hVento\":" + String(segVentoTotal / 3600.0, 1) + ",";
+  json += "\"hExaust\":" + String(segExaustTotal / 3600.0, 1);
   json += "}";
 
   if (WiFi.status() != WL_CONNECTED) {
@@ -358,14 +371,40 @@ void atualizarFiltroExt(float tE, float hE) {
 }
 
 void aplicarReles() {
-  digitalWrite(PIN_RELE_LUZ, releLuz?LOW:HIGH); digitalWrite(PIN_RELE_UMIDIFIC, releUmidific?LOW:HIGH);
-  digitalWrite(PIN_RELE_VENTO_INT, releVentoInt?LOW:HIGH); digitalWrite(PIN_RELE_EXAUST_EXT, releExaustExt?LOW:HIGH);
-
+  unsigned long agora = millis();
   bool alterou = false;
-  if (releLuz != lastReleLuz) { Serial.printf("💡 ACAO: LUZ %s\n", releLuz ? "LIGADA" : "DESLIGADA"); lastReleLuz = releLuz; alterou = true; }
-  if (releUmidific != lastReleUmidific) { Serial.printf("💧 ACAO: UMIDIFICADOR %s\n", releUmidific ? "LIGADO" : "DESLIGADO"); lastReleUmidific = releUmidific; alterou = true; }
-  if (releVentoInt != lastReleVento) { Serial.printf("💨 ACAO: VENTILADOR INT %s\n", releVentoInt ? "LIGADO" : "DESLIGADO"); lastReleVento = releVentoInt; alterou = true; }
-  if (releExaustExt != lastReleExaust) { Serial.printf("🌪️ ACAO: EXAUSTOR EXT %s\n", releExaustExt ? "LIGADO" : "DESLIGADO"); lastReleExaust = releExaustExt; alterou = true; }
+  
+  bool corteLuzImediato = (tempInt >= TEMP_CORTE_LUZ || modoLuz == LUZ_FORCADA_OFF);
+  bool corteUmidImediato = alertaFaltaAgua;
+
+  if (releLuz != lastReleLuz && (corteLuzImediato || agora - lastSwitchLuz >= MIN_DWELL_RELE_MS)) {
+    lastReleLuz = releLuz;
+    lastSwitchLuz = agora;
+    digitalWrite(PIN_RELE_LUZ, releLuz ? LOW : HIGH);
+    Serial.printf("💡 ACAO: LUZ %s\n", releLuz ? "LIGADA" : "DESLIGADA");
+    alterou = true;
+  }
+  if (releUmidific != lastReleUmidific && (corteUmidImediato || agora - lastSwitchUmid >= MIN_DWELL_RELE_MS)) {
+    lastReleUmidific = releUmidific;
+    lastSwitchUmid = agora;
+    digitalWrite(PIN_RELE_UMIDIFIC, releUmidific ? LOW : HIGH);
+    Serial.printf("💧 ACAO: UMIDIFICADOR %s\n", releUmidific ? "LIGADO" : "DESLIGADO");
+    alterou = true;
+  }
+  if (releVentoInt != lastReleVento && (agora - lastSwitchVento >= MIN_DWELL_RELE_MS)) {
+    lastReleVento = releVentoInt;
+    lastSwitchVento = agora;
+    digitalWrite(PIN_RELE_VENTO_INT, releVentoInt ? LOW : HIGH);
+    Serial.printf("💨 ACAO: VENTILADOR INT %s\n", releVentoInt ? "LIGADO" : "DESLIGADO");
+    alterou = true;
+  }
+  if (releExaustExt != lastReleExaust && (agora - lastSwitchExaust >= MIN_DWELL_RELE_MS)) {
+    lastReleExaust = releExaustExt;
+    lastSwitchExaust = agora;
+    digitalWrite(PIN_RELE_EXAUST_EXT, releExaustExt ? LOW : HIGH);
+    Serial.printf("🌪️ ACAO: EXAUSTOR EXT %s\n", releExaustExt ? "LIGADO" : "DESLIGADO");
+    alterou = true;
+  }
 
   // Se a placa tomou alguma decisão e ligou/desligou algo autonomamente, 
   // força a comunicação imediata com o banco de dados para o painel não ficar defasado
@@ -466,7 +505,13 @@ void executarMotor(unsigned long agora) {
   }
 
   if (modoLuz == LUZ_AUTO) {
-    releLuz = (horaValida && (horaAtual >= LUZ_HORA_LIGA || horaAtual < LUZ_HORA_DESLIGA));
+    if (horaValida) {
+      releLuz = (horaAtual >= LUZ_HORA_LIGA || horaAtual < LUZ_HORA_DESLIGA);
+    } else {
+      // MODO FALLBACK SEM INTERNET: Ciclo relativo 12h ON / 12h OFF a partir do boot
+      // 86.400.000 ms = 24h. Primeiras 12h (43.200.000 ms) ON, próximas 12h OFF.
+      releLuz = ((agora % 86400000UL) < 43200000UL);
+    }
     // LOGICA DE FRIO REMOVIDA AQUI: A luz nao liga para aquecer, preservando o fotoperiodo (12/12).
     // Um rele de aquecedor sera adicionado em atualizacoes futuras caso o clima exija.
   }
@@ -513,6 +558,13 @@ void setup() {
   fwAtual = prefs.getUInt("fw_ver", 0);
   alertaFaltaAgua = prefs.getBool("sem_agua", false);
   tempoUmidAcumuladoMs = prefs.getUInt("umid_acum", 0);
+  
+  // Carrega Horimetro
+  segLuzTotal = prefs.getUInt("h_luz", 0);
+  segUmidTotal = prefs.getUInt("h_umid", 0);
+  segVentoTotal = prefs.getUInt("h_vento", 0);
+  segExaustTotal = prefs.getUInt("h_exaust", 0);
+  
   prefs.end();
   
   Wire.begin(PIN_SDA, PIN_SCL);
@@ -562,11 +614,35 @@ void loop() {
     if (sensorIntOk) { executarMotor(agora); aplicarSeguranca(); }
     verificarProgressao(); aplicarReles();
 
+    // HORIMETRO: Acumula tempo de uso de cada componente a cada ciclo (aprox 2s)
+    if (ultimoTickHorimetro == 0) ultimoTickHorimetro = agora;
+    unsigned long deltaHorimetro = (agora - ultimoTickHorimetro) / 1000;
+    if (deltaHorimetro >= 1) {
+      ultimoTickHorimetro = agora;
+      if (lastReleLuz) segLuzTotal += deltaHorimetro;
+      if (lastReleUmidific) segUmidTotal += deltaHorimetro;
+      if (lastReleVento) segVentoTotal += deltaHorimetro;
+      if (lastReleExaust) segExaustTotal += deltaHorimetro;
+
+      // Salva o horimetro na memoria Flash a cada 30 minutos de execucao
+      if (agora - ultimoSaveHorimetro >= 1800000UL) {
+        ultimoSaveHorimetro = agora;
+        prefs.begin("grow", false);
+        prefs.putUInt("h_luz", segLuzTotal);
+        prefs.putUInt("h_umid", segUmidTotal);
+        prefs.putUInt("h_vento", segVentoTotal);
+        prefs.putUInt("h_exaust", segExaustTotal);
+        prefs.end();
+      }
+    }
+
     // LOG PERIÓDICO (A cada 10 segundos)
     if (agora - ultimoLogSerial >= 10000) {
        ultimoLogSerial = agora;
-       Serial.printf("[STATUS] In: %.1fC %.1f%% | Ex: %.1fC %.1f%% | Fase: %s | Luz: %s\n", 
-                     tempInt, humInt, tempExt, humExt, nomeFase((int)faseAtual), nomeModoLuz());
+       Serial.printf("[STATUS] In: %.1fC %.1f%% | Ex: %.1fC %.1f%% | Fase: %s | Luz: %s (NTP:%s)\n", 
+                     tempInt, humInt, tempExt, humExt, nomeFase((int)faseAtual), nomeModoLuz(), horaValida?"OK":"FALLBACK-12/12");
+       Serial.printf("[HORAS USO] Luz: %.1fh | Umid: %.1fh | Vento: %.1fh | Exaust: %.1fh\n",
+                     segLuzTotal / 3600.0, segUmidTotal / 3600.0, segVentoTotal / 3600.0, segExaustTotal / 3600.0);
     }
 
     // ROTINA DE NUVEM
