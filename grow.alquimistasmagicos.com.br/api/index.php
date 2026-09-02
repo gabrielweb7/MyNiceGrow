@@ -42,6 +42,12 @@ if ($method === 'POST') {
         if (isset($row['fw'])) {
             file_put_contents(__DIR__ . '/fw_status.txt', $row['fw']);
         }
+        // Salva flag de erro de OTA se a placa reportar que precisou reverter
+        if (isset($row['otaError']) && $row['otaError'] == 1) {
+            file_put_contents(__DIR__ . '/fw_error.txt', '1');
+        } else {
+            @unlink(__DIR__ . '/fw_error.txt');
+        }
 
         // Se o ESP32 gravou o UNIX timestamp (offline), usamos ele. Senão, hora de agora.
         $ts = isset($row['timestamp']) && $row['timestamp'] > 0 ? date('Y-m-d H:i:s', $row['timestamp']) : date('Y-m-d H:i:s');

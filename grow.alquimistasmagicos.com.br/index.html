@@ -436,12 +436,15 @@
         function abrirConfig() { 
             let p = window.fwPlaca;
             let n = window.fwNuvem;
+            let err = window.fwError;
             
             document.getElementById('uiFwPlaca').textContent = formatarDataFW(p);
             document.getElementById('uiFwNuvem').textContent = formatarDataFW(n);
             
             let statusBadge = document.getElementById('otaStatusBadge');
-            if (p === n && p !== '0') {
+            if (err === '1') {
+                statusBadge.innerHTML = '<span class="bg-rose-500/20 text-rose-400 text-[9px] px-2 py-1 rounded-full font-bold animate-pulse">❌ OTA FALHOU (REVERTIDO)</span>';
+            } else if (p === n && p !== '0') {
                 statusBadge.innerHTML = '<span class="bg-emerald-500/20 text-emerald-400 text-[10px] px-2 py-1 rounded-full font-bold">✓ ATUALIZADO</span>';
             } else if (p !== '0' && n !== '0' && p !== n) {
                 statusBadge.innerHTML = '<span class="bg-amber-500/20 text-amber-400 text-[10px] px-2 py-1 rounded-full font-bold animate-pulse">⚠️ NOVA ATUALIZAÇÃO</span>';
@@ -638,6 +641,7 @@
                     const fwData = await resFw.json();
                     window.fwPlaca = fwData.placa || '0';
                     window.fwNuvem = fwData.nuvem || '0';
+                    window.fwError = fwData.error || '0';
                 }
 
                 const data = await resDados.json();

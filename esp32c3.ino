@@ -239,6 +239,11 @@ void enviarNuvem(unsigned long agora) {
   json += "\"hUmid\":" + String(segUmidTotal / 3600.0, 1) + ",";
   json += "\"hVento\":" + String(segVentoTotal / 3600.0, 1) + ",";
   json += "\"hExaust\":" + String(segExaustTotal / 3600.0, 1) + ",";
+  
+  prefs.begin("grow", true);
+  json += "\"otaError\":" + String(prefs.getBool("ota_falhou", false) ? 1 : 0) + ",";
+  prefs.end();
+
   json += "\"fw\":" + String(fwAtual);
   json += "}";
 
@@ -288,7 +293,14 @@ void enviarNuvem(unsigned long agora) {
       prefs.begin("grow", false);
       if (prefs.getBool("ota_test", false)) {
           prefs.putBool("ota_test", false);
-          Serial.println("✅ [ANTI-BRICK] Nuvem alcancada com sucesso! Firmware novo VALIDADO e consolidado.");
+          prefs.putInt("ota_boot_fails", 0);
+          prefs.putBool("ota_falhou", false);
+          uint32_t tentativa = prefs.getUInt("ota_tentativa", 0);
+          if (tentativa > 0) {
+              prefs.putUInt("fw_ver", tentativa);
+              fwAtual = tentativa;
+          }
+          Serial.println("✅ [ANTI-BRICK] Firmware novo VALIDADO com sucesso! Data consolidada.");
       }
       prefs.end();
       String response = http.getString();
@@ -323,7 +335,13 @@ void enviarNuvem(unsigned long agora) {
          uint32_t vNuvem = docRes.containsKey("versao_nuvem") ? (uint32_t)docRes["versao_nuvem"] : 0;
          if (docRes.containsKey("comando_ota") || (vNuvem > 0 && vNuvem > fwAtual)) {
             Serial.printf("📥 OTA INICIANDO (Local: %u, Nuvem: %u)\n", fwAtual, vNuvem);
-            prefs.begin("grow", false); prefs.putBool("ota_test", true); prefs.end();
+            prefs.begin("grow", false); 
+            prefs.putBool("ota_test", true); 
+            prefs.putUInt("ota_tentativa", vNuvem);
+            prefs.putBool("ota_falhou", false);
+            prefs.putInt("ota_boot_fails", 0);
+            prefs.end();
+            
             WiFiClientSecure otaClient; 
             otaClient.setInsecure();
             httpUpdate.rebootOnUpdate(false);
@@ -332,10 +350,8 @@ void enviarNuvem(unsigned long agora) {
             t_httpUpdate_return ret = httpUpdate.update(otaClient, fwUrl);
             
             if (ret == HTTP_UPDATE_OK) {
-               Serial.println("✅ OTA CONCLUIDO! Salvando nova versao e reiniciando...");
-               prefs.begin("grow", false);
-               prefs.putUInt("fw_ver", vNuvem);
-               prefs.end();
+               Serial.println("✅ OTA CONCLUIDO! Reiniciando em modo de teste (Anti-Brick)...");
+               delay(1000);
                delay(1000);
                ESP.restart();
             } else if (ret == HTTP_UPDATE_FAILED) {
@@ -603,7 +619,20 @@ void setup() {
   
   Wire.begin(PIN_SDA, PIN_SCL);
   if (sht30.begin(0x44)) Serial.println("[OK] SHT30"); else statusSis = SIS_ERRO_SENSOR;
-  dht.begin();
+  // ANTI-BRICK AVANCADO (Deteccao de Bootloop)
+  if (prefs.getBool("ota_test", false)) {
+      int fails = prefs.getInt("ota_boot_fails", 0) + 1;
+      prefs.putInt("ota_boot_fails", fails);
+      if (fails > 2) {
+          Serial.println("🚨 [ANTI-BRICK] Bootloop detectado! Revertendo para firmware antigo...");
+          if (Update.canRollBack()) Update.rollBack();
+          prefs.putBool("ota_test", false);
+          prefs.putBool("ota_falhou", true);
+          prefs.putInt("ota_boot_fails", 0);
+          delay(500);
+          ESP.restart();
+      }
+  }
 
   wm.setConfigPortalBlocking(false);
   wm.autoConnect("GROW_SETUP");
@@ -628,11 +657,15 @@ void loop() {
     bool emTeste = prefs.getBool("ota_test", false);
     prefs.end();
     if (emTeste) {
-      if (Update.canRollBack()) {
-        Serial.println("🚨 FATAL: Novo firmware não respondeu à nuvem em 5 mins! Restaurando versão anterior...");
-        Update.rollBack();
-        ESP.restart();
-      }
+      Serial.println("🚨 FATAL: Novo firmware não respondeu à nuvem em 5 mins! Restaurando versão anterior...");
+      prefs.begin("grow", false);
+      prefs.putBool("ota_test", false);
+      prefs.putBool("ota_falhou", true);
+      prefs.putInt("ota_boot_fails", 0);
+      prefs.end();
+      if (Update.canRollBack()) Update.rollBack();
+      delay(500);
+      ESP.restart();
     }
   }
 
