@@ -162,10 +162,10 @@ PerfilClimatico obterPerfil(FaseCultivo f) {
   // CLIMA TROPICAL (Campo Grande/MS) - Genetica Cambodian/TAT (Termotolerantes)
   // Sem AC: Foco em alta evaporacao (resfriamento) e FAE.
   // Tempo de FAE (Troca de Ar) reduzido para 1 a 2 minutos para evitar perda excessiva de umidade.
-  if(f==FASE_PINANDO) return {28.0, 95.0, 99.0, 1UL*60000, 40UL*60000}; // 1 min FAE a cada 40m
-  if(f==FASE_FRUTIFICACAO) return {29.0, 88.0, 95.0, 2UL*60000, 25UL*60000}; // 2 min FAE a cada 25m (mais CO2)
-  if(f==FASE_SEGUNDO_FLUSH) return {28.0, 95.0, 99.0, 1UL*60000, 40UL*60000};
-  return {TEMP_ALVO_MAX, UMIDADE_MINIMA, UMIDADE_MAXIMA, 1UL*60000, FAE_OFF_MS};
+  if(f==FASE_PINANDO) return {28.0, 97.0, 99.9, 1UL*60000, 40UL*60000}; // 1 min FAE a cada 40m
+  if(f==FASE_FRUTIFICACAO) return {29.0, 97.0, 99.9, 2UL*60000, 25UL*60000}; // 2 min FAE a cada 25m (mais CO2)
+  if(f==FASE_SEGUNDO_FLUSH) return {28.0, 97.0, 99.9, 1UL*60000, 40UL*60000};
+  return {TEMP_ALVO_MAX, 97.0, 99.9, 1UL*60000, FAE_OFF_MS};
 }
 String formatUptime(unsigned long ms) {
   unsigned long s = ms / 1000; int d = s / 86400; s %= 86400; int h = s / 3600; s %= 3600; int m = s / 60;
@@ -501,7 +501,10 @@ void executarMotor(unsigned long agora) {
   // -----------------------------------------------------
 
   if (!alertaFaltaAgua) {
-    if (defesaEvap) releUmidific = true;
+    if (defesaEvap || faeLigado) {
+      if (!releUmidific) tempoInicioSaturacaoUmid = agora;
+      releUmidific = true;
+    }
     else if (humInt < pf.umidMin) {
       if (!releUmidific) tempoInicioSaturacaoUmid = agora; // Inicia contagem do tempo mínimo
       releUmidific = true;
@@ -519,13 +522,6 @@ void executarMotor(unsigned long agora) {
           prefs.end();
         }
       }
-    }
-    
-    // BLOQUEIO CONTRA DESPERDÍCIO:
-    // Se o exaustor está jogando ar para fora, pausamos o umidificador.
-    // Assim não jogamos toda a névoa preciosa direto pra rua.
-    if (releExaustExt) {
-      releUmidific = false;
     }
   } else { releUmidific = false; }
   
