@@ -93,8 +93,14 @@ elseif ($method === 'GET') {
     // Headers de Versão
     $fwPlaca = file_exists(__DIR__ . '/fw_status.txt') ? file_get_contents(__DIR__ . '/fw_status.txt') : '0';
     $fwNuvem = file_exists(__DIR__ . '/../../build/esp32.esp32.esp32c3/esp32c3.ino.bin') ? filemtime(__DIR__ . '/../../build/esp32.esp32.esp32c3/esp32c3.ino.bin') : '0';
+    
+    // Obtém o Hash do Git da Nuvem (pasta superior)
+    $gitHead = __DIR__ . '/../../.git/refs/heads/main';
+    $gitHash = file_exists($gitHead) ? substr(trim(file_get_contents($gitHead)), 0, 7) : 'Desconhecido';
+
     header("X-Fw-Placa: " . trim($fwPlaca));
     header("X-Fw-Nuvem: " . trim($fwNuvem));
+    header("X-Git-Hash: " . $gitHash);
 
     $rows = [];
     while($r = $result->fetch_assoc()) {

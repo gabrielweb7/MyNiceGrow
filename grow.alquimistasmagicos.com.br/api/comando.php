@@ -34,6 +34,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if (isset($_POST['config'])) {
         $jsonStr = $_POST['config'];
         $cmd['config_clima'] = json_decode($jsonStr, true);
+        @unlink(__DIR__ . '/config_clima.json');
         file_put_contents(__DIR__ . '/config_clima.json', $jsonStr);
     }
 

@@ -114,14 +114,14 @@
             </div>
         </section>
 
-        <!-- CÉREBRO IA (Monitor de Protocolos) -->
+        <!-- Monitor de Protocolos -->
         <div class="glass rounded-xl p-4 md:p-5 border border-slate-700/30 relative overflow-hidden mb-6 fade-in shadow-lg">
             <div class="absolute -top-4 -right-4 p-4 opacity-[0.03] pointer-events-none">
                 <span class="text-8xl">🧠</span>
             </div>
-            <h2 class="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-2">Decisão da Inteligência Artificial</h2>
-            <div id="iaStatus" class="font-bold text-base md:text-lg text-emerald-400 transition-colors">✅ Analisando...</div>
-            <p id="iaDesc" class="text-xs md:text-sm text-slate-300 mt-1 pr-12 leading-relaxed">Conectando ao núcleo do sistema para interpretar a ação atual.</p>
+            <h2 class="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-2">Protocolos do Sistema</h2>
+            <div id="iaStatus" class="font-bold text-base md:text-lg text-emerald-400 transition-colors">🔄 Analisando...</div>
+            <div id="iaDesc" class="text-xs md:text-sm text-slate-300 mt-1 pr-12 leading-relaxed">Conectando ao núcleo do sistema para interpretar a ação atual.</div>
         </div>
 
         <!-- STATUS DOS RELÉS -->
@@ -271,7 +271,8 @@
 
         <!-- FOOTER -->
         <footer class="text-center text-[10px] text-slate-600 py-4">
-            Grow do Txai v4.0 — IoT Cloud System — Dados atualizados a cada 60 segundos
+            Grow do Txai v4.0 - IoT Cloud System - Dados atualizados a cada 60 segundos<br>
+            <span id="txtGitHash">Versão Nuvem: Verificando...</span>
         </footer>
     </main>
 
@@ -509,7 +510,7 @@
 
         async function fetchConfigClima() {
             try {
-                let r = await fetch('api/config_clima.json?nocache=' + Date.now());
+                let r = await fetch('api/config_clima.json?nocache=' + Date.now() + Math.random());
                 if (r.ok) {
                     let d = await r.json();
                     if (d["1"]) configClima = d;
@@ -543,6 +544,10 @@
             btn.textContent = "Avisando a Placa...";
             if (await enviarComando({ config: JSON.stringify(configClima) })) {
                 btn.textContent = "✅ Salvo na Placa!";
+                
+                // Força a atualização da tela imediatamente com os valores recém-digitados
+                let f_limpa = (document.getElementById('valFase').textContent || '').replace(' (DHT OFFLINE)', '').replace('ALERTA: SHT30 OFFLINE', 'Standby');
+                renderizarInfoFase(f_limpa, false);
             } else {
                 btn.textContent = "❌ Falhou!";
             }
@@ -817,6 +822,9 @@
                     window.fwPlaca = fwData.placa || '0';
                     window.fwNuvem = fwData.nuvem || '0';
                     window.fwError = fwData.error || '0';
+                    if (fwData.gitHash) {
+                        document.getElementById('txtGitHash').textContent = `Commit (Nuvem): ${fwData.gitHash}`;
+                    }
                 }
 
                 const data = await resDados.json();
@@ -896,8 +904,8 @@
                 setRele('releVento', 'releVentoStatus', parseInt(ultimo.rele_vento));
                 setRele('releExaust', 'releExaustStatus', parseInt(ultimo.rele_exaust));
 
-                // Processa o cérebro / protocolo da Inteligência Artificial
-                atualizarCerebroIA(ultimo);
+                // Processa o cérebro / protocolo da Sistema
+                atualizarStatusProtocolos(ultimo);
 
                 // Preparar séries para o gráfico combinado Chart.js
                 // Decimação: No celular, limitar a ~300 pontos para fluir suave
@@ -958,7 +966,7 @@
             }
         }
 
-        function atualizarCerebroIA(ultimo) {
+        function atualizarStatusProtocolos(ultimo) {
             let status = "✅ Clima Estabilizado";
             let desc = "Todos os parâmetros estão dentro da meta para a fase atual.";
             let cor = "text-emerald-400";
