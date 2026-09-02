@@ -513,9 +513,10 @@
 
         async function salvarFormClima() {
             let f = document.getElementById('selConfigFase').value;
-            configClima[f].tX = parseFloat(document.getElementById('cfgTx').value);
-            configClima[f].uN = parseFloat(document.getElementById('cfgUn').value);
-            configClima[f].uX = parseFloat(document.getElementById('cfgUx').value);
+            const parseFloatSafe = (val) => parseFloat(String(val).replace(',', '.'));
+            configClima[f].tX = parseFloatSafe(document.getElementById('cfgTx').value);
+            configClima[f].uN = parseFloatSafe(document.getElementById('cfgUn').value);
+            configClima[f].uX = parseFloatSafe(document.getElementById('cfgUx').value);
             configClima[f].fO = parseInt(document.getElementById('cfgFo').value);
             configClima[f].fF = parseInt(document.getElementById('cfgFf').value);
             
