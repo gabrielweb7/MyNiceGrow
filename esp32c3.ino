@@ -562,10 +562,10 @@ void executarMotor(unsigned long agora) {
   if (!releVentoInt) { 
     if (faseAtual == FASE_FRUTIFICACAO) {
       if ((agora % 600000) < 120000) { releVentoInt = true; } // 2 min ON a cada 10 min
-      if ((agora % 600000) < 60000) { brisaUmidificadora = true; } // Umidificador na metade inicial (1 min)
+      if ((agora % 600000) < 60000 && humInt < pf.umidMax) { brisaUmidificadora = true; } // Umidificador na metade inicial (1 min) apenas se não passou da meta máxima
     } else {
       if ((agora % 600000) < 60000) { releVentoInt = true; }  // 1 min ON a cada 10 min
-      if ((agora % 600000) < 30000) { brisaUmidificadora = true; } // Umidificador na metade inicial (30s)
+      if ((agora % 600000) < 30000 && humInt < pf.umidMax) { brisaUmidificadora = true; } // Umidificador na metade inicial (30s) apenas se não passou da meta máxima
     }
   }
   // -----------------------------------------------------
