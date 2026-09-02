@@ -502,11 +502,17 @@ void executarMotor(unsigned long agora) {
   }
 
   PerfilClimatico pf = obterPerfil(faseAtual);
-  if (faeLigado) { 
-    if (agora - ultimoCicloFAE >= pf.faeOnMs) { faeLigado = false; ultimoCicloFAE = agora; Serial.println("⏱️ PROCESSO FAE: Ciclo concluido (Ar Renovado)."); } 
-  }
-  else { 
-    if (agora - ultimoCicloFAE >= pf.faeOffMs) { faeLigado = true; ultimoCicloFAE = agora; Serial.println("⏱️ PROCESSO FAE: Iniciando renovacao de ar..."); } 
+  if (pf.faeOnMs == 0) {
+    faeLigado = false;
+  } else if (pf.faeOffMs == 0) {
+    faeLigado = true;
+  } else {
+    if (faeLigado) { 
+      if (agora - ultimoCicloFAE >= pf.faeOnMs) { faeLigado = false; ultimoCicloFAE = agora; Serial.println("🔄 PROCESSO FAE: Ciclo concluido (Ar Renovado)."); } 
+    }
+    else { 
+      if (agora - ultimoCicloFAE >= pf.faeOffMs) { faeLigado = true; ultimoCicloFAE = agora; Serial.println("🔄 PROCESSO FAE: Iniciando renovacao de ar..."); } 
+    }
   }
 
   bool quente = (tempInt >= pf.tempMax), frio = (tempInt <= TEMP_MINIMA);
