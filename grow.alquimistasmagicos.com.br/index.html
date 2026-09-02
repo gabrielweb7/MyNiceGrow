@@ -233,7 +233,6 @@
             </div>
         </section>
 
-
         <!-- GRÁFICO ÚNICO COMBINADO -->
         <section class="fade-in glass rounded-xl p-4 md:p-5 border border-slate-700/30">
             <div class="flex flex-wrap items-center justify-between gap-3 mb-3">
@@ -241,17 +240,23 @@
                     <h2 class="text-sm font-bold text-slate-300">📊 Painel Histórico Completo</h2>
                     <p class="text-[10px] text-slate-500">Temperatura, Umidade e Relés — todos os sensores num gráfico</p>
                 </div>
-                <div class="flex gap-2 flex-wrap text-[10px] font-bold">
-                    <span class="flex items-center gap-1"><span style="background:#10b981" class="w-3 h-[2px] inline-block rounded"></span> Temp Int</span>
-                    <span class="flex items-center gap-1"><span style="background:#f43f5e" class="w-3 h-[2px] inline-block rounded"></span> Temp Ext</span>
-                    <span class="flex items-center gap-1"><span style="background:#3b82f6" class="w-3 h-[2px] inline-block rounded"></span> Umid Int</span>
-                    <span class="flex items-center gap-1"><span style="background:#8b5cf6" class="w-3 h-[2px] inline-block rounded"></span> Umid Ext</span>
-                    <span class="flex items-center gap-1"><span style="background:#f59e0b" class="w-2 h-2 inline-block rounded-sm opacity-70"></span> Luz</span>
-                    <span class="flex items-center gap-1"><span style="background:#06b6d4" class="w-2 h-2 inline-block rounded-sm opacity-70"></span> Umidif.</span>
-                    <span class="flex items-center gap-1"><span style="background:#22d3ee" class="w-2 h-2 inline-block rounded-sm opacity-70"></span> Vento</span>
-                    <span class="flex items-center gap-1"><span style="background:#f97316" class="w-2 h-2 inline-block rounded-sm opacity-70"></span> Exaustor</span>
+                <div class="flex items-center gap-3 flex-wrap">
+                    <button id="btnResetZoom" onclick="resetarZoom()" class="hidden px-2.5 py-1 text-[10px] font-bold bg-slate-700 hover:bg-slate-600 border border-slate-500 rounded text-white transition-all">
+                        🔍 Resetar Zoom
+                    </button>
+                    <div class="flex gap-2 flex-wrap text-[10px] font-bold text-slate-400">
+                        <span class="flex items-center gap-1"><span style="background:#00ffaa" class="w-3 h-[2px] inline-block rounded"></span> Temp Int</span>
+                        <span class="flex items-center gap-1"><span style="background:#ff4d6d" class="w-3 h-[2px] inline-block rounded"></span> Temp Ext</span>
+                        <span class="flex items-center gap-1"><span style="background:#00c8ff" class="w-3 h-[2px] inline-block rounded"></span> Umid Int</span>
+                        <span class="flex items-center gap-1"><span style="background:#c084fc" class="w-3 h-[2px] inline-block rounded"></span> Umid Ext</span>
+                        <span class="flex items-center gap-1"><span style="background:#ffdc00" class="w-2 h-2 inline-block rounded-sm opacity-70"></span> Luz</span>
+                        <span class="flex items-center gap-1"><span style="background:#00c8ff" class="w-2 h-2 inline-block rounded-sm opacity-70"></span> Umidif.</span>
+                        <span class="flex items-center gap-1"><span style="background:#00ffaa" class="w-2 h-2 inline-block rounded-sm opacity-70"></span> Vento</span>
+                        <span class="flex items-center gap-1"><span style="background:#ff6400" class="w-2 h-2 inline-block rounded-sm opacity-70"></span> Exaustor</span>
+                    </div>
                 </div>
             </div>
+            <p class="text-[9px] text-slate-600 mb-2">🖱️ Role o mouse para zoom · Arraste para navegar no tempo · Duplo clique para resetar</p>
             <div style="position:relative; height:380px;">
                 <canvas id="chartGrow"></canvas>
             </div>
@@ -335,6 +340,8 @@
 
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns@3.0.0/dist/chartjs-adapter-date-fns.bundle.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/hammerjs@2.0.8/hammer.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-zoom@2.0.1/dist/chartjs-plugin-zoom.min.js"></script>
     <script>
         let chartGrow = null;
         let limitAtual = 1440;
@@ -578,16 +585,16 @@
                 data: {
                     datasets: [
                         // Temperaturas (eixo y: temp)
-                        { type: 'line', label: 'Temp Int (°C)', yAxisID: 'yTemp', data: [], borderColor: '#10b981', backgroundColor: 'rgba(16,185,129,0.08)', borderWidth: 1.5, pointRadius: 0, tension: 0.3, fill: true, order: 5 },
-                        { type: 'line', label: 'Temp Ext (°C)', yAxisID: 'yTemp', data: [], borderColor: '#f43f5e', backgroundColor: 'rgba(244,63,94,0.05)', borderWidth: 1.5, pointRadius: 0, tension: 0.3, fill: false, order: 5 },
+                        { type: 'line', label: 'Temp Int (°C)', yAxisID: 'yTemp', data: [], borderColor: '#00ffaa', backgroundColor: 'rgba(0,255,170,0.07)', borderWidth: 2.5, pointRadius: 0, tension: 0.4, fill: true, order: 5 },
+                        { type: 'line', label: 'Temp Ext (°C)', yAxisID: 'yTemp', data: [], borderColor: '#ff4d6d', backgroundColor: 'rgba(255,77,109,0.05)', borderWidth: 2.5, pointRadius: 0, tension: 0.4, fill: false, order: 5 },
                         // Umidades (eixo y: umid)
-                        { type: 'line', label: 'Umid Int (%)', yAxisID: 'yUmid', data: [], borderColor: '#3b82f6', backgroundColor: 'rgba(59,130,246,0.06)', borderWidth: 1.5, pointRadius: 0, tension: 0.3, fill: true, order: 4 },
-                        { type: 'line', label: 'Umid Ext (%)', yAxisID: 'yUmid', data: [], borderColor: '#8b5cf6', backgroundColor: 'rgba(139,92,246,0.05)', borderWidth: 1.5, pointRadius: 0, tension: 0.3, fill: false, order: 4 },
-                        // Relés (eixo y: rele) — barras empilhadas visualmente deslocadas
-                        { type: 'bar', label: 'Luz', yAxisID: 'yRele', data: [], backgroundColor: 'rgba(245,158,11,0.55)', borderColor: '#f59e0b', borderWidth: 0, barPercentage: 1.0, categoryPercentage: 1.0, order: 1 },
-                        { type: 'bar', label: 'Umidif.', yAxisID: 'yRele', data: [], backgroundColor: 'rgba(6,182,212,0.55)', borderColor: '#06b6d4', borderWidth: 0, barPercentage: 1.0, categoryPercentage: 1.0, order: 1 },
-                        { type: 'bar', label: 'Vento', yAxisID: 'yRele', data: [], backgroundColor: 'rgba(34,211,238,0.45)', borderColor: '#22d3ee', borderWidth: 0, barPercentage: 1.0, categoryPercentage: 1.0, order: 1 },
-                        { type: 'bar', label: 'Exaustor', yAxisID: 'yRele', data: [], backgroundColor: 'rgba(249,115,22,0.55)', borderColor: '#f97316', borderWidth: 0, barPercentage: 1.0, categoryPercentage: 1.0, order: 1 },
+                        { type: 'line', label: 'Umid Int (%)', yAxisID: 'yUmid', data: [], borderColor: '#00c8ff', backgroundColor: 'rgba(0,200,255,0.07)', borderWidth: 2.5, pointRadius: 0, tension: 0.4, fill: true, order: 4 },
+                        { type: 'line', label: 'Umid Ext (%)', yAxisID: 'yUmid', data: [], borderColor: '#c084fc', backgroundColor: 'rgba(192,132,252,0.05)', borderWidth: 2, pointRadius: 0, tension: 0.4, fill: false, order: 4 },
+                        // Relés — barras semitransparentes no fundo
+                        { type: 'bar', label: 'Luz', yAxisID: 'yRele', data: [], backgroundColor: 'rgba(255,220,0,0.18)', borderColor: 'rgba(255,220,0,0.5)', borderWidth: 0, barPercentage: 1.0, categoryPercentage: 1.0, order: 1 },
+                        { type: 'bar', label: 'Umidif.', yAxisID: 'yRele', data: [], backgroundColor: 'rgba(0,200,255,0.18)', borderColor: 'rgba(0,200,255,0.5)', borderWidth: 0, barPercentage: 1.0, categoryPercentage: 1.0, order: 1 },
+                        { type: 'bar', label: 'Vento', yAxisID: 'yRele', data: [], backgroundColor: 'rgba(0,255,170,0.15)', borderColor: 'rgba(0,255,170,0.4)', borderWidth: 0, barPercentage: 1.0, categoryPercentage: 1.0, order: 1 },
+                        { type: 'bar', label: 'Exaustor', yAxisID: 'yRele', data: [], backgroundColor: 'rgba(255,100,0,0.18)', borderColor: 'rgba(255,100,0,0.5)', borderWidth: 0, barPercentage: 1.0, categoryPercentage: 1.0, order: 1 },
                     ]
                 },
                 options: {
@@ -624,20 +631,36 @@
                         yTemp: {
                             type: 'linear', position: 'left',
                             grid: { color: 'rgba(255,255,255,0.04)' },
-                            ticks: { color: '#10b981', font: { size: 10 }, callback: v => v.toFixed(0) + '°C' },
-                            title: { display: true, text: '°C', color: '#10b981', font: { size: 10 } }
+                            ticks: { color: '#00ffaa', font: { size: 10 }, callback: v => v.toFixed(0) + '°C' },
+                            title: { display: true, text: '°C', color: '#00ffaa', font: { size: 10 } }
                         },
                         yUmid: {
                             type: 'linear', position: 'right',
                             min: 50, max: 105,
                             grid: { drawOnChartArea: false },
-                            ticks: { color: '#3b82f6', font: { size: 10 }, callback: v => v + '%' },
-                            title: { display: true, text: '%', color: '#3b82f6', font: { size: 10 } }
+                            ticks: { color: '#00c8ff', font: { size: 10 }, callback: v => v + '%' },
+                            title: { display: true, text: '%', color: '#00c8ff', font: { size: 10 } }
                         },
                         yRele: {
                             type: 'linear', position: 'right',
                             min: 0, max: 4,
                             display: false
+                        }
+                    },
+                    plugins: {
+                        ...undefined,
+                        zoom: {
+                            pan: {
+                                enabled: true,
+                                mode: 'x',
+                                threshold: 10
+                            },
+                            zoom: {
+                                wheel: { enabled: true, speed: 0.1 },
+                                pinch: { enabled: true },
+                                mode: 'x',
+                                onZoomComplete: () => { document.getElementById('btnResetZoom').classList.remove('hidden'); }
+                            }
                         }
                     }
                 }
@@ -716,10 +739,19 @@
             document.getElementById('infoFaseFae').textContent = fae;
         }
 
+        function resetarZoom() {
+            if (chartGrow) {
+                chartGrow.resetZoom();
+                document.getElementById('btnResetZoom').classList.add('hidden');
+            }
+        }
+
         function filtrar(limit, btn) {
             limitAtual = limit;
             document.querySelectorAll('.btn-filter').forEach(b => b.classList.remove('active'));
             btn.classList.add('active');
+            if (chartGrow) { chartGrow.resetZoom(); }
+            document.getElementById('btnResetZoom').classList.add('hidden');
             carregarDados(limit);
         }
 
@@ -936,6 +968,8 @@
         window.onload = () => {
             initCharts();
             loopDados(); // Inicia o motor em tempo real
+            // Duplo clique no gráfico reseta o zoom
+            document.getElementById('chartGrow').addEventListener('dblclick', resetarZoom);
         };
     </script>
 </body>
