@@ -444,7 +444,11 @@ void executarMotor(unsigned long agora) {
   }
 
   bool quente = (tempInt >= pf.tempMax), frio = (tempInt <= TEMP_MINIMA);
-  bool arFrio = (tempExt < tempInt), arQuente = (tempExt > tempInt), defesaEvap = false;
+  bool arFrio = false, arQuente = false, defesaEvap = false;
+  if (sensorExtOk) { // Só confia na temperatura da rua se o DHT estiver funcionando!
+    arFrio = (tempExt < tempInt);
+    arQuente = (tempExt > tempInt);
+  }
   releExaustExt = false; releVentoInt = false;
 
   if (quente) {
@@ -628,7 +632,25 @@ void loop() {
     else if (WiFi.status() != WL_CONNECTED) statusSis = SIS_SEM_WIFI;
     else statusSis = SIS_OK;
 
-    if (sensorIntOk) { executarMotor(agora); aplicarSeguranca(); }
+    if (sensorIntOk) { 
+      executarMotor(agora); 
+      aplicarSeguranca(); 
+    } else {
+      // FALHA CRÍTICA DO SENSOR SHT30:
+      // Se queimar ou desconectar, não sabemos a umidade nem temperatura.
+      // O código antigo "congelaria" os relés no último estado (ex: umidificador ligado pra sempre).
+      // Agora forçamos o desligamento seguro.
+      releUmidific = false;
+      releExaustExt = false;
+      releVentoInt = true; // Mantém ventilação interna para evitar mofo
+      
+      // A luz pode continuar rodando independentemente do clima, guiada pelo relógio
+      if (modoLuz == LUZ_AUTO) {
+        if (horaValida) releLuz = (horaAtual >= LUZ_HORA_LIGA || horaAtual < LUZ_HORA_DESLIGA);
+        else releLuz = ((agora % 86400000UL) < 43200000UL); // Fallback 12/12
+      }
+    }
+    
     verificarProgressao(); aplicarReles();
 
     // HORIMETRO: Acumula tempo de uso de cada componente a cada ciclo (aprox 2s)
