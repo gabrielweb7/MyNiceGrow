@@ -288,6 +288,44 @@
                 <button onclick="enviarOTA()" id="btnEnviarOta" class="w-full bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs py-3 rounded-lg transition-all shadow-[0_0_15px_rgba(16,185,129,0.2)] flex items-center justify-center gap-2">
                     <span>Instalar Versão da Nuvem na Placa</span>
                 </button>
+
+                <hr class="border-slate-800 my-5">
+                <h3 class="text-amber-400 font-bold text-xs uppercase mb-3">🌡️ Ajuste de Clima por Fase</h3>
+                <div class="mb-3">
+                    <label class="text-[10px] text-slate-500 uppercase block mb-1">Selecione a Fase</label>
+                    <select id="selConfigFase" class="w-full bg-slate-800 text-slate-200 text-xs border border-slate-700 rounded-lg p-2 outline-none focus:border-amber-500" onchange="carregarFormClima()">
+                        <option value="1">🍄 Pinagem</option>
+                        <option value="2">🍄 Frutificação</option>
+                        <option value="3">🍄 Segundo Flush</option>
+                    </select>
+                </div>
+                <div class="grid grid-cols-3 gap-2 mb-3">
+                    <div>
+                        <label class="text-[10px] text-slate-500 block mb-1">Temp Max (°C)</label>
+                        <input type="number" step="0.1" id="cfgTx" class="w-full bg-slate-800 text-slate-200 text-xs border border-slate-700 rounded p-2 text-center outline-none">
+                    </div>
+                    <div>
+                        <label class="text-[10px] text-slate-500 block mb-1">Umid Min (%)</label>
+                        <input type="number" step="0.1" id="cfgUn" class="w-full bg-slate-800 text-slate-200 text-xs border border-slate-700 rounded p-2 text-center outline-none">
+                    </div>
+                    <div>
+                        <label class="text-[10px] text-slate-500 block mb-1">Umid Max (%)</label>
+                        <input type="number" step="0.1" id="cfgUx" class="w-full bg-slate-800 text-slate-200 text-xs border border-slate-700 rounded p-2 text-center outline-none">
+                    </div>
+                </div>
+                <div class="grid grid-cols-2 gap-2 mb-4">
+                    <div>
+                        <label class="text-[10px] text-slate-500 block mb-1">Exaustor LIGADO (min)</label>
+                        <input type="number" id="cfgFo" class="w-full bg-slate-800 text-slate-200 text-xs border border-slate-700 rounded p-2 text-center outline-none">
+                    </div>
+                    <div>
+                        <label class="text-[10px] text-slate-500 block mb-1">Exaustor DESLIG. (min)</label>
+                        <input type="number" id="cfgFf" class="w-full bg-slate-800 text-slate-200 text-xs border border-slate-700 rounded p-2 text-center outline-none">
+                    </div>
+                </div>
+                <button onclick="salvarFormClima()" id="btnSalvarClima" class="w-full bg-amber-600 hover:bg-amber-500 text-white font-bold text-xs py-2 rounded-lg transition-all shadow-[0_0_15px_rgba(217,119,6,0.2)]">
+                    Salvar e Enviar para Placa
+                </button>
             </div>
         </div>
     </div>
@@ -453,8 +491,56 @@
             }
             
             document.getElementById('modalConfig').classList.remove('hidden'); 
+            fetchConfigClima();
         }
         function fecharConfig() { document.getElementById('modalConfig').classList.add('hidden'); }
+        
+        let configClima = {
+            "1": { tX: 28.0, uN: 97.0, uX: 99.9, fO: 1, fF: 40 },
+            "2": { tX: 29.0, uN: 97.0, uX: 99.9, fO: 2, fF: 25 },
+            "3": { tX: 28.0, uN: 97.0, uX: 99.9, fO: 1, fF: 40 }
+        };
+
+        async function fetchConfigClima() {
+            try {
+                let r = await fetch('api/config_clima.json?nocache=' + Date.now());
+                if (r.ok) {
+                    let d = await r.json();
+                    if (d["1"]) configClima = d;
+                }
+            } catch (e) { console.log("Config padrao carregada"); }
+            carregarFormClima();
+        }
+
+        function carregarFormClima() {
+            let f = document.getElementById('selConfigFase').value;
+            let cfg = configClima[f];
+            if (cfg) {
+                document.getElementById('cfgTx').value = cfg.tX;
+                document.getElementById('cfgUn').value = cfg.uN;
+                document.getElementById('cfgUx').value = cfg.uX;
+                document.getElementById('cfgFo').value = cfg.fO;
+                document.getElementById('cfgFf').value = cfg.fF;
+            }
+        }
+
+        async function salvarFormClima() {
+            let f = document.getElementById('selConfigFase').value;
+            configClima[f].tX = parseFloat(document.getElementById('cfgTx').value);
+            configClima[f].uN = parseFloat(document.getElementById('cfgUn').value);
+            configClima[f].uX = parseFloat(document.getElementById('cfgUx').value);
+            configClima[f].fO = parseInt(document.getElementById('cfgFo').value);
+            configClima[f].fF = parseInt(document.getElementById('cfgFf').value);
+            
+            let btn = document.getElementById('btnSalvarClima');
+            btn.textContent = "Avisando a Placa...";
+            if (await enviarComando({ config: JSON.stringify(configClima) })) {
+                btn.textContent = "✅ Salvo na Placa!";
+            } else {
+                btn.textContent = "❌ Falhou!";
+            }
+            setTimeout(() => { btn.textContent = "Salvar e Enviar para Placa"; }, 3000);
+        }
 
         async function enviarOTA() {
             const btn = document.getElementById('btnEnviarOta');
