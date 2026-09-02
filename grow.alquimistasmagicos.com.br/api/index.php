@@ -52,6 +52,12 @@ if ($method === 'POST') {
         // Se o ESP32 gravou o UNIX timestamp (offline), usamos ele. Senão, hora de agora.
         $ts = isset($row['timestamp']) && $row['timestamp'] > 0 ? date('Y-m-d H:i:s', $row['timestamp']) : date('Y-m-d H:i:s');
         
+        // Filtro de sanidade contra interferência eletromagnética (leituras corrompidas)
+        if (isset($row['uE']) && ($row['uE'] > 100 || $row['uE'] < 0)) continue;
+        if (isset($row['tE']) && ($row['tE'] < 0 || $row['tE'] > 60)) continue;
+        if (isset($row['uI']) && ($row['uI'] > 100 || $row['uI'] < 0)) continue;
+        if (isset($row['tI']) && ($row['tI'] < 0 || $row['tI'] > 60)) continue;
+
         $stmt->bind_param("sddddiiiis", 
             $ts, $row['tI'], $row['uI'], $row['tE'], $row['uE'], 
             $row['rLuz'], $row['rUmid'], $row['rVento'], $row['rExaust'], $row['fase']
@@ -84,10 +90,18 @@ if ($method === 'POST') {
 // ENTREGAR DADOS PARA O DASHBOARD (Gráficos)
 // =======================================================
 elseif ($method === 'GET') {
+    // Ação administrativa para limpar ruídos e picos de interferência
+    if (isset($_GET['limpar_ruido']) && $_GET['limpar_ruido'] === ADMIN_KEY) {
+        $conn->query("DELETE FROM telemetria WHERE hum_ext > 100 OR (temp_ext < 18.5 AND hum_ext > 90)");
+        $rem = $conn->affected_rows;
+        die(json_encode(["status" => "ok", "removidos" => $rem]));
+    }
+
     $limit = isset($_GET['limit']) ? (int)$_GET['limit'] : 1440;
     $limit = max(1, min(20000, $limit)); // Clamp: evita queries gigantes
     
-    $sql = "SELECT * FROM telemetria ORDER BY id DESC LIMIT $limit";
+    // Ignora leituras corrompidas por interferência física/elétrica
+    $sql = "SELECT * FROM telemetria WHERE (hum_ext <= 100 OR hum_ext IS NULL) AND (temp_ext >= 15 OR temp_ext IS NULL) ORDER BY id DESC LIMIT $limit";
     $result = $conn->query($sql);
     
     // Headers de Versão
