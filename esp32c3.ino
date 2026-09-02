@@ -230,7 +230,11 @@ void enviarNuvem(unsigned long agora) {
   json += "\"rUmid\":" + String(alertaFaltaAgua ? 2 : (lastReleUmidific?1:0)) + ",";
   json += "\"rVento\":" + String(lastReleVento?1:0) + ",";
   json += "\"rExaust\":" + String(lastReleExaust?1:0) + ",";
-  json += "\"fase\":\"" + String(nomeFase((int)faseAtual)) + "\",";
+  String faseStr = nomeFase((int)faseAtual);
+  if (!sensorIntOk) faseStr = "ALERTA: SHT30 OFFLINE";
+  else if (!sensorExtOk) faseStr += " (DHT OFFLINE)";
+
+  json += "\"fase\":\"" + faseStr + "\",";
   json += "\"hLuz\":" + String(segLuzTotal / 3600.0, 1) + ",";
   json += "\"hUmid\":" + String(segUmidTotal / 3600.0, 1) + ",";
   json += "\"hVento\":" + String(segVentoTotal / 3600.0, 1) + ",";
