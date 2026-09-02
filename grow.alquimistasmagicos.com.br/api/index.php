@@ -68,6 +68,7 @@ if ($method === 'POST') {
         if (isset($cmd['luz'])) $resposta['comando_luz'] = $cmd['luz'];
         if (isset($cmd['reset_agua'])) $resposta['comando_reset_agua'] = 1;
         if (isset($cmd['ota'])) $resposta['comando_ota'] = 1;
+        if (isset($cmd['config_clima'])) $resposta['config_clima'] = $cmd['config_clima'];
         unlink($arquivo_comando); // Deleta apos entregar ao ESP32
     }
     

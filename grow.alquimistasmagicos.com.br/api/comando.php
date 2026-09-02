@@ -31,6 +31,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if (isset($_POST['luz'])) $cmd['luz'] = (int)$_POST['luz']; // 0: AUTO, 1: ON, 2: OFF
     if (isset($_POST['reset_agua'])) $cmd['reset_agua'] = 1;
     if (isset($_POST['ota'])) $cmd['ota'] = 1;
+    if (isset($_POST['config'])) {
+        $jsonStr = $_POST['config'];
+        $cmd['config_clima'] = json_decode($jsonStr, true);
+        file_put_contents(__DIR__ . '/config_clima.json', $jsonStr);
+    }
 
     file_put_contents($arquivo_comando, json_encode($cmd));
     echo json_encode(["status" => "Comando salvo na fila!", "cmd" => $cmd]);

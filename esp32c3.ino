@@ -304,8 +304,28 @@ void enviarNuvem(unsigned long agora) {
       }
       prefs.end();
       String response = http.getString();
-      StaticJsonDocument<256> docRes;
+      DynamicJsonDocument docRes(1024);
       if (!deserializeJson(docRes, response)) {
+         if (docRes.containsKey("config_clima")) {
+            JsonObject cfg = docRes["config_clima"];
+            bool configAlterada = false;
+            for (int i = 1; i <= 3; i++) {
+               String key = String(i);
+               if (cfg.containsKey(key)) {
+                  perfis[i].tempMax = cfg[key]["tX"].as<float>();
+                  perfis[i].umidMin = cfg[key]["uN"].as<float>();
+                  perfis[i].umidMax = cfg[key]["uX"].as<float>();
+                  perfis[i].faeOnMs = cfg[key]["fO"].as<unsigned long>() * 60000UL;
+                  perfis[i].faeOffMs = cfg[key]["fF"].as<unsigned long>() * 60000UL;
+                  configAlterada = true;
+               }
+            }
+            if (configAlterada) {
+               salvarPerfisNVS();
+               Serial.println("✅ Novos perfis climáticos carregados e salvos no NVS!");
+            }
+         }
+         
          if (docRes.containsKey("comando_fase")) {
             int fc = docRes["comando_fase"];
             if (fc != (int)faseAtual) {
