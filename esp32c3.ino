@@ -139,6 +139,7 @@ unsigned long lastSwitchLuz = 0, lastSwitchUmid = 0, lastSwitchVento = 0, lastSw
 uint32_t segLuzTotal = 0, segUmidTotal = 0, segVentoTotal = 0, segExaustTotal = 0;
 unsigned long ultimoTickHorimetro = 0;
 unsigned long ultimoSaveHorimetro = 0;
+unsigned long tempoInicioSaturacaoUmid = 0;
 
 // ============================================================
 //  FUNÇÕES AUXILIARES
@@ -158,11 +159,12 @@ const char* nomeModoLuz() {
 }
 PerfilClimatico obterPerfil(FaseCultivo f) {
   // CLIMA TROPICAL (Campo Grande/MS) - Genetica Cambodian/TAT (Termotolerantes)
-  // Sem AC: Foco em alta evaporacao (resfriamento) e FAE agressivo devido ao metabolismo acelerado no calor.
-  if(f==FASE_PINANDO) return {28.0, 95.0, 99.0, 5UL*60000, 40UL*60000}; // Pinagem induzida por umidade e FAE, aceitando calor.
-  if(f==FASE_FRUTIFICACAO) return {29.0, 88.0, 95.0, 5UL*60000, 25UL*60000}; // Calor = CO2 extremo. FAE muito agressivo (5m a cada 25m).
-  if(f==FASE_SEGUNDO_FLUSH) return {28.0, 95.0, 99.0, 5UL*60000, 40UL*60000};
-  return {TEMP_ALVO_MAX, UMIDADE_MINIMA, UMIDADE_MAXIMA, FAE_ON_MS, FAE_OFF_MS};
+  // Sem AC: Foco em alta evaporacao (resfriamento) e FAE.
+  // Tempo de FAE (Troca de Ar) reduzido para 1 a 2 minutos para evitar perda excessiva de umidade.
+  if(f==FASE_PINANDO) return {28.0, 95.0, 99.0, 1UL*60000, 40UL*60000}; // 1 min FAE a cada 40m
+  if(f==FASE_FRUTIFICACAO) return {29.0, 88.0, 95.0, 2UL*60000, 25UL*60000}; // 2 min FAE a cada 25m (mais CO2)
+  if(f==FASE_SEGUNDO_FLUSH) return {28.0, 95.0, 99.0, 1UL*60000, 40UL*60000};
+  return {TEMP_ALVO_MAX, UMIDADE_MINIMA, UMIDADE_MAXIMA, 1UL*60000, FAE_OFF_MS};
 }
 String formatUptime(unsigned long ms) {
   unsigned long s = ms / 1000; int d = s / 86400; s %= 86400; int h = s / 3600; s %= 3600; int m = s / 60;
@@ -467,15 +469,30 @@ void executarMotor(unsigned long agora) {
 
   if (!alertaFaltaAgua) {
     if (defesaEvap) releUmidific = true;
-    else if (humInt < pf.umidMin) releUmidific = true;
+    else if (humInt < pf.umidMin) {
+      if (!releUmidific) tempoInicioSaturacaoUmid = agora; // Inicia contagem do tempo mínimo
+      releUmidific = true;
+    }
     else if (humInt > pf.umidMax && !defesaEvap) {
-      releUmidific = false;
-      if (tempoUmidAcumuladoMs > 0) {
-        tempoUmidAcumuladoMs = 0;
-        prefs.begin("grow", false);
-        prefs.putUInt("umid_acum", 0);
-        prefs.end();
+      // TEMPO MÍNIMO DE SATURAÇÃO VÍSUAL (2 Minutos)
+      // Se o sensor bater 100% rápido demais, ignoramos e forçamos o umidificador a continuar
+      // até completar 2 minutos de funcionamento para garantir a névoa branca na estufa.
+      if (agora - tempoInicioSaturacaoUmid >= 120000UL || tempoInicioSaturacaoUmid == 0) {
+        releUmidific = false;
+        if (tempoUmidAcumuladoMs > 0) {
+          tempoUmidAcumuladoMs = 0;
+          prefs.begin("grow", false);
+          prefs.putUInt("umid_acum", 0);
+          prefs.end();
+        }
       }
+    }
+    
+    // BLOQUEIO CONTRA DESPERDÍCIO:
+    // Se o exaustor está jogando ar para fora, pausamos o umidificador.
+    // Assim não jogamos toda a névoa preciosa direto pra rua.
+    if (releExaustExt) {
+      releUmidific = false;
     }
   } else { releUmidific = false; }
   
