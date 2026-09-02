@@ -971,13 +971,16 @@
             const rVento = parseInt(ultimo.rele_vento);
             const rExaust = parseInt(ultimo.rele_exaust);
             
-            let tempMax = 25.0; let tempMin = 20.0;
             let faseLimpa = (ultimo.fase || '--').replace(' (DHT OFFLINE)', '').replace('ALERTA: SHT30 OFFLINE', 'Standby');
             
-            if (faseLimpa === "Pinagem") { tempMin = 22.0; tempMax = 26.5; }
-            else if (faseLimpa === "Frutificacao") { tempMin = 20.0; tempMax = 24.5; }
-            else if (faseLimpa === "Segundo Flush") { tempMin = 20.0; tempMax = 24.5; }
-            else if (faseLimpa === "Secagem Total") { tempMin = 25.0; tempMax = 30.0; }
+            let cId = "1";
+            if (faseLimpa === "Pinagem") cId = "1";
+            else if (faseLimpa === "Frutificacao") cId = "2";
+            else if (faseLimpa === "Segundo Flush") cId = "3";
+            else if (faseLimpa === "Secagem Total") cId = "4";
+            
+            let tempMin = 20.0;
+            let tempMax = configClima[cId] ? configClima[cId].tX : 25.0;
 
             const quente = tI > tempMax;
             const frio = tI < tempMin;
