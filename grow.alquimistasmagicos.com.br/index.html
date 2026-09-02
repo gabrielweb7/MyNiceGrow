@@ -855,8 +855,11 @@
 
                 // Se não tem pendência ativa (ou já destravou, ou passou 25s)
                 if (agoraTime - fasePendenteTempo > 25000) {
-                    document.getElementById('valFase').textContent = ultimo.fase || '--';
-                    atualizarBotoesFase(ultimo.fase, false);
+                    let f_str = ultimo.fase || '--';
+                    document.getElementById('valFase').textContent = f_str;
+                    
+                    let f_limpa = f_str.replace(' (DHT OFFLINE)', '').replace('ALERTA: SHT30 OFFLINE', 'Standby');
+                    atualizarBotoesFase(f_limpa, false);
                     fasePendenteAlvo = null; // limpa por precaução
                 }
 
@@ -969,17 +972,19 @@
             const rExaust = parseInt(ultimo.rele_exaust);
             
             let tempMax = 25.0; let tempMin = 20.0;
-            if (ultimo.fase === "Pinagem") { tempMin = 22.0; tempMax = 26.5; }
-            else if (ultimo.fase === "Frutificacao") { tempMin = 20.0; tempMax = 24.5; }
-            else if (ultimo.fase === "Segundo Flush") { tempMin = 20.0; tempMax = 24.5; }
-            else if (ultimo.fase === "Secagem Total") { tempMin = 25.0; tempMax = 30.0; }
+            let faseLimpa = (ultimo.fase || '--').replace(' (DHT OFFLINE)', '').replace('ALERTA: SHT30 OFFLINE', 'Standby');
+            
+            if (faseLimpa === "Pinagem") { tempMin = 22.0; tempMax = 26.5; }
+            else if (faseLimpa === "Frutificacao") { tempMin = 20.0; tempMax = 24.5; }
+            else if (faseLimpa === "Segundo Flush") { tempMin = 20.0; tempMax = 24.5; }
+            else if (faseLimpa === "Secagem Total") { tempMin = 25.0; tempMax = 30.0; }
 
             const quente = tI > tempMax;
             const frio = tI < tempMin;
             const arFrio = tE < (tI - 1.0);
             const arQuente = tE > (tI + 1.0);
 
-            if (ultimo.fase === "Standby") {
+            if (faseLimpa === "Standby") {
                 status = "💤 Modo Standby"; desc = "Estufa inativa aguardando comandos."; cor = "text-slate-400";
             } else if (rUmid === 2) {
                 status = "🚨 Proteção Anti-Queima (Falta D'água)"; desc = "O motor foi desarmado pois a umidade não subiu. Reabasteça o reservatório e resete no painel."; cor = "text-rose-500 animate-pulse";
