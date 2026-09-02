@@ -379,9 +379,14 @@
         }
 
         function resetarZoom() {
-            if (chartUmid) chartUmid.resetZoom();
-            if (chartTemp) chartTemp.resetZoom();
-            if (chartReles) chartReles.resetZoom();
+            [chartUmid, chartTemp, chartReles].forEach(c => {
+                if (c) {
+                    c.resetZoom();
+                    delete c.options.scales.x.min;
+                    delete c.options.scales.x.max;
+                    c.update('none');
+                }
+            });
             document.getElementById('btnResetZoom').classList.add('hidden');
         }
 
@@ -620,7 +625,7 @@
                     ctx.moveTo(x, yAxis.top);
                     ctx.lineTo(x, yAxis.bottom);
                     ctx.lineWidth = 1.5;
-                    ctx.strokeStyle = 'rgba(255, 255, 255, 0.3)';
+                    ctx.strokeStyle = 'rgba(0, 255, 170, 0.4)'; // Verde Neon
                     ctx.setLineDash([4, 4]);
                     ctx.stroke();
                     ctx.restore();
@@ -632,6 +637,27 @@
             return {
                 responsive: true, maintainAspectRatio: false, animation: false,
                 interaction: { mode: 'index', intersect: false },
+                onHover: (e, elements, chart) => {
+                    if (elements.length > 0) {
+                        const dataIndex = elements[0].index;
+                        [chartUmid, chartTemp, chartReles].forEach(c => {
+                            if (c && c !== chart) {
+                                const activeElements = c.data.datasets.map((_, i) => ({ datasetIndex: i, index: dataIndex }));
+                                c.setActiveElements(activeElements);
+                                c.tooltip.setActiveElements(activeElements, e);
+                                c.update('none');
+                            }
+                        });
+                    } else {
+                        [chartUmid, chartTemp, chartReles].forEach(c => {
+                            if (c && c !== chart) {
+                                c.setActiveElements([]);
+                                c.tooltip.setActiveElements([], e);
+                                c.update('none');
+                            }
+                        });
+                    }
+                },
                 plugins: {
                     legend: { display: false },
                     tooltip: { 
