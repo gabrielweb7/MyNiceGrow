@@ -256,7 +256,7 @@
         <section class="fade-in glass rounded-xl p-4 md:p-5 border border-slate-700/30 relative">
             <div class="flex justify-between items-center mb-1">
                 <h2 class="text-sm font-bold text-slate-300">⚡ Timeline dos Relés</h2>
-                <button id="btnResetZoom" onclick="resetarZoomTodos()" class="hidden px-2.5 py-1 text-[10px] font-bold bg-slate-700 hover:bg-slate-600 border border-slate-500 rounded text-white transition-all">
+                <button id="btnResetZoom" onclick="resetarZoom()" class="hidden px-2.5 py-1 text-[10px] font-bold bg-slate-700 hover:bg-slate-600 border border-slate-500 rounded text-white transition-all">
                     🔍 Resetar Zoom
                 </button>
             </div>
@@ -350,7 +350,7 @@
     <script src="https://cdn.jsdelivr.net/npm/hammerjs@2.0.8/hammer.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-zoom@2.0.1/dist/chartjs-plugin-zoom.min.js"></script>
     <script>
-        let chartGrow = null;
+        let chartUmid = null, chartTemp = null, chartReles = null;
         let limitAtual = 1440;
 
         const chartColors = {
@@ -376,6 +376,13 @@
                 clearTimeout(id);
                 throw err;
             }
+        }
+
+        function resetarZoom() {
+            if (chartUmid) chartUmid.resetZoom();
+            if (chartTemp) chartTemp.resetZoom();
+            if (chartReles) chartReles.resetZoom();
+            document.getElementById('btnResetZoom').classList.add('hidden');
         }
 
         async function enviarComando(params) {
@@ -474,6 +481,11 @@
             document.getElementById('uiFwNuvem').textContent = formatarDataFW(n);
             
             let statusBadge = document.getElementById('otaStatusBadge');
+            if (err === '1') {
+                statusBadge.innerHTML = '<span class="bg-rose-500/20 text-rose-400 text-[9px] px-2 py-1 rounded-full font-bold animate-pulse">❌ OTA FALHOU (REVERTIDO)</span>';
+            } else if (p === n && p !== '0') {
+                statusBadge.innerHTML = '<span class="bg-emerald-500/20 text-emerald-400 text-[10px] px-2 py-1 rounded-full font-bold">✓ ATUALIZADO</span>';
+            } else if (p !== '0' && n !== '0' && p !== n) {
                 statusBadge.innerHTML = '<span class="bg-amber-500/20 text-amber-400 text-[10px] px-2 py-1 rounded-full font-bold animate-pulse">⚠️ NOVA ATUALIZAÇÃO</span>';
             } else {
                 statusBadge.innerHTML = '';
@@ -484,7 +496,103 @@
         }
         function fecharConfig() { document.getElementById('modalConfig').classList.add('hidden'); }
         
-        let chartUmid = null, chartTemp = null, chartReles = null;
+        let configClima = {
+            "1": { tX: 28.0, uN: 97.0, uX: 99.9, fO: 1, fF: 40 },
+            "2": { tX: 29.0, uN: 97.0, uX: 99.9, fO: 2, fF: 25 },
+            "3": { tX: 28.0, uN: 97.0, uX: 99.9, fO: 1, fF: 40 }
+        };
+
+        async function fetchConfigClima() {
+            try {
+                let r = await fetch('api/config_clima.json?nocache=' + Date.now());
+                if (r.ok) {
+                    let d = await r.json();
+                    if (d["1"]) configClima = d;
+                }
+            } catch (e) { console.log("Config padrao carregada"); }
+            carregarFormClima();
+        }
+
+        function carregarFormClima() {
+            let f = document.getElementById('selConfigFase').value;
+            let cfg = configClima[f];
+            if (cfg) {
+                document.getElementById('cfgTx').value = cfg.tX;
+                document.getElementById('cfgUn').value = cfg.uN;
+                document.getElementById('cfgUx').value = cfg.uX;
+                document.getElementById('cfgFo').value = cfg.fO;
+                document.getElementById('cfgFf').value = cfg.fF;
+            }
+        }
+
+        async function salvarFormClima() {
+            let f = document.getElementById('selConfigFase').value;
+            const parseFloatSafe = (val) => parseFloat(String(val).replace(',', '.'));
+            configClima[f].tX = parseFloatSafe(document.getElementById('cfgTx').value);
+            configClima[f].uN = parseFloatSafe(document.getElementById('cfgUn').value);
+            configClima[f].uX = parseFloatSafe(document.getElementById('cfgUx').value);
+            configClima[f].fO = parseInt(document.getElementById('cfgFo').value);
+            configClima[f].fF = parseInt(document.getElementById('cfgFf').value);
+            
+            let btn = document.getElementById('btnSalvarClima');
+            btn.textContent = "Avisando a Placa...";
+            if (await enviarComando({ config: JSON.stringify(configClima) })) {
+                btn.textContent = "✅ Salvo na Placa!";
+            } else {
+                btn.textContent = "❌ Falhou!";
+            }
+            setTimeout(() => { btn.textContent = "Salvar e Enviar para Placa"; }, 3000);
+        }
+
+        async function enviarOTA() {
+            const btn = document.getElementById('btnEnviarOta');
+            btn.textContent = "Avisando a Placa...";
+            btn.disabled = true;
+            btn.classList.add('opacity-50', 'cursor-not-allowed');
+
+            try {
+                if (await enviarComando({ota: 1})) {
+                    alert("✅ Sucesso! A placa já foi avisada.\nEla vai baixar o arquivo do Git e voltará online em cerca de 1 minuto.");
+                    fecharConfig();
+                } else {
+                    alert("⚠️ Houve uma falha ao comunicar com a nuvem.");
+                }
+            } catch (e) {
+                alert("❌ Erro: " + e.message);
+            } finally {
+                btn.textContent = "Baixar do Git e Atualizar Placa";
+                btn.disabled = false;
+                btn.classList.remove('opacity-50', 'cursor-not-allowed');
+            }
+        }
+
+        async function mudarFase(f) { 
+            if (await enviarComando({fase: f})) {
+                fasePendenteTempo = Date.now();
+                const mapaReverso = {0: "Standby", 1: "Pinagem", 2: "Frutificacao", 3: "Segundo Flush", 4: "Secagem Total"};
+                fasePendenteAlvo = mapaReverso[f];
+                
+                document.getElementById('valFase').textContent = "Pendente ⏳";
+                atualizarBotoesFase(f, true);
+                loopDados(2000); // Força refresh rápido
+            }
+        }
+        
+        async function mudarLuz() {
+            let proxLuz = (luzState + 1) % 3;
+            if (await enviarComando({luz: proxLuz})) {
+                luzState = proxLuz;
+                luzPendenteTempo = Date.now();
+                
+                // Feedback visual instantâneo (gambiarra visual segura)
+                const rl = document.getElementById('releLuzStatus');
+                if (luzState === 1) { setRele('releLuz', 'releLuzStatus', true); rl.textContent = "ON (⏳)"; }
+                else if (luzState === 2) { setRele('releLuz', 'releLuzStatus', false); rl.textContent = "OFF (⏳)"; }
+                else { setRele('releLuz', 'releLuzStatus', false); rl.textContent = "AUTO (⏳)"; }
+                
+                loopDados(3000); // Força refresh rápido
+            }
+        }
 
         function syncZoom(sourceChart) {
             const min = sourceChart.scales.x.min;
@@ -511,6 +619,50 @@
                         zoom: { wheel: { enabled: true, speed: 0.1 }, pinch: { enabled: true }, mode: 'x', onZoom: ({chart}) => syncZoom(chart) }
                     }
                 },
+                scales: {
+                    x: {
+                        type: 'time', time: { tooltipFormat: 'dd/MM HH:mm', displayFormats: { hour: 'HH:mm', minute: 'HH:mm', day: 'dd/MM' } },
+                        grid: { color: 'rgba(255,255,255,0.04)' }, ticks: { color: '#475569', maxTicksLimit: 10, font: { size: 10 } }
+                    },
+                    y: yScale
+                }
+            };
+        }
+
+        function initCharts() {
+            chartUmid = new Chart(document.getElementById('canvasUmid').getContext('2d'), {
+                type: 'line',
+                data: { datasets: [
+                    { label: 'Umid Int (%)', data: [], borderColor: '#00c8ff', backgroundColor: 'rgba(0,200,255,0.07)', borderWidth: 2.5, pointRadius: 0, tension: 0.4, fill: true },
+                    { label: 'Umid Ext (%)', data: [], borderColor: '#c084fc', backgroundColor: 'rgba(192,132,252,0.05)', borderWidth: 2, pointRadius: 0, tension: 0.4, fill: false }
+                ]},
+                options: baseOptions({ min: 50, max: 105, grid: { color: 'rgba(255,255,255,0.04)' }, ticks: { color: '#00c8ff', font: { size: 10 }, callback: v => v + '%' } })
+            });
+
+            chartTemp = new Chart(document.getElementById('canvasTemp').getContext('2d'), {
+                type: 'line',
+                data: { datasets: [
+                    { label: 'Temp Int (°C)', data: [], borderColor: '#00ffaa', backgroundColor: 'rgba(0,255,170,0.07)', borderWidth: 2.5, pointRadius: 0, tension: 0.4, fill: true },
+                    { label: 'Temp Ext (°C)', data: [], borderColor: '#ff4d6d', backgroundColor: 'rgba(255,77,109,0.05)', borderWidth: 2.5, pointRadius: 0, tension: 0.4, fill: false }
+                ]},
+                options: baseOptions({ grid: { color: 'rgba(255,255,255,0.04)' }, ticks: { color: '#00ffaa', font: { size: 10 }, callback: v => v.toFixed(0) + '°C' } })
+            });
+
+            chartReles = new Chart(document.getElementById('canvasReles').getContext('2d'), {
+                type: 'bar',
+                data: { datasets: [
+                    { label: 'Luz', data: [], backgroundColor: 'rgba(255,220,0,0.5)', barPercentage: 1.0, categoryPercentage: 1.0 },
+                    { label: 'Umidif.', data: [], backgroundColor: 'rgba(0,200,255,0.5)', barPercentage: 1.0, categoryPercentage: 1.0 },
+                    { label: 'Vento', data: [], backgroundColor: 'rgba(0,255,170,0.4)', barPercentage: 1.0, categoryPercentage: 1.0 },
+                    { label: 'Exaustor', data: [], backgroundColor: 'rgba(255,100,0,0.5)', barPercentage: 1.0, categoryPercentage: 1.0 }
+                ]},
+                options: baseOptions({ min: 0, max: 1.2, display: false })
+            });
+            
+            // Corrige o tooltip dos relés para mostrar ON/OFF
+            chartReles.options.plugins.tooltip.callbacks = {
+                label: ctx => ` ${ctx.dataset.label}: ${ctx.parsed.y > 0 ? 'ON' : 'OFF'}`
+            };
         }
 
         function atualizarBotoesFase(faseNome, pendente = false) {
@@ -585,19 +737,11 @@
             document.getElementById('infoFaseFae').textContent = fae;
         }
 
-        function resetarZoom() {
-            if (chartGrow) {
-                chartGrow.resetZoom();
-                document.getElementById('btnResetZoom').classList.add('hidden');
-            }
-        }
-
         function filtrar(limit, btn) {
             limitAtual = limit;
             document.querySelectorAll('.btn-filter').forEach(b => b.classList.remove('active'));
             btn.classList.add('active');
-            if (chartGrow) { chartGrow.resetZoom(); }
-            document.getElementById('btnResetZoom').classList.add('hidden');
+            resetarZoom();
             carregarDados(limit);
         }
 
@@ -652,11 +796,8 @@
 
                 // Se não tem pendência ativa (ou já destravou, ou passou 25s)
                 if (agoraTime - fasePendenteTempo > 25000) {
-                    let f_str = ultimo.fase || '--';
-                    document.getElementById('valFase').textContent = f_str;
-                    
-                    let f_limpa = f_str.replace(' (DHT OFFLINE)', '').replace('ALERTA: SHT30 OFFLINE', 'Standby');
-                    atualizarBotoesFase(f_limpa, false);
+                    document.getElementById('valFase').textContent = ultimo.fase || '--';
+                    atualizarBotoesFase(ultimo.fase, false);
                     fasePendenteAlvo = null; // limpa por precaução
                 }
 
@@ -734,16 +875,18 @@
                     dExaust.push({ x: ts, y: rExaust });
                 });
 
-                if (chartGrow) {
-                    chartGrow.data.datasets[0].data = dTempInt;
-                    chartGrow.data.datasets[1].data = dTempExt;
-                    chartGrow.data.datasets[2].data = dHumInt;
-                    chartGrow.data.datasets[3].data = dHumExt;
-                    chartGrow.data.datasets[4].data = dLuz;
-                    chartGrow.data.datasets[5].data = dUmid;
-                    chartGrow.data.datasets[6].data = dVento;
-                    chartGrow.data.datasets[7].data = dExaust;
-                    chartGrow.update('none'); // 'none' = sem animação para não travar
+                if (chartUmid && chartTemp && chartReles) {
+                    chartTemp.data.datasets[0].data = dTempInt;
+                    chartTemp.data.datasets[1].data = dTempExt;
+                    chartUmid.data.datasets[0].data = dHumInt;
+                    chartUmid.data.datasets[1].data = dHumExt;
+                    chartReles.data.datasets[0].data = dLuz;
+                    chartReles.data.datasets[1].data = dUmid;
+                    chartReles.data.datasets[2].data = dVento;
+                    chartReles.data.datasets[3].data = dExaust;
+                    chartTemp.update('none');
+                    chartUmid.update('none');
+                    chartReles.update('none');
                 }
 
             } catch (err) {
@@ -767,18 +910,17 @@
             const rExaust = parseInt(ultimo.rele_exaust);
             
             let tempMax = 25.0; let tempMin = 20.0;
-            let faseLimpa = (ultimo.fase || '--').replace(' (DHT OFFLINE)', '').replace('ALERTA: SHT30 OFFLINE', 'Standby');
-            if (faseLimpa === "Pinagem") { tempMin = 22.0; tempMax = 26.5; }
-            else if (faseLimpa === "Frutificacao") { tempMin = 20.0; tempMax = 24.5; }
-            else if (faseLimpa === "Segundo Flush") { tempMin = 20.0; tempMax = 24.5; }
-            else if (faseLimpa === "Secagem Total") { tempMin = 25.0; tempMax = 30.0; }
+            if (ultimo.fase === "Pinagem") { tempMin = 22.0; tempMax = 26.5; }
+            else if (ultimo.fase === "Frutificacao") { tempMin = 20.0; tempMax = 24.5; }
+            else if (ultimo.fase === "Segundo Flush") { tempMin = 20.0; tempMax = 24.5; }
+            else if (ultimo.fase === "Secagem Total") { tempMin = 25.0; tempMax = 30.0; }
 
             const quente = tI > tempMax;
             const frio = tI < tempMin;
             const arFrio = tE < (tI - 1.0);
             const arQuente = tE > (tI + 1.0);
 
-            if (faseLimpa === "Standby") {
+            if (ultimo.fase === "Standby") {
                 status = "💤 Modo Standby"; desc = "Estufa inativa aguardando comandos."; cor = "text-slate-400";
             } else if (rUmid === 2) {
                 status = "🚨 Proteção Anti-Queima (Falta D'água)"; desc = "O motor foi desarmado pois a umidade não subiu. Reabasteça o reservatório e resete no painel."; cor = "text-rose-500 animate-pulse";
@@ -819,8 +961,11 @@
             fetchConfigClima().then(() => {
                 initCharts();
                 loopDados(); // Inicia o motor em tempo real
+                
                 // Duplo clique no gráfico reseta o zoom
-                document.getElementById('chartGrow').addEventListener('dblclick', resetarZoom);
+                ['canvasUmid', 'canvasTemp', 'canvasReles'].forEach(id => {
+                    document.getElementById(id).addEventListener('dblclick', resetarZoom);
+                });
             });
         };
     </script>
