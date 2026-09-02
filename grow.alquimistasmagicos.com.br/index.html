@@ -607,13 +607,43 @@
             document.getElementById('btnResetZoom').classList.remove('hidden');
         }
 
+        const crosshairPlugin = {
+            id: 'crosshair',
+            afterDraw: chart => {
+                if (chart.tooltip?._active?.length) {
+                    let x = chart.tooltip._active[0].element.x;
+                    let yAxis = chart.scales[Object.keys(chart.scales).find(k => k !== 'x')];
+                    if (!yAxis) return;
+                    let ctx = chart.ctx;
+                    ctx.save();
+                    ctx.beginPath();
+                    ctx.moveTo(x, yAxis.top);
+                    ctx.lineTo(x, yAxis.bottom);
+                    ctx.lineWidth = 1.5;
+                    ctx.strokeStyle = 'rgba(255, 255, 255, 0.3)';
+                    ctx.setLineDash([4, 4]);
+                    ctx.stroke();
+                    ctx.restore();
+                }
+            }
+        };
+
         function baseOptions(yScale) {
             return {
                 responsive: true, maintainAspectRatio: false, animation: false,
                 interaction: { mode: 'index', intersect: false },
                 plugins: {
                     legend: { display: false },
-                    tooltip: { backgroundColor: '#0f172a', borderColor: '#334155', borderWidth: 1, titleColor: '#94a3b8', bodyColor: '#e2e8f0', padding: 10 },
+                    tooltip: { 
+                        backgroundColor: 'rgba(15, 23, 42, 0.95)', 
+                        borderColor: '#334155', 
+                        borderWidth: 1, 
+                        titleColor: '#00ffaa', 
+                        titleFont: { size: 14, weight: 'bold', family: 'monospace' },
+                        bodyColor: '#e2e8f0', 
+                        bodyFont: { size: 12 },
+                        padding: 12 
+                    },
                     zoom: {
                         pan: { enabled: true, mode: 'x', threshold: 10, onPan: ({chart}) => syncZoom(chart) },
                         zoom: { wheel: { enabled: true, speed: 0.1 }, pinch: { enabled: true }, mode: 'x', onZoom: ({chart}) => syncZoom(chart) }
@@ -636,7 +666,8 @@
                     { label: 'Umid Int (%)', data: [], borderColor: '#00c8ff', backgroundColor: 'rgba(0,200,255,0.07)', borderWidth: 2.5, pointRadius: 0, tension: 0.4, fill: true },
                     { label: 'Umid Ext (%)', data: [], borderColor: '#c084fc', backgroundColor: 'rgba(192,132,252,0.05)', borderWidth: 2, pointRadius: 0, tension: 0.4, fill: false }
                 ]},
-                options: baseOptions({ min: 50, max: 105, grid: { color: 'rgba(255,255,255,0.04)' }, ticks: { color: '#00c8ff', font: { size: 10 }, callback: v => v + '%' } })
+                options: baseOptions({ min: 50, max: 105, grid: { color: 'rgba(255,255,255,0.04)' }, ticks: { color: '#00c8ff', font: { size: 10 }, callback: v => v + '%' } }),
+                plugins: [crosshairPlugin]
             });
 
             chartTemp = new Chart(document.getElementById('canvasTemp').getContext('2d'), {
@@ -645,7 +676,8 @@
                     { label: 'Temp Int (°C)', data: [], borderColor: '#00ffaa', backgroundColor: 'rgba(0,255,170,0.07)', borderWidth: 2.5, pointRadius: 0, tension: 0.4, fill: true },
                     { label: 'Temp Ext (°C)', data: [], borderColor: '#ff4d6d', backgroundColor: 'rgba(255,77,109,0.05)', borderWidth: 2.5, pointRadius: 0, tension: 0.4, fill: false }
                 ]},
-                options: baseOptions({ grid: { color: 'rgba(255,255,255,0.04)' }, ticks: { color: '#00ffaa', font: { size: 10 }, callback: v => v.toFixed(0) + '°C' } })
+                options: baseOptions({ grid: { color: 'rgba(255,255,255,0.04)' }, ticks: { color: '#00ffaa', font: { size: 10 }, callback: v => v.toFixed(0) + '°C' } }),
+                plugins: [crosshairPlugin]
             });
 
             chartReles = new Chart(document.getElementById('canvasReles').getContext('2d'), {
@@ -656,7 +688,8 @@
                     { label: 'Vento', data: [], backgroundColor: 'rgba(0,255,170,0.4)', barPercentage: 1.0, categoryPercentage: 1.0 },
                     { label: 'Exaustor', data: [], backgroundColor: 'rgba(255,100,0,0.5)', barPercentage: 1.0, categoryPercentage: 1.0 }
                 ]},
-                options: baseOptions({ min: 0, max: 1.2, display: false })
+                options: baseOptions({ min: 0, max: 1.2, display: false }),
+                plugins: [crosshairPlugin]
             });
             
             // Corrige o tooltip dos relés para mostrar ON/OFF
