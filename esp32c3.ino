@@ -158,14 +158,31 @@ const char* nomeFase(int f) {
 const char* nomeModoLuz() {
   if(modoLuz==LUZ_AUTO) return "AUTO"; if(modoLuz==LUZ_FORCADA_ON) return "ON"; return "OFF";
 }
+PerfilClimatico perfis[5] = {
+  {TEMP_ALVO_MAX, 97.0, 99.9, 1UL*60000, FAE_OFF_MS}, // 0: Standby (padrão)
+  {28.0, 97.0, 99.9, 1UL*60000, 40UL*60000},          // 1: Pinagem
+  {29.0, 97.0, 99.9, 2UL*60000, 25UL*60000},          // 2: Frutificacao
+  {28.0, 97.0, 99.9, 1UL*60000, 40UL*60000},          // 3: Segundo Flush
+  {TEMP_ALVO_MAX, 97.0, 99.9, 1UL*60000, FAE_OFF_MS}  // 4: Secagem
+};
+
+void salvarPerfisNVS() {
+  prefs.begin("grow_perfis", false);
+  prefs.putBytes("cfg", &perfis, sizeof(perfis));
+  prefs.end();
+}
+
+void carregarPerfisNVS() {
+  prefs.begin("grow_perfis", true);
+  if (prefs.isKey("cfg")) {
+    prefs.getBytes("cfg", &perfis, sizeof(perfis));
+  }
+  prefs.end();
+}
+
 PerfilClimatico obterPerfil(FaseCultivo f) {
-  // CLIMA TROPICAL (Campo Grande/MS) - Genetica Cambodian/TAT (Termotolerantes)
-  // Sem AC: Foco em alta evaporacao (resfriamento) e FAE.
-  // Tempo de FAE (Troca de Ar) reduzido para 1 a 2 minutos para evitar perda excessiva de umidade.
-  if(f==FASE_PINANDO) return {28.0, 97.0, 99.9, 1UL*60000, 40UL*60000}; // 1 min FAE a cada 40m
-  if(f==FASE_FRUTIFICACAO) return {29.0, 97.0, 99.9, 2UL*60000, 25UL*60000}; // 2 min FAE a cada 25m (mais CO2)
-  if(f==FASE_SEGUNDO_FLUSH) return {28.0, 97.0, 99.9, 1UL*60000, 40UL*60000};
-  return {TEMP_ALVO_MAX, 97.0, 99.9, 1UL*60000, FAE_OFF_MS};
+  if (f >= 0 && f <= 4) return perfis[f];
+  return perfis[0];
 }
 String formatUptime(unsigned long ms) {
   unsigned long s = ms / 1000; int d = s / 86400; s %= 86400; int h = s / 3600; s %= 3600; int m = s / 60;
@@ -622,6 +639,8 @@ void setup() {
   for (int i=0; i<4; i++) { pinMode(pr[i], OUTPUT); digitalWrite(pr[i], HIGH); }
 
   if(!LittleFS.begin(true)) Serial.println("[ERRO] LittleFS"); else Serial.println("[OK] LittleFS (Datalogger)");
+  
+  carregarPerfisNVS();
 
   prefs.begin("grow", false);
   faseAtual = (FaseCultivo)prefs.getInt("fase", (int)FASE_STANDBY);
