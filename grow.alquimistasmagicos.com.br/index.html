@@ -612,13 +612,19 @@
 
         async function carregarDados(limit) {
             try {
-                const res = await fetchComTimeout(`api/index.php?limit=${limit}`, {}, 8000);
+                // Busca telemetria e metadados em paralelo para evitar atraso extra
+                const [resDados, resFw] = await Promise.all([
+                    fetchComTimeout(`api/index.php?limit=${limit}`, {}, 8000),
+                    fetchComTimeout(`api/fw.php`, {}, 4000).catch(() => null)
+                ]);
                 
-                // Grava versões de FW no escopo global para o modal de Configurações
-                window.fwPlaca = res.headers.get('X-Fw-Placa') || '0';
-                window.fwNuvem = res.headers.get('X-Fw-Nuvem') || '0';
+                if (resFw && resFw.ok) {
+                    const fwData = await resFw.json();
+                    window.fwPlaca = fwData.placa || '0';
+                    window.fwNuvem = fwData.nuvem || '0';
+                }
 
-                const data = await res.json();
+                const data = await resDados.json();
 
                 if (!data || data.length === 0) {
                     document.getElementById('statusText').textContent = 'Sem dados';
