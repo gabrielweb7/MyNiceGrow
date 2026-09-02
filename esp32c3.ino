@@ -490,29 +490,28 @@ void executarMotor(unsigned long agora) {
   if (faeLigado) { releExaustExt = true; releVentoInt = true; }
 
   // --- CIRCULACAO INTERNA PREVENTIVA (Estufa Grande) ---
-  // Gira o ar internamente independente do umidificador para evitar bolsões de ar parado e CO2 pesado
+  // Gira o ar internamente para evitar bolsões de ar parado e CO2 pesado.
+  bool brisaUmidificadora = false;
   if (!releVentoInt) { 
     if (faseAtual == FASE_FRUTIFICACAO) {
-      if ((agora % 600000) < 120000) releVentoInt = true; // Frutificação: 2 min ON a cada 10 min (Mistura CO2 forte)
+      if ((agora % 600000) < 120000) { releVentoInt = true; } // 2 min ON a cada 10 min
+      if ((agora % 600000) < 60000) { brisaUmidificadora = true; } // Umidificador na metade inicial (1 min)
     } else {
-      if ((agora % 600000) < 60000) releVentoInt = true;  // Outras fases: 1 min ON a cada 10 min (Brisa leve)
+      if ((agora % 600000) < 60000) { releVentoInt = true; }  // 1 min ON a cada 10 min
+      if ((agora % 600000) < 30000) { brisaUmidificadora = true; } // Umidificador na metade inicial (30s)
     }
   }
   // -----------------------------------------------------
 
   if (!alertaFaltaAgua) {
-    if (defesaEvap || faeLigado) {
-      if (!releUmidific) tempoInicioSaturacaoUmid = agora;
-      releUmidific = true;
-    }
+    if (defesaEvap) releUmidific = true;
+    else if (brisaUmidificadora) releUmidific = true; // Injeta névoa junto com o ventilador preventivo
     else if (humInt < pf.umidMin) {
       if (!releUmidific) tempoInicioSaturacaoUmid = agora; // Inicia contagem do tempo mínimo
       releUmidific = true;
     }
     else if (humInt > pf.umidMax && !defesaEvap) {
       // TEMPO MÍNIMO DE SATURAÇÃO VÍSUAL (2 Minutos)
-      // Se o sensor bater 100% rápido demais, ignoramos e forçamos o umidificador a continuar
-      // até completar 2 minutos de funcionamento para garantir a névoa branca na estufa.
       if (agora - tempoInicioSaturacaoUmid >= 120000UL || tempoInicioSaturacaoUmid == 0) {
         releUmidific = false;
         if (tempoUmidAcumuladoMs > 0) {
@@ -522,6 +521,12 @@ void executarMotor(unsigned long agora) {
           prefs.end();
         }
       }
+    }
+    
+    // BLOQUEIO CONTRA DESPERDÍCIO (EXAUSTOR):
+    // Nunca desperdiçar umidade jogando o ar pra fora
+    if (releExaustExt) {
+      releUmidific = false;
     }
   } else { releUmidific = false; }
   
