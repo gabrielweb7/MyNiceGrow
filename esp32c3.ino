@@ -519,7 +519,18 @@ void executarMotor(unsigned long agora) {
 
   if (quente) {
     if (arFrio) { releExaustExt = true; releVentoInt = true; }
-    else { releExaustExt = false; if (humInt < 98 && !alertaFaltaAgua) { defesaEvap = true; releVentoInt = true; } }
+    else { 
+      releExaustExt = false; 
+      releVentoInt = true; // Mantém o vento interno sempre ligado para resfriar os bolos
+      
+      // Para não encharcar (já que a evaporação tem limite físico e não vai baixar muito mais a temp),
+      // criamos um ciclo: umidifica por 5 minutos, descansa 5 minutos.
+      bool cicloDescanso = ((agora / 60000) % 10) >= 5; 
+      
+      if (humInt < 98 && !alertaFaltaAgua && !cicloDescanso) { 
+        defesaEvap = true; 
+      } 
+    }
   } else if (frio) {
     if (arQuente) { releExaustExt = true; releVentoInt = true; }
   }
