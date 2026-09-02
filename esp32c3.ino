@@ -306,7 +306,7 @@ void enviarNuvem(unsigned long agora) {
             if (luzMudou) ultimoEnvioNuvem = 0; // Dispara atualização imediata
          }
          if (docRes.containsKey("comando_reset_agua")) {
-            Serial.println("📥 COMANDO NUVEM: Reset de Alerta de Agua recebido!");
+            Serial.println("📥 COMANDO NUVEM: Reset de Alerta de Agua recebido!!");
             alertaFaltaAgua = false;
             inicioUmidificacao = 0;
             tempoUmidAcumuladoMs = 0;
