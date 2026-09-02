@@ -716,9 +716,23 @@ void loop() {
     float tI = sht30.readTemperature(), hI = sht30.readHumidity();
     float tE = dht.readTemperature(), hE = dht.readHumidity();
     
-    // Filtro de Sanidade: Ignora picos falsos (-45.0) ou erros de comunicação I2C (exato 0.00)
-    sensorIntOk = !isnan(tI) && !isnan(hI) && tI != 0.0 && hI != 0.0 && tI > -10.0 && tI < 60.0 && hI > 0.0;
-    sensorExtOk = !isnan(tE) && !isnan(hE) && tE != 0.0 && hE != 0.0 && tE > -10.0 && tE < 60.0 && hE > 0.0;
+    // Filtro de Sanidade Físico
+    sensorIntOk = !isnan(tI) && !isnan(hI) && tI != 0.0 && hI != 0.0 && tI > -10.0 && tI < 60.0 && hI > 0.0 && hI <= 100.0;
+    
+    bool dhtOk = !isnan(tE) && !isnan(hE) && tE != 0.0 && hE != 0.0 && tE > -10.0 && tE < 60.0 && hE > 0.0 && hE <= 100.0;
+    
+    // Filtro de Saltos Absurdos (Anti-Spike)
+    static int dhtErrosSeguidos = 0;
+    if (dhtOk && tempExt != -99.0) {
+      if (abs(tE - tempExt) > 5.0 || abs(hE - humExt) > 15.0) {
+        dhtErrosSeguidos++;
+        if (dhtErrosSeguidos < 5) dhtOk = false; // Rejeita como ruído (por até 10 seg)
+        else dhtErrosSeguidos = 0; // Se persistir, aceita que o clima realmente mudou muito rápido
+      } else {
+        dhtErrosSeguidos = 0;
+      }
+    }
+    sensorExtOk = dhtOk;
 
     if (sensorIntOk) { atualizarFiltroInt(tI, hI); atualizarMinMax(); }
     if (sensorExtOk) atualizarFiltroExt(tE, hE);
