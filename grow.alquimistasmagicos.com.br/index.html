@@ -268,11 +268,22 @@
                 <button onclick="fecharConfig()" class="text-slate-400 hover:text-white text-xl leading-none">&times;</button>
             </div>
             <div class="p-5">
-                <h3 class="text-emerald-400 font-bold text-xs uppercase mb-2">Atualização Remota de Firmware do Microcontrolador ESP32</h3>
-                <p class="text-xs text-slate-400 mb-4">O sistema usará o último arquivo <span class="text-slate-300 font-mono">.bin</span> enviado para o repositório Git. Clique no botão abaixo para avisar a placa. O ESP32 será reiniciado automaticamente.</p>
+                <h3 class="text-emerald-400 font-bold text-xs uppercase mb-2">Sincronização de Firmware (OTA)</h3>
+                <p class="text-[10px] text-slate-400 mb-4">O sistema baixa a última versão do <span class="text-slate-300 font-mono">.bin</span> disponível no repositório GitHub (HostGator).</p>
                 
-                <button onclick="enviarOTA()" id="btnEnviarOta" class="w-full bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs py-3 rounded-lg transition-all shadow-[0_0_15px_rgba(16,185,129,0.2)]">
-                    Baixar do Git e Atualizar Placa
+                <div class="grid grid-cols-2 gap-4 mb-4">
+                    <div class="bg-slate-800 p-3 rounded-lg border border-slate-700">
+                        <span class="text-[10px] text-slate-500 uppercase block mb-1">Versão na Estufa</span>
+                        <div id="uiFwPlaca" class="text-xs font-bold text-slate-200">--</div>
+                    </div>
+                    <div class="bg-slate-800 p-3 rounded-lg border border-slate-700">
+                        <span class="text-[10px] text-slate-500 uppercase block mb-1">Versão no GitHub</span>
+                        <div id="uiFwNuvem" class="text-xs font-bold text-slate-200">--</div>
+                    </div>
+                </div>
+
+                <button onclick="enviarOTA()" id="btnEnviarOta" class="w-full bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs py-3 rounded-lg transition-all shadow-[0_0_15px_rgba(16,185,129,0.2)] flex items-center justify-center gap-2">
+                    <span>Forçar Sincronização e Atualizar Placa</span>
                 </button>
             </div>
         </div>
@@ -413,7 +424,17 @@
             }
         }
 
-        function abrirConfig() { document.getElementById('modalConfig').classList.remove('hidden'); }
+        function formatarDataFW(ts) {
+            if (!ts || ts === '0' || ts === 0) return 'Desconhecida';
+            const d = new Date(parseInt(ts) * 1000);
+            return d.toLocaleString('pt-BR');
+        }
+
+        function abrirConfig() { 
+            document.getElementById('uiFwPlaca').textContent = formatarDataFW(window.fwPlaca);
+            document.getElementById('uiFwNuvem').textContent = formatarDataFW(window.fwNuvem);
+            document.getElementById('modalConfig').classList.remove('hidden'); 
+        }
         function fecharConfig() { document.getElementById('modalConfig').classList.add('hidden'); }
 
         async function enviarOTA() {
@@ -592,6 +613,11 @@
         async function carregarDados(limit) {
             try {
                 const res = await fetchComTimeout(`api/index.php?limit=${limit}`, {}, 8000);
+                
+                // Grava versões de FW no escopo global para o modal de Configurações
+                window.fwPlaca = res.headers.get('X-Fw-Placa') || '0';
+                window.fwNuvem = res.headers.get('X-Fw-Nuvem') || '0';
+
                 const data = await res.json();
 
                 if (!data || data.length === 0) {

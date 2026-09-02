@@ -37,6 +37,11 @@ if ($method === 'POST') {
 
     $successCount = 0;
     foreach ($data as $row) {
+        // Salva versão do FW num arquivo separado pra ser rápido
+        if (isset($row['fw'])) {
+            file_put_contents(__DIR__ . '/fw_status.txt', $row['fw']);
+        }
+
         // Se o ESP32 gravou o UNIX timestamp (offline), usamos ele. Senão, hora de agora.
         $ts = isset($row['timestamp']) && $row['timestamp'] > 0 ? date('Y-m-d H:i:s', $row['timestamp']) : date('Y-m-d H:i:s');
         
@@ -77,6 +82,12 @@ elseif ($method === 'GET') {
     $sql = "SELECT * FROM telemetria ORDER BY id DESC LIMIT $limit";
     $result = $conn->query($sql);
     
+    // Headers de Versão
+    $fwPlaca = file_exists(__DIR__ . '/fw_status.txt') ? file_get_contents(__DIR__ . '/fw_status.txt') : '0';
+    $fwNuvem = file_exists(__DIR__ . '/../../build/esp32.esp32.esp32c3/esp32c3.ino.bin') ? filemtime(__DIR__ . '/../../build/esp32.esp32.esp32c3/esp32c3.ino.bin') : '0';
+    header("X-Fw-Placa: " . trim($fwPlaca));
+    header("X-Fw-Nuvem: " . trim($fwNuvem));
+
     $rows = [];
     while($r = $result->fetch_assoc()) {
         $rows[] = $r;

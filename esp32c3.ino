@@ -234,7 +234,8 @@ void enviarNuvem(unsigned long agora) {
   json += "\"hLuz\":" + String(segLuzTotal / 3600.0, 1) + ",";
   json += "\"hUmid\":" + String(segUmidTotal / 3600.0, 1) + ",";
   json += "\"hVento\":" + String(segVentoTotal / 3600.0, 1) + ",";
-  json += "\"hExaust\":" + String(segExaustTotal / 3600.0, 1);
+  json += "\"hExaust\":" + String(segExaustTotal / 3600.0, 1) + ",";
+  json += "\"fw\":" + String(fwAtual);
   json += "}";
 
   if (WiFi.status() != WL_CONNECTED) {
