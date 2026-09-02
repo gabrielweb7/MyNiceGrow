@@ -715,15 +715,15 @@
                     desc = 'Sistema em repouso absoluto. Nenhum relé será acionado pelo algoritmo automático. Ideal para higienização da estufa e manutenção dos equipamentos.';
                     break;
                 case 'Pinagem':
-                    icon = '🍄'; temp = 'Máx 27.5 °C'; umid = '95% a 99%'; fae = '3 min ON / 40 min OFF';
+                    icon = '🍄'; temp = `Máx ${configClima["1"].tX} °C`; umid = `${configClima["1"].uN}% a ${configClima["1"].uX}%`; fae = `${configClima["1"].fO} min ON / ${configClima["1"].fF} min OFF`;
                     desc = 'Foco total em induzir o micélio a formar primórdios (alfinetes). Exige altíssima umidade e oxigenação constante para simular o orvalho do amanhecer.';
                     break;
                 case 'Frutificacao':
-                    icon = '🌳'; temp = 'Máx 28.5 °C'; umid = '88% a 92%'; fae = '2 min ON / 60 min OFF';
+                    icon = '🌳'; temp = `Máx ${configClima["2"].tX} °C`; umid = `${configClima["2"].uN}% a ${configClima["2"].uX}%`; fae = `${configClima["2"].fO} min ON / ${configClima["2"].fF} min OFF`;
                     desc = 'Umidade levemente reduzida para permitir que o suor na pele do cogumelo evapore, o que força as paredes celulares a puxar água do bolo e crescer.';
                     break;
                 case 'Segundo Flush':
-                    icon = '🔄'; temp = 'Máx 29.0 °C'; umid = '95% a 99%'; fae = '1 min ON / 2h OFF';
+                    icon = '🔄'; temp = `Máx ${configClima["3"].tX} °C`; umid = `${configClima["3"].uN}% a ${configClima["3"].uX}%`; fae = `${configClima["3"].fO} min ON / ${configClima["3"].fF} min OFF`;
                     desc = 'Modo de recuperação pós-colheita. O bolo está fatiado e perdendo água. O FAE é quase anulado para estancar a perda de umidade e induzir o micélio a pinar por estresse.';
                     break;
                 case 'Secagem Total':
