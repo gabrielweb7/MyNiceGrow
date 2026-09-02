@@ -510,13 +510,21 @@
 
         async function fetchConfigClima() {
             try {
-                let r = await fetch('api/config_clima.json?nocache=' + Date.now() + Math.random());
+                let r = await fetch('api/index.php?get_config=1&nocache=' + Date.now());
                 if (r.ok) {
                     let d = await r.json();
-                    if (d["1"]) configClima = d;
+                    if (d && d.config_clima && d.config_clima["1"]) {
+                        configClima = d.config_clima;
+                    }
                 }
-            } catch (e) { console.log("Config padrao carregada"); }
+            } catch (e) { console.log("Config padrao carregada:", e); }
             carregarFormClima();
+
+            // Re-renderiza as metas climáticas na tela com os dados confirmados do banco
+            let f_limpa = (document.getElementById('valFase').textContent || '').replace(' (DHT OFFLINE)', '').replace('ALERTA: SHT30 OFFLINE', 'Standby');
+            if (f_limpa && f_limpa !== '--') {
+                renderizarInfoFase(f_limpa, false);
+            }
         }
 
         function carregarFormClima() {
@@ -541,13 +549,12 @@
             configClima[f].fF = parseInt(document.getElementById('cfgFf').value);
             
             let btn = document.getElementById('btnSalvarClima');
-            btn.textContent = "Avisando a Placa...";
+            btn.textContent = "Gravando no Banco e Placa...";
             if (await enviarComando({ config: JSON.stringify(configClima) })) {
-                btn.textContent = "✅ Salvo na Placa!";
+                btn.textContent = "✅ Salvo no Banco e Placa!";
                 
-                // Força a atualização da tela imediatamente com os valores recém-digitados
-                let f_limpa = (document.getElementById('valFase').textContent || '').replace(' (DHT OFFLINE)', '').replace('ALERTA: SHT30 OFFLINE', 'Standby');
-                renderizarInfoFase(f_limpa, false);
+                // Recarrega do banco para garantir sincronização perfeita
+                setTimeout(fetchConfigClima, 500);
             } else {
                 btn.textContent = "❌ Falhou!";
             }

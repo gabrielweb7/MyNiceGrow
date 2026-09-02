@@ -321,25 +321,38 @@ void enviarNuvem(unsigned long agora) {
       }
       prefs.end();
       String response = http.getString();
-      DynamicJsonDocument docRes(1024);
+      DynamicJsonDocument docRes(2048);
       if (!deserializeJson(docRes, response)) {
          if (docRes.containsKey("config_clima")) {
-            JsonObject cfg = docRes["config_clima"];
-            bool configAlterada = false;
-            for (int i = 1; i <= 3; i++) {
-               String key = String(i);
-               if (cfg.containsKey(key)) {
-                  perfis[i].tempMax = cfg[key]["tX"].as<float>();
-                  perfis[i].umidMin = cfg[key]["uN"].as<float>();
-                  perfis[i].umidMax = cfg[key]["uX"].as<float>();
-                  perfis[i].faeOnMs = cfg[key]["fO"].as<unsigned long>() * 60000UL;
-                  perfis[i].faeOffMs = cfg[key]["fF"].as<unsigned long>() * 60000UL;
-                  configAlterada = true;
+            uint32_t versaoNuvem = docRes.containsKey("cfg_ver") ? (uint32_t)docRes["cfg_ver"] : 0;
+            prefs.begin("grow", true);
+            uint32_t versaoLocal = prefs.getUInt("cfg_ver", 0);
+            prefs.end();
+
+            // Se for a primeira inicialização ou se a versão do banco no MySQL mudou:
+            if (versaoNuvem == 0 || versaoNuvem != versaoLocal) {
+               JsonObject cfg = docRes["config_clima"];
+               bool configAlterada = false;
+               for (int i = 1; i <= 3; i++) {
+                  String key = String(i);
+                  if (cfg.containsKey(key)) {
+                     perfis[i].tempMax = cfg[key]["tX"].as<float>();
+                     perfis[i].umidMin = cfg[key]["uN"].as<float>();
+                     perfis[i].umidMax = cfg[key]["uX"].as<float>();
+                     perfis[i].faeOnMs = cfg[key]["fO"].as<unsigned long>() * 60000UL;
+                     perfis[i].faeOffMs = cfg[key]["fF"].as<unsigned long>() * 60000UL;
+                     configAlterada = true;
+                  }
                }
-            }
-            if (configAlterada) {
-               salvarPerfisNVS();
-               Serial.println("✅ Novos perfis climáticos carregados e salvos no NVS!");
+               if (configAlterada) {
+                  salvarPerfisNVS();
+                  if (versaoNuvem > 0) {
+                     prefs.begin("grow", false);
+                     prefs.putUInt("cfg_ver", versaoNuvem);
+                     prefs.end();
+                  }
+                  Serial.printf("✅ [SYNC NUVEM] Perfis climáticos atualizados com o Banco de Dados! Versão: %u\n", versaoNuvem);
+               }
             }
          }
          

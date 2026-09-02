@@ -9,7 +9,49 @@ if ($conn->connect_error) {
     die(json_encode(["error" => "Falha na conexão com banco de dados"]));
 }
 
+// Garante que a tabela de configurações do sistema existe no MySQL
+function garantirTabelaConfig($conn) {
+    $conn->query("CREATE TABLE IF NOT EXISTS config_sistema (
+        chave VARCHAR(50) PRIMARY KEY,
+        valor LONGTEXT,
+        atualizado_em INT
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
+    
+    // Se não existir clima inicial gravado, insere o padrão de fábrica
+    $check = $conn->query("SELECT valor FROM config_sistema WHERE chave = 'clima'");
+    if ($check && $check->num_rows === 0) {
+        $padrao = json_encode([
+            "1" => ["tX" => 28.0, "uN" => 97.0, "uX" => 99.9, "fO" => 1, "fF" => 40],
+            "2" => ["tX" => 29.0, "uN" => 92.0, "uX" => 94.0, "fO" => 2, "fF" => 25],
+            "3" => ["tX" => 28.0, "uN" => 97.0, "uX" => 99.9, "fO" => 1, "fF" => 40]
+        ]);
+        $t = time();
+        $conn->query("INSERT INTO config_sistema (chave, valor, atualizado_em) VALUES ('clima', '$padrao', $t)");
+    }
+}
+
 $method = $_SERVER['REQUEST_METHOD'];
+
+// =======================================================
+// RETORNAR CONFIGURAÇÕES PARA O DASHBOARD (Direto do MySQL)
+// =======================================================
+if ($method === 'GET' && isset($_GET['get_config'])) {
+    garantirTabelaConfig($conn);
+    header("Cache-Control: no-store, no-cache, must-revalidate, max-age=0");
+    $res = $conn->query("SELECT valor, atualizado_em FROM config_sistema WHERE chave = 'clima'");
+    if ($res && $row = $res->fetch_assoc()) {
+        $cfg = json_decode($row['valor'], true);
+        echo json_encode([
+            "status" => "ok",
+            "config_clima" => $cfg,
+            "cfg_ver" => (int)$row['atualizado_em']
+        ]);
+    } else {
+        echo json_encode(["status" => "error", "message" => "Configuracao nao encontrada"]);
+    }
+    $conn->close();
+    exit;
+}
 
 // =======================================================
 // RECEBER DADOS DO ESP32 (Modo Online ou Offline/Lote)
@@ -67,6 +109,14 @@ if ($method === 'POST') {
     $stmt->close();
     
     $resposta = ["status" => "ok", "inseridos" => $successCount];
+    // Carrega configuração climática atual do banco de dados MySQL
+    garantirTabelaConfig($conn);
+    $resCfg = $conn->query("SELECT valor, atualizado_em FROM config_sistema WHERE chave = 'clima'");
+    if ($resCfg && $rCfg = $resCfg->fetch_assoc()) {
+        $resposta['config_clima'] = json_decode($rCfg['valor'], true);
+        $resposta['cfg_ver'] = (int)$rCfg['atualizado_em'];
+    }
+
     $arquivo_comando = __DIR__ . '/comando_pendente.json';
     if (file_exists($arquivo_comando)) {
         $cmd = json_decode(file_get_contents($arquivo_comando), true);
@@ -74,8 +124,7 @@ if ($method === 'POST') {
         if (isset($cmd['luz'])) $resposta['comando_luz'] = $cmd['luz'];
         if (isset($cmd['reset_agua'])) $resposta['comando_reset_agua'] = 1;
         if (isset($cmd['ota'])) $resposta['comando_ota'] = 1;
-        if (isset($cmd['config_clima'])) $resposta['config_clima'] = $cmd['config_clima'];
-        unlink($arquivo_comando); // Deleta apos entregar ao ESP32
+        unlink($arquivo_comando); // Deleta comandos pontuais apos entregar ao ESP32
     }
     
     // Auto-Update: Usa a data de modificação real do arquivo no servidor
