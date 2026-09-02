@@ -1,3 +1,8 @@
-
 # Arquivos temporários
 *.zip
+
+# Arquivos gerados em tempo de execução pela API no servidor
+grow.alquimistasmagicos.com.br/api/config_clima.json
+grow.alquimistasmagicos.com.br/api/comando_pendente.json
+grow.alquimistasmagicos.com.br/api/fw_status.txt
+grow.alquimistasmagicos.com.br/api/fw_error.txt
