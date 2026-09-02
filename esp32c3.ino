@@ -20,6 +20,7 @@
 #include <WiFiClientSecure.h>
 #include <HTTPClient.h> // Nuvem
 #include <HTTPUpdate.h> // Atualização Remota via Web (OTA)
+#include <Update.h>
 #include <LittleFS.h>   // Datalogger Offline
 #include <time.h>
 #include <Preferences.h> // Memória Anti-Apagão
@@ -279,6 +280,12 @@ void enviarNuvem(unsigned long agora) {
     http.addHeader("X-Api-Key", CLOUD_KEY);
     int code = http.POST(json);
     if (code == 200) {
+      prefs.begin("grow", false);
+      if (prefs.getBool("ota_test", false)) {
+          prefs.putBool("ota_test", false);
+          Serial.println("✅ [ANTI-BRICK] Nuvem alcancada com sucesso! Firmware novo VALIDADO e consolidado.");
+      }
+      prefs.end();
       String response = http.getString();
       StaticJsonDocument<256> docRes;
       if (!deserializeJson(docRes, response)) {
@@ -311,9 +318,10 @@ void enviarNuvem(unsigned long agora) {
          uint32_t vNuvem = docRes.containsKey("versao_nuvem") ? (uint32_t)docRes["versao_nuvem"] : 0;
          if (docRes.containsKey("comando_ota") || (vNuvem > 0 && vNuvem > fwAtual)) {
             Serial.printf("📥 OTA INICIANDO (Local: %u, Nuvem: %u)\n", fwAtual, vNuvem);
+            prefs.begin("grow", false); prefs.putBool("ota_test", true); prefs.end();
             WiFiClientSecure otaClient; 
             otaClient.setInsecure();
-            httpUpdate.rebootOnUpdate(false); // Desativa reboot automatico para salvar versao
+            httpUpdate.rebootOnUpdate(false);
             
             String fwUrl = "https://grow.alquimistasmagicos.com.br/build/esp32.esp32.esp32c3/esp32c3.ino.bin";
             t_httpUpdate_return ret = httpUpdate.update(otaClient, fwUrl);
@@ -608,6 +616,21 @@ void setup() {
 // ============================================================
 void loop() {
   unsigned long agora = millis();
+  
+  // Anti-Brick: Se após 5 minutos do boot de teste não validar a conexão, reverte
+  if (agora > 300000UL) {
+    prefs.begin("grow", true);
+    bool emTeste = prefs.getBool("ota_test", false);
+    prefs.end();
+    if (emTeste) {
+      if (Update.canRollBack()) {
+        Serial.println("🚨 FATAL: Novo firmware não respondeu à nuvem em 5 mins! Restaurando versão anterior...");
+        Update.rollBack();
+        ESP.restart();
+      }
+    }
+  }
+
   wm.process(); server.handleClient(); ArduinoOTA.handle();
 
   if (agora - ultimaLeitura >= 2000) {
