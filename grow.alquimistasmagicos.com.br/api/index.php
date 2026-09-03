@@ -184,8 +184,11 @@ elseif ($method === 'GET') {
     $rows = array_reverse($rows);
     echo json_encode($rows);
     
-    // Auto-purge: remove registros com mais de 90 dias (executa 1x a cada GET)
-    $conn->query("DELETE FROM telemetria WHERE timestamp < DATE_SUB(NOW(), INTERVAL 90 DAY)");
+    // Auto-purge inteligente: roda com probabilidade de 1% (a cada ~8 minutos) usando a coluna indexada unix_ts
+    if (mt_rand(1, 100) === 1) {
+        $limite90Dias = time() - (90 * 86400);
+        $conn->query("DELETE FROM telemetria WHERE unix_ts < $limite90Dias");
+    }
 }
 
 $conn->close();

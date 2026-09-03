@@ -16,7 +16,9 @@ $arquivo_comando = __DIR__ . '/comando_pendente.json';
 // SEGURANÇA: Exige a chave secreta para aceitar comandos
 // Nota: Usa $_SERVER porque apache_request_headers() crasha no FastCGI da HostGator
 $apiKey = isset($_SERVER['HTTP_X_API_KEY']) ? $_SERVER['HTTP_X_API_KEY'] : '';
-if ($apiKey !== '@Fenix.777!') {
+$adminKeyEsperada = defined('ADMIN_KEY') ? ADMIN_KEY : '@Fenix.777!';
+if ($apiKey !== $adminKeyEsperada) {
+    usleep(500000); // Atraso de 0.5s anti-força bruta
     http_response_code(401);
     echo json_encode(["error" => "Acesso negado. Chave invalida."]);
     exit;
