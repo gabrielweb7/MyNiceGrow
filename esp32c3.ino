@@ -4,7 +4,7 @@
 //  Autor: Gabriel + Antigravity AI
 // ============================================================
 
-#define FW_VERSION 400
+#define FW_VERSION 401
 
 #include <Arduino.h>
 #include <ArduinoJson.h>
@@ -39,7 +39,7 @@ const int LUZ_HORA_LIGA    = 20;
 const int LUZ_HORA_DESLIGA = 8;
 
 // --- Temperaturas ---
-const float TEMP_MINIMA    = 25.0;
+const float TEMP_MINIMA    = 18.0; // Limite de alerta (estufa não passa frio, sem injeção forçada de ar da sala)
 const float TEMP_ALVO_MAX  = 29.0;
 const float TEMP_CRITICA   = 32.0; // Aumentado para evitar spam no calor de MS
 const float TEMP_CORTE_LUZ = 34.0; // Desliga luz por segurança térmica extrema
@@ -535,17 +535,19 @@ void executarMotor(unsigned long agora) {
     }
   }
 
-  bool quente = (tempInt >= pf.tempMax), frio = (tempInt <= TEMP_MINIMA);
-  bool arFrio = false, arQuente = false, defesaEvap = false;
+  // --- CONTROLE TÉRMICO E FAE ---
+  bool quente = (tempInt >= pf.tempMax);
+  bool arFrio = false, defesaEvap = false;
   if (sensorExtOk) { // Só confia na temperatura da rua se o DHT estiver funcionando!
     arFrio = (tempExt < tempInt);
-    arQuente = (tempExt > tempInt);
   }
   releExaustExt = false; releVentoInt = false;
 
   if (quente) {
-    if (arFrio) { releExaustExt = true; releVentoInt = true; }
-    else { 
+    if (arFrio) { 
+      releExaustExt = true; 
+      releVentoInt = true; 
+    } else { 
       releExaustExt = false; 
       releVentoInt = true; // Mantém o vento interno sempre ligado para resfriar os bolos
       
@@ -557,11 +559,13 @@ void executarMotor(unsigned long agora) {
         defesaEvap = true; 
       } 
     }
-  } else if (frio) {
-    if (arQuente) { releExaustExt = true; releVentoInt = true; }
   }
 
-  if (faeLigado) { releExaustExt = true; releVentoInt = true; }
+  // Renovação de Ar Programada (FAE) - O exaustor agora obedece estritamente a este ciclo
+  if (faeLigado) { 
+    releExaustExt = true; 
+    releVentoInt = true; 
+  }
 
   // --- CIRCULACAO INTERNA DINAMICA & BRISA COM NEVOA ---
   // Gira o ar internamente para evitar bolsões de CO2 pesado e, se configurado, injeta névoa viva.

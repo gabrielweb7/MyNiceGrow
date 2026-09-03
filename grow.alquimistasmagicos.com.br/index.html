@@ -1055,10 +1055,8 @@
                 status = "❄️ Injeção de Ar Frio"; desc = "A estufa esquentou. O sistema está sugando o ar fresco da sala para resfriar as paredes."; cor = "text-blue-400";
             } else if (quente && !arFrio && rUmid === 1 && rExaust === 0) {
                 status = "💧 Defesa de Evaporação"; desc = "Estufa e sala quentes! Umidificador acionado para tentar esfriar o ambiente através da evaporação da água."; cor = "text-cyan-400";
-            } else if (frio && arQuente && rExaust === 1) {
-                status = "☀️ Injeção de Ar Quente"; desc = "A estufa esfriou demais. Sugando ar mais quente da sala para equilibrar."; cor = "text-amber-400";
-            } else if (rExaust === 1 && rVento === 1 && !quente && !frio) {
-                status = "💨 Troca de Ar (FAE)"; desc = "Expulsando o gás carbônico (CO2) pesado e trazendo oxigênio fresco."; cor = "text-teal-400";
+            } else if (rExaust === 1 && rVento === 1 && !quente) {
+                status = "💨 Troca de Ar (FAE)"; desc = "Expulsando o gás carbônico (CO2) pesado e trazendo oxigênio fresco conforme o ciclo programado."; cor = "text-teal-400";
             } else if (rVento === 1 && rExaust === 0) {
                 if (rUmid === 1) {
                     status = "🌀 Brisa com Névoa em Execução";
