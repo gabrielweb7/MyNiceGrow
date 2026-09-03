@@ -225,10 +225,6 @@
                             <span class="leading-relaxed"><b class="text-slate-200">Corte de Luz no Calor:</b> Se a estufa ficar quente demais, a lâmpada apaga sozinha para não gerar calor. No modo Automático, ela só acende de noite (quando é mais fresco).</span>
                         </li>
                         <li class="flex items-start gap-2.5">
-                            <span class="text-blue-400 mt-0.5 text-sm">❄️</span>
-                            <span class="leading-relaxed"><b class="text-slate-200">Injeção de Ar Frio:</b> Se a estufa aquecer demais e na sala estiver mais frio, o exaustor liga sozinho para puxar esse ar fresco pra dentro.</span>
-                        </li>
-                        <li class="flex items-start gap-2.5">
                             <span class="text-amber-400 mt-0.5 text-sm">💧</span>
                             <span class="leading-relaxed"><b class="text-slate-200">Proteção da Bomba (Falta D'água):</b> Se o umidificador ficar ligado muito tempo e a umidade não subir, ele desliga sozinho para não queimar o motor sem água.</span>
                         </li>
@@ -913,37 +909,42 @@
                 plugins: [crosshairPlugin]
             });
 
+            let relesOpts = baseOptions({
+                min: -0.6,
+                max: 3.6,
+                grid: { color: 'rgba(255, 255, 255, 0.05)' },
+                ticks: {
+                    stepSize: 1,
+                    autoSkip: false,
+                    color: (c) => {
+                        const colors = ['#ff6400', '#00ffaa', '#00c8ff', '#ffdc00'];
+                        return colors[c.tick.value] || '#94a3b8';
+                    },
+                    font: { size: 10, weight: 'bold' },
+                    callback: function(v) {
+                        switch(v) {
+                            case 0: return '🌬️ Exaust';
+                            case 1: return '🌀 Vento';
+                            case 2: return '💨 Umidif';
+                            case 3: return '💡 Luz';
+                            default: return '';
+                        }
+                    }
+                }
+            });
+            relesOpts.grouped = false;
+            relesOpts.scales.x.stacked = false;
+            relesOpts.scales.y.stacked = false;
+
             chartReles = new Chart(document.getElementById('canvasReles').getContext('2d'), {
                 type: 'bar',
                 data: { datasets: [
-                    { label: 'Luz', data: [], backgroundColor: 'rgba(255, 220, 0, 0.85)', borderColor: '#ffdc00', borderWidth: 0, barPercentage: 1.0, categoryPercentage: 1.0 },
-                    { label: 'Umidif.', data: [], backgroundColor: 'rgba(0, 200, 255, 0.85)', borderColor: '#00c8ff', borderWidth: 0, barPercentage: 1.0, categoryPercentage: 1.0 },
-                    { label: 'Vento', data: [], backgroundColor: 'rgba(0, 255, 170, 0.85)', borderColor: '#00ffaa', borderWidth: 0, barPercentage: 1.0, categoryPercentage: 1.0 },
-                    { label: 'Exaustor', data: [], backgroundColor: 'rgba(255, 100, 0, 0.85)', borderColor: '#ff6400', borderWidth: 0, barPercentage: 1.0, categoryPercentage: 1.0 }
+                    { label: 'Luz', data: [], backgroundColor: 'rgba(255, 220, 0, 0.9)', borderColor: '#ffdc00', borderWidth: 0, barPercentage: 1.05, categoryPercentage: 1.0, grouped: false },
+                    { label: 'Umidif.', data: [], backgroundColor: 'rgba(0, 200, 255, 0.9)', borderColor: '#00c8ff', borderWidth: 0, barPercentage: 1.05, categoryPercentage: 1.0, grouped: false },
+                    { label: 'Vento', data: [], backgroundColor: 'rgba(0, 255, 170, 0.9)', borderColor: '#00ffaa', borderWidth: 0, barPercentage: 1.05, categoryPercentage: 1.0, grouped: false },
+                    { label: 'Exaustor', data: [], backgroundColor: 'rgba(255, 100, 0, 0.9)', borderColor: '#ff6400', borderWidth: 0, barPercentage: 1.05, categoryPercentage: 1.0, grouped: false }
                 ]},
-                options: baseOptions({
-                    min: -0.6,
-                    max: 3.6,
-                    grid: { color: 'rgba(255, 255, 255, 0.05)' },
-                    ticks: {
-                        stepSize: 1,
-                        autoSkip: false,
-                        color: (c) => {
-                            const colors = ['#ff6400', '#00ffaa', '#00c8ff', '#ffdc00'];
-                            return colors[c.tick.value] || '#94a3b8';
-                        },
-                        font: { size: 10, weight: 'bold' },
-                        callback: function(v) {
-                            switch(v) {
-                                case 0: return '🌬️ Exaust';
-                                case 1: return '🌀 Vento';
-                                case 2: return '💨 Umidif';
-                                case 3: return '💡 Luz';
-                                default: return '';
-                            }
-                        }
-                    }
-                }),
+                options: relesOpts,
                 plugins: [crosshairPlugin]
             });
             
