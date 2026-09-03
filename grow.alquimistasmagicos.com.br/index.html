@@ -187,14 +187,13 @@
             <p class="text-[10px] text-slate-500 mt-3 text-center">*Ao clicar, a ordem é sincronizada instantaneamente com o ESP32.</p>
 
             <!-- NOVO: Painel de Informações da Fase e Inteligência -->
-            <div id="infoFaseContainer" class="hidden mt-6 pt-5 border-t border-slate-700/50 flex flex-col md:flex-row gap-6">
-                <!-- Esquerda -->
-                <div class="flex-1 md:border-r border-slate-700/50 md:pr-6">
-                    <h3 class="text-emerald-400 font-bold text-[11px] uppercase tracking-widest mb-3 flex items-center gap-2">
+            <div id="infoFaseContainer" class="hidden mt-6 pt-5 border-t border-slate-700/50">
+                <div class="w-full">
+                    <h3 class="text-emerald-400 font-bold text-[11px] uppercase tracking-widest mb-2 flex items-center gap-2">
                         <span id="infoFaseIcon">⚙️</span> <span id="infoFaseTitle">Modo Ativo: --</span>
                     </h3>
-                    <p id="infoFaseDesc" class="text-slate-300 text-xs leading-relaxed mb-4 h-auto md:h-12">Carregando...</p>
-                    <div class="grid grid-cols-2 gap-2 text-xs">
+                    <p id="infoFaseDesc" class="text-slate-300 text-xs leading-relaxed mb-4">Carregando...</p>
+                    <div class="grid grid-cols-2 md:grid-cols-4 gap-2 text-xs">
                         <div class="bg-slate-800/80 p-2.5 rounded-lg border border-slate-700/50">
                             <span class="text-slate-500 block mb-1 font-semibold text-[10px] uppercase">Temp. Alvo</span>
                             <span id="infoFaseTemp" class="text-emerald-300 font-bold">--</span>
@@ -212,23 +211,6 @@
                             <span id="infoFaseVento" class="text-indigo-300 font-bold">--</span>
                         </div>
                     </div>
-                </div>
-
-                <!-- Direita -->
-                <div class="flex-1">
-                    <h3 class="text-rose-400 font-bold text-[11px] uppercase tracking-widest mb-4 flex items-center gap-2">
-                        🛡️ Protocolos de Emergência (Sempre Ativos)
-                    </h3>
-                    <ul class="text-[11px] text-slate-400 space-y-3.5">
-                        <li class="flex items-start gap-2.5">
-                            <span class="text-rose-400 mt-0.5 text-sm">🔥</span>
-                            <span class="leading-relaxed"><b class="text-slate-200">Corte de Luz no Calor:</b> Se a estufa ficar quente demais, a lâmpada apaga sozinha para não gerar calor. No modo Automático, ela só acende de noite (quando é mais fresco).</span>
-                        </li>
-                        <li class="flex items-start gap-2.5">
-                            <span class="text-amber-400 mt-0.5 text-sm">💧</span>
-                            <span class="leading-relaxed"><b class="text-slate-200">Proteção da Bomba (Falta D'água):</b> Se o umidificador ficar ligado muito tempo e a umidade não subir, ele desliga sozinho para não queimar o motor sem água.</span>
-                        </li>
-                    </ul>
                 </div>
             </div>
         </section>
