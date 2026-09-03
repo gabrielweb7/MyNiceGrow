@@ -1037,6 +1037,8 @@
             
             let tempMin = 20.0;
             let tempMax = configClima[cId] ? configClima[cId].tX : 25.0;
+            let umidMin = configClima[cId] ? configClima[cId].uN : 90.0;
+            let umidMax = configClima[cId] ? configClima[cId].uX : 95.0;
 
             const quente = tI > tempMax;
             const frio = tI < tempMin;
@@ -1060,15 +1062,23 @@
             } else if (rVento === 1 && rExaust === 0) {
                 if (rUmid === 1) {
                     status = "🌀 Brisa com Névoa em Execução";
-                    desc = "Ventilador interno girando e injetando névoa fresca viva para oxigenar e hidratar os cogumelos.";
+                    desc = "Ciclo programado de circulação interna soprando com injeção de névoa viva para oxigenar e hidratar os frutos.";
                     cor = "text-cyan-300";
                 } else {
                     status = "🌀 Brisa Preventiva em Execução";
-                    desc = "Ventilador interno circulando o ar para quebrar bolsões de CO2 acumulados no fundo.";
+                    desc = "Ciclo programado de circulação interna para quebrar bolsões de CO2 pesado acumulados no fundo.";
                     cor = "text-indigo-400";
                 }
             } else if (rUmid === 1 && rExaust === 0) {
-                status = "💦 Umidificando"; desc = "A umidade caiu abaixo do nível seguro. Corrigindo o clima."; cor = "text-blue-300";
+                if (uI < umidMin) {
+                    status = "💦 Recuperando Umidade Alvo";
+                    desc = `A umidade (${uI.toFixed(1)}%) está abaixo da meta mínima (${umidMin}%). Umidificador ligado para recuperar.`;
+                    cor = "text-blue-300";
+                } else {
+                    status = "💧 Estabilização de Umidade";
+                    desc = `Umidade já em ${uI.toFixed(1)}% (dentro da meta de ${umidMin}% a ${umidMax}%). Finalizando ciclo de saturação de névoa.`;
+                    cor = "text-blue-300";
+                }
             } else if (quente && !arFrio && rUmid === 0 && rExaust === 0) {
                  status = "⚠️ Calor Intratável"; desc = "Está quente, mas a sala também está. Evaporação bloqueada para não molhar os cogumelos em excesso."; cor = "text-orange-400";
             }
