@@ -149,8 +149,9 @@ elseif ($method === 'GET') {
     $limit = isset($_GET['limit']) ? (int)$_GET['limit'] : 1440;
     $limit = max(1, min(20000, $limit)); // Clamp: evita queries gigantes
     
-    // Ignora leituras corrompidas por interferência física/elétrica
-    $sql = "SELECT * FROM telemetria WHERE (hum_ext <= 100 OR hum_ext IS NULL) AND (temp_ext >= 15 OR temp_ext IS NULL) ORDER BY id DESC LIMIT $limit";
+    // Multiplica a busca para cobrir pontos de 10s e garantir minutos únicos suficientes
+    $queryLimit = min(20000, $limit * 6);
+    $sql = "SELECT * FROM telemetria WHERE (hum_ext <= 100 OR hum_ext IS NULL) AND (temp_ext >= 15 OR temp_ext IS NULL) ORDER BY id DESC LIMIT $queryLimit";
     $result = $conn->query($sql);
     
     // Headers de Versão
@@ -166,9 +167,17 @@ elseif ($method === 'GET') {
     header("X-Git-Hash: " . $gitHash);
 
     $rows = [];
+    $seenMinutes = [];
     while($r = $result->fetch_assoc()) {
-        $r['unix_ts'] = strtotime($r['timestamp']);
+        $ts = strtotime($r['timestamp']);
+        // Agrupa por minuto exato: garante estritamente 1 registro por minuto
+        $minKey = date('Y-m-d H:i', $ts);
+        if (isset($seenMinutes[$minKey])) continue;
+        $seenMinutes[$minKey] = true;
+
+        $r['unix_ts'] = $ts;
         $rows[] = $r;
+        if (count($rows) >= $limit) break;
     }
     
     // Inverte a ordem para o gráfico ficar cronológico (da esquerda pra direita)

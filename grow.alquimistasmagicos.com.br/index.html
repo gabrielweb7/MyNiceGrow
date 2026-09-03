@@ -77,30 +77,30 @@
         <!-- CARDS PRINCIPAIS -->
         <section class="grid grid-cols-2 lg:grid-cols-4 gap-3 md:gap-4 fade-in">
             <!-- Temp Interna -->
-            <div class="stat-card glass rounded-xl p-4 md:p-5 glow-green border border-emerald-500/20">
+            <div id="cardTi" class="stat-card glass rounded-xl p-4 md:p-5 glow-green border border-emerald-500/20 transition-all duration-500">
                 <div class="flex items-center justify-between mb-3">
                     <span class="text-[10px] md:text-xs font-semibold text-slate-400 uppercase tracking-wider">Temp Interna</span>
                     <span class="text-lg">🌡️</span>
                 </div>
-                <p class="text-2xl md:text-3xl font-extrabold text-emerald-400" id="valTi">--</p>
+                <p class="text-2xl md:text-3xl font-extrabold text-emerald-400 transition-colors duration-500" id="valTi">--</p>
                 <p class="text-[10px] text-slate-500 mt-1" id="minMaxTemp">Min -- / Max --</p>
             </div>
             <!-- Umid Interna -->
-            <div class="stat-card glass rounded-xl p-4 md:p-5 glow-blue border border-blue-500/20">
+            <div id="cardUi" class="stat-card glass rounded-xl p-4 md:p-5 glow-blue border border-blue-500/20 transition-all duration-500">
                 <div class="flex items-center justify-between mb-3">
                     <span class="text-[10px] md:text-xs font-semibold text-slate-400 uppercase tracking-wider">Umid Interna</span>
                     <span class="text-lg">💧</span>
                 </div>
-                <p class="text-2xl md:text-3xl font-extrabold text-blue-400" id="valUi">--</p>
+                <p class="text-2xl md:text-3xl font-extrabold text-blue-400 transition-colors duration-500" id="valUi">--</p>
                 <p class="text-[10px] text-slate-500 mt-1" id="minMaxHum">Min -- / Max --</p>
             </div>
             <!-- Temp Externa -->
-            <div class="stat-card glass rounded-xl p-4 md:p-5 glow-red border border-rose-500/20">
+            <div id="cardTe" class="stat-card glass rounded-xl p-4 md:p-5 glow-red border border-rose-500/20 transition-all duration-500">
                 <div class="flex items-center justify-between mb-3">
                     <span class="text-[10px] md:text-xs font-semibold text-slate-400 uppercase tracking-wider">Temp Externa</span>
                     <span class="text-lg">☀️</span>
                 </div>
-                <p class="text-2xl md:text-3xl font-extrabold text-rose-400" id="valTe">--</p>
+                <p class="text-2xl md:text-3xl font-extrabold text-rose-400 transition-colors duration-500" id="valTe">--</p>
                 <p class="text-[10px] text-slate-500 mt-1" id="valUe">Umid: --</p>
             </div>
             <!-- Fase -->
@@ -490,6 +490,63 @@
                     document.getElementById('releUmidStatus').textContent = "ENVIANDO...";
                     loopDados(2000);
                 }
+            }
+        }
+
+        function atualizarCoresDinamicas(ti, ui, te) {
+            const cardTi = document.getElementById('cardTi');
+            const valTi = document.getElementById('valTi');
+            const cardUi = document.getElementById('cardUi');
+            const valUi = document.getElementById('valUi');
+            const cardTe = document.getElementById('cardTe');
+            const valTe = document.getElementById('valTe');
+
+            // --- 1. TEMPERATURA INTERNA ---
+            // < 20°C: Azul Frio | 20-26°C: Verde Padrão | 26-28.5°C: Laranja | > 28.5°C: Vermelho Quente
+            if (cardTi && valTi && !isNaN(ti)) {
+                let glowTi = 'glow-green', borderTi = 'border-emerald-500/30', textTi = 'text-emerald-400';
+                if (ti < 20.0) {
+                    glowTi = 'glow-blue'; borderTi = 'border-cyan-500/30'; textTi = 'text-cyan-400';
+                } else if (ti <= 26.0) {
+                    glowTi = 'glow-green'; borderTi = 'border-emerald-500/30'; textTi = 'text-emerald-400';
+                } else if (ti <= 28.5) {
+                    glowTi = 'glow-amber'; borderTi = 'border-amber-500/30'; textTi = 'text-amber-400';
+                } else {
+                    glowTi = 'glow-red'; borderTi = 'border-rose-500/40'; textTi = 'text-rose-500';
+                }
+                cardTi.className = `stat-card glass rounded-xl p-4 md:p-5 ${glowTi} border ${borderTi} transition-all duration-500`;
+                valTi.className = `text-2xl md:text-3xl font-extrabold ${textTi} transition-colors duration-500`;
+            }
+
+            // --- 2. UMIDADE INTERNA ---
+            // < 75%: Vermelho Crítico | 75-84%: Laranja Atenção | 85-91%: Azul Céu/Índigo | >= 92%: Azulão Ideal (95-100%)
+            if (cardUi && valUi && !isNaN(ui)) {
+                let glowUi = 'glow-blue', borderUi = 'border-blue-500/30', textUi = 'text-blue-400';
+                if (ui < 75.0) {
+                    glowUi = 'glow-red'; borderUi = 'border-rose-500/40'; textUi = 'text-rose-500';
+                } else if (ui < 85.0) {
+                    glowUi = 'glow-amber'; borderUi = 'border-orange-500/30'; textUi = 'text-orange-400';
+                } else if (ui < 92.0) {
+                    glowUi = 'glow-blue'; borderUi = 'border-sky-500/30'; textUi = 'text-sky-400';
+                } else {
+                    glowUi = 'glow-blue'; borderUi = 'border-blue-500/40'; textUi = 'text-blue-400';
+                }
+                cardUi.className = `stat-card glass rounded-xl p-4 md:p-5 ${glowUi} border ${borderUi} transition-all duration-500`;
+                valUi.className = `text-2xl md:text-3xl font-extrabold ${textUi} transition-colors duration-500`;
+            }
+
+            // --- 3. TEMPERATURA EXTERNA ---
+            if (cardTe && valTe && !isNaN(te)) {
+                let glowTe = 'glow-green', borderTe = 'border-slate-700/40', textTe = 'text-slate-300';
+                if (te < 20.0) {
+                    glowTe = 'glow-blue'; borderTe = 'border-cyan-500/20'; textTe = 'text-cyan-400';
+                } else if (te <= 26.0) {
+                    glowTe = 'glow-green'; borderTe = 'border-emerald-500/20'; textTe = 'text-emerald-400';
+                } else {
+                    glowTe = 'glow-red'; borderTe = 'border-rose-500/20'; textTe = 'text-rose-400';
+                }
+                cardTe.className = `stat-card glass rounded-xl p-4 md:p-5 ${glowTe} border ${borderTe} transition-all duration-500`;
+                valTe.className = `text-2xl md:text-3xl font-extrabold ${textTe} transition-colors duration-500`;
             }
         }
 
@@ -900,6 +957,9 @@
                 document.getElementById('valTe').textContent = te.toFixed(1) + ' °C';
                 document.getElementById('valUe').textContent = 'Umid: ' + ue.toFixed(1) + ' %';
                 
+                // Aplica paleta dinâmica nos cards
+                atualizarCoresDinamicas(ti, ui, te);
+                
                 let agoraTime = Date.now();
                 
                 // BUG 13: Desbloqueio Inteligente
@@ -956,10 +1016,17 @@
                 atualizarStatusProtocolos(ultimo);
 
                 // Preparar séries para o gráfico combinado Chart.js
-                // Decimação: No celular, limitar a ~300 pontos para fluir suave
-                const MAX_PONTOS = 500;
-                const passo = data.length > MAX_PONTOS ? Math.ceil(data.length / MAX_PONTOS) : 1;
-                const amostras = data.filter((_, i) => i % passo === 0);
+                // Garante estritamente 1 registro único por minuto nos gráficos:
+                const porMinuto = new Map();
+                data.forEach(d => {
+                    const ts = d.unix_ts ? d.unix_ts * 1000 : new Date(d.timestamp.replace(' ', 'T')).getTime();
+                    // Arredonda para o início exato do minuto
+                    const minutoChave = Math.floor(ts / 60000) * 60000;
+                    if (!porMinuto.has(minutoChave)) {
+                        porMinuto.set(minutoChave, { ...d, unix_ts_min: minutoChave });
+                    }
+                });
+                const amostras = Array.from(porMinuto.values());
 
                 const dTempInt = [], dTempExt = [], dHumInt = [], dHumExt = [];
                 const dLuz = [], dUmid = [], dVento = [], dExaust = [];
@@ -967,7 +1034,7 @@
                 let lastTi = null, lastTe = null;
 
                 amostras.forEach(d => {
-                    const ts = d.unix_ts ? d.unix_ts * 1000 : new Date(d.timestamp.replace(' ', 'T')).getTime();
+                    const ts = d.unix_ts_min || (d.unix_ts ? d.unix_ts * 1000 : new Date(d.timestamp.replace(' ', 'T')).getTime());
                     const tI = parseFloat(d.temp_int);
                     const tE = parseFloat(d.temp_ext);
                     const hI = parseFloat(d.hum_int);
