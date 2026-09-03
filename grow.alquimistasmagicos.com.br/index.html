@@ -970,10 +970,15 @@
             document.getElementById('infoFaseTitle').textContent = isPendente ? `⏳ MUDANDO P/: ${faseNome}` : `Modo Ativo: ${faseNome}`;
             document.getElementById('infoFaseDesc').textContent = desc;
             document.getElementById('infoFaseTemp').textContent = temp;
-            document.getElementById('infoFaseUmid').textContent = umid;
-            document.getElementById('infoFaseFae').textContent = fae;
-            if (document.getElementById('infoFaseVento')) {
-                document.getElementById('infoFaseVento').textContent = vento;
+            const elFae = document.getElementById('infoFaseFae');
+            if (elFae) {
+                elFae.setAttribute('data-ciclo', fae);
+                elFae.textContent = fae;
+            }
+            const elVentoInfo = document.getElementById('infoFaseVento');
+            if (elVentoInfo) {
+                elVentoInfo.setAttribute('data-ciclo', vento);
+                elVentoInfo.textContent = vento;
             }
         }
 
@@ -1229,9 +1234,22 @@
                 if (!cardVento.getAttribute('data-ciclo')) cardVento.setAttribute('data-ciclo', cicloPadrao);
 
                 if (rVento === 1 && rExaust === 0) {
-                    cardVento.innerHTML = `<span class="bg-emerald-500/20 text-emerald-400 text-[10px] px-1.5 py-0.5 rounded font-bold animate-pulse">● SOPRANDO AGORA</span> <span class="text-[10px] text-slate-400 block mt-0.5">${cardVento.getAttribute('data-ciclo')}</span>`;
+                    cardVento.innerHTML = `<span class="bg-emerald-500/20 text-emerald-400 text-[10px] px-1.5 py-0.5 rounded font-bold animate-pulse">● Executando Agora!</span> <span class="text-[10px] text-slate-400 block mt-0.5">${cardVento.getAttribute('data-ciclo')}</span>`;
                 } else {
                     cardVento.textContent = cardVento.getAttribute('data-ciclo');
+                }
+            }
+
+            // Indicador dinâmico no card de Renovação de Ar (FAE)
+            const cardFae = document.getElementById('infoFaseFae');
+            if (cardFae) {
+                const cicloPadraoFae = cardFae.getAttribute('data-ciclo') || cardFae.textContent;
+                if (!cardFae.getAttribute('data-ciclo')) cardFae.setAttribute('data-ciclo', cicloPadraoFae);
+
+                if (rExaust === 1) {
+                    cardFae.innerHTML = `<span class="bg-emerald-500/20 text-emerald-400 text-[10px] px-1.5 py-0.5 rounded font-bold animate-pulse">● Executando Agora!</span> <span class="text-[10px] text-slate-400 block mt-0.5">${cardFae.getAttribute('data-ciclo')}</span>`;
+                } else {
+                    cardFae.textContent = cardFae.getAttribute('data-ciclo');
                 }
             }
 
