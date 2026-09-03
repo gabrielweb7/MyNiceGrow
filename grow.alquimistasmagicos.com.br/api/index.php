@@ -147,10 +147,10 @@ elseif ($method === 'GET') {
     }
 
     $limit = isset($_GET['limit']) ? (int)$_GET['limit'] : 1440;
-    $limit = max(1, min(20000, $limit)); // Clamp: evita queries gigantes
+    $limit = max(1, min(30000, $limit)); // Clamp: suporta 24h (1440) ou 7 dias (10080)
     
     // Multiplica a busca para cobrir pontos de 10s e garantir minutos únicos suficientes
-    $queryLimit = min(20000, $limit * 6);
+    $queryLimit = min(50000, $limit * 6);
     $sql = "SELECT * FROM telemetria WHERE (hum_ext <= 100 OR hum_ext IS NULL) AND (temp_ext >= 15 OR temp_ext IS NULL) ORDER BY id DESC LIMIT $queryLimit";
     $result = $conn->query($sql);
     

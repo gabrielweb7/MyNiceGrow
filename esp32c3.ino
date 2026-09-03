@@ -4,7 +4,7 @@
 //  Autor: Gabriel + Antigravity AI
 // ============================================================
 
-#define FW_VERSION 401
+#define FW_VERSION 402
 
 #include <Arduino.h>
 #include <ArduinoJson.h>
@@ -251,7 +251,6 @@ void enviarNuvem(unsigned long agora) {
   json += "\"rExaust\":" + String(lastReleExaust?1:0) + ",";
   String faseStr = nomeFase((int)faseAtual);
   if (!sensorIntOk) faseStr = "ALERTA: SHT30 OFFLINE";
-  else if (!sensorExtOk) faseStr += " (DHT OFFLINE)";
 
   json += "\"fase\":\"" + faseStr + "\",";
   json += "\"hLuz\":" + String(segLuzTotal / 3600.0, 1) + ",";
@@ -775,47 +774,44 @@ void loop() {
   if (agora - ultimaLeitura >= 2000) {
     ultimaLeitura = agora;
     float tI = sht30.readTemperature(), hI = sht30.readHumidity();
-    float tE = dht.readTemperature(), hE = dht.readHumidity();
     
-    // Filtro de Sanidade Físico (com tolerância a ruído elétrico/interferência rápida)
+    // Filtro de Sanidade Físico para SHT30 (Sensor Crítico Interno)
     bool shtFisicoOk = !isnan(tI) && !isnan(hI) && tI != 0.0 && hI != 0.0 && tI > -10.0 && tI < 60.0 && hI > 0.0 && hI <= 100.0;
-    bool dhtFisicoOk = !isnan(tE) && !isnan(hE) && tE != 0.0 && hE != 0.0 && tE > -10.0 && tE < 60.0 && hE > 0.0 && hE <= 100.0;
-    
     static int shtFalhasFisicas = 0;
     if (shtFisicoOk) {
       shtFalhasFisicas = 0;
       sensorIntOk = true;
+      atualizarFiltroInt(tI, hI);
+      atualizarMinMax();
     } else {
       shtFalhasFisicas++;
-      if (shtFalhasFisicas >= 4) sensorIntOk = false; // 8 segundos de falha contínua para assumir pane
+      if (shtFalhasFisicas >= 6) sensorIntOk = false; // 12s de falha contínua
     }
 
-    static int dhtFalhasFisicas = 0;
-    bool dhtOk = false;
-    if (dhtFisicoOk) {
-      dhtFalhasFisicas = 0;
-      dhtOk = true;
-    } else {
-      dhtFalhasFisicas++;
-      if (dhtFalhasFisicas >= 4) dhtOk = false;
-      else dhtOk = sensorExtOk; // Mantém o estado anterior enquanto está na tolerância
-    }
-    
-    // Filtro de Saltos Absurdos (Anti-Spike) para o DHT (que é mais instável)
-    static int dhtErrosSeguidos = 0;
-    if (dhtOk && dhtFisicoOk && tempExt != -99.0) {
-      if (abs(tE - tempExt) > 5.0 || abs(hE - humExt) > 15.0) {
-        dhtErrosSeguidos++;
-        if (dhtErrosSeguidos < 5) dhtOk = false; // Rejeita como ruído (por até 10 seg)
-        else dhtErrosSeguidos = 0; // Se persistir, aceita que o clima realmente mudou muito rápido
+    // Leitura e Filtro Resiliente para DHT11 (Sensor de Sala/Ambiente)
+    static unsigned long ultimaLeituraDHT = 0;
+    if (agora - ultimaLeituraDHT >= 3000 || ultimaLeituraDHT == 0) {
+      ultimaLeituraDHT = agora;
+      float tE = dht.readTemperature(), hE = dht.readHumidity();
+      bool dhtFisicoOk = !isnan(tE) && !isnan(hE) && tE != 0.0 && hE != 0.0 && tE > -10.0 && tE < 60.0 && hE > 0.0 && hE <= 100.0;
+      
+      static int dhtFalhasFisicas = 0;
+      if (dhtFisicoOk) {
+        // Anti-Spike: se o valor saltou absurdamente por ruído elétrico, preserva a leitura anterior
+        if (tempExt != -99.0 && (abs(tE - tempExt) > 6.0 || abs(hE - humExt) > 20.0)) {
+          // Ignora ruído momentâneo e preserva valor anterior
+        } else {
+          dhtFalhasFisicas = 0;
+          sensorExtOk = true;
+          atualizarFiltroExt(tE, hE);
+        }
       } else {
-        dhtErrosSeguidos = 0;
+        dhtFalhasFisicas++;
+        if (dhtFalhasFisicas >= 25) { // 75 segundos de falha contínua para assumir desconexão
+          sensorExtOk = false;
+        }
       }
     }
-    sensorExtOk = dhtOk;
-
-    if (sensorIntOk && shtFisicoOk) { atualizarFiltroInt(tI, hI); atualizarMinMax(); }
-    if (sensorExtOk && dhtFisicoOk) atualizarFiltroExt(tE, hE);
 
     struct tm ti; horaValida = getLocalTime(&ti); horaAtual = horaValida ? ti.tm_hour : -1;
     if (horaValida && inicioFaseTempo == 0 && faseAtual != FASE_STANDBY) {
