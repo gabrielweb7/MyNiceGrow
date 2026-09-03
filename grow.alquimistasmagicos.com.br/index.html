@@ -136,38 +136,38 @@
             <div class="grid grid-cols-2 md:grid-cols-4 gap-3">
                 <div id="releLuz" onclick="mudarLuz()" class="rele-off rounded-lg p-3 text-center transition-all duration-500 cursor-pointer hover:bg-slate-700 border border-transparent" title="Clique para alternar (AUTO / ON / OFF)">
                     <div class="text-2xl mb-1">💡</div>
-                    <p class="text-xs font-bold">Luz</p>
-                    <p class="text-[10px] text-slate-400 mt-0.5" id="releLuzStatus">OFF</p>
-                    <div class="mt-2 pt-2 border-t border-slate-700/40 text-[10px] flex flex-col items-center">
-                        <span class="text-[8px] uppercase tracking-wider text-slate-500 font-semibold">Tempo Ativo</span>
-                        <span id="tempoLuz" class="font-bold text-slate-200 mt-0.5">--</span>
+                    <p class="text-xs font-bold text-white">Luz</p>
+                    <p class="text-[10px] text-slate-300 mt-0.5 font-bold" id="releLuzStatus">OFF</p>
+                    <div class="mt-2.5 bg-slate-950/60 backdrop-blur-sm rounded-lg py-1.5 px-2 border border-white/15 flex flex-col items-center shadow-md">
+                        <span class="text-[9px] uppercase tracking-wider text-slate-300 font-extrabold">TEMPO LIGADO</span>
+                        <div id="tempoLuz" class="text-xs mt-1 flex items-center justify-center font-bold tracking-tight">--</div>
                     </div>
                 </div>
                 <div id="releUmid" class="rele-off rounded-lg p-3 text-center transition-all duration-500">
                     <div class="text-2xl mb-1">💨</div>
-                    <p class="text-xs font-bold">Umidificador</p>
-                    <p class="text-[10px] text-slate-400 mt-0.5" id="releUmidStatus">OFF</p>
-                    <div class="mt-2 pt-2 border-t border-slate-700/40 text-[10px] flex flex-col items-center">
-                        <span class="text-[8px] uppercase tracking-wider text-slate-500 font-semibold">Tempo Ativo</span>
-                        <span id="tempoUmid" class="font-bold text-slate-200 mt-0.5">--</span>
+                    <p class="text-xs font-bold text-white">Umidificador</p>
+                    <p class="text-[10px] text-slate-300 mt-0.5 font-bold" id="releUmidStatus">OFF</p>
+                    <div class="mt-2.5 bg-slate-950/60 backdrop-blur-sm rounded-lg py-1.5 px-2 border border-white/15 flex flex-col items-center shadow-md">
+                        <span class="text-[9px] uppercase tracking-wider text-slate-300 font-extrabold">TEMPO LIGADO</span>
+                        <div id="tempoUmid" class="text-xs mt-1 flex items-center justify-center font-bold tracking-tight">--</div>
                     </div>
                 </div>
                 <div id="releVento" class="rele-off rounded-lg p-3 text-center transition-all duration-500">
                     <div class="text-2xl mb-1">🌀</div>
-                    <p class="text-xs font-bold">Ventilador</p>
-                    <p class="text-[10px] text-slate-400 mt-0.5" id="releVentoStatus">OFF</p>
-                    <div class="mt-2 pt-2 border-t border-slate-700/40 text-[10px] flex flex-col items-center">
-                        <span class="text-[8px] uppercase tracking-wider text-slate-500 font-semibold">Tempo Ativo</span>
-                        <span id="tempoVento" class="font-bold text-slate-200 mt-0.5">--</span>
+                    <p class="text-xs font-bold text-white">Ventilador</p>
+                    <p class="text-[10px] text-slate-300 mt-0.5 font-bold" id="releVentoStatus">OFF</p>
+                    <div class="mt-2.5 bg-slate-950/60 backdrop-blur-sm rounded-lg py-1.5 px-2 border border-white/15 flex flex-col items-center shadow-md">
+                        <span class="text-[9px] uppercase tracking-wider text-slate-300 font-extrabold">TEMPO LIGADO</span>
+                        <div id="tempoVento" class="text-xs mt-1 flex items-center justify-center font-bold tracking-tight">--</div>
                     </div>
                 </div>
                 <div id="releExaust" class="rele-off rounded-lg p-3 text-center transition-all duration-500">
                     <div class="text-2xl mb-1">🌬️</div>
-                    <p class="text-xs font-bold">Exaustor</p>
-                    <p class="text-[10px] text-slate-400 mt-0.5" id="releExaustStatus">OFF</p>
-                    <div class="mt-2 pt-2 border-t border-slate-700/40 text-[10px] flex flex-col items-center">
-                        <span class="text-[8px] uppercase tracking-wider text-slate-500 font-semibold">Tempo Ativo</span>
-                        <span id="tempoExaust" class="font-bold text-slate-200 mt-0.5">--</span>
+                    <p class="text-xs font-bold text-white">Exaustor</p>
+                    <p class="text-[10px] text-slate-300 mt-0.5 font-bold" id="releExaustStatus">OFF</p>
+                    <div class="mt-2.5 bg-slate-950/60 backdrop-blur-sm rounded-lg py-1.5 px-2 border border-white/15 flex flex-col items-center shadow-md">
+                        <span class="text-[9px] uppercase tracking-wider text-slate-300 font-extrabold">TEMPO LIGADO</span>
+                        <div id="tempoExaust" class="text-xs mt-1 flex items-center justify-center font-bold tracking-tight">--</div>
                     </div>
                 </div>
             </div>
@@ -498,11 +498,11 @@
             if (isOn) {
                 el.className = (isLuz ? 'cursor-pointer hover:bg-emerald-500 ' : '') + 'bg-emerald-600 rounded-lg p-3 text-center transition-all duration-500 shadow-[0_0_15px_rgba(16,185,129,0.4)] border border-emerald-400/50';
                 st.textContent = isLuz ? (luzState === 0 ? 'AUTO (ON)' : 'ON') : 'ON';
-                st.className = 'text-[10px] text-emerald-100 mt-0.5 font-bold tracking-wider';
+                st.className = 'text-[10px] text-white mt-0.5 font-black tracking-wider bg-black/30 px-2 py-0.5 rounded-full inline-block shadow-sm';
             } else {
                 el.className = (isLuz ? 'cursor-pointer hover:bg-slate-700 ' : '') + 'bg-slate-800 rounded-lg p-3 text-center transition-all duration-500 border border-transparent opacity-80';
                 st.textContent = isLuz ? (luzState === 0 ? 'AUTO (OFF)' : 'OFF') : 'OFF';
-                st.className = 'text-[10px] text-slate-500 mt-0.5 font-bold tracking-wider';
+                st.className = 'text-[10px] text-slate-400 mt-0.5 font-bold tracking-wider';
             }
         }
 
@@ -598,14 +598,14 @@
             }
 
             const formatarTempo = (seg, total) => {
-                if (seg <= 0) return '0 min <span class="text-[8px] text-slate-500 font-normal">(0%)</span>';
+                if (seg <= 0) return `<span class="text-slate-300 font-bold">0 min</span> <span class="text-[10px] text-slate-400 font-bold ml-1.5 bg-slate-900/90 border border-slate-700/60 px-1.5 py-0.5 rounded">0%</span>`;
                 let pct = total > 0 ? Math.round((seg / total) * 100) : 0;
                 let m = Math.round(seg / 60);
                 let h = Math.floor(m / 60);
                 let mRest = m % 60;
 
                 let txt = (h > 0) ? `${h}h ${mRest.toString().padStart(2, '0')}m` : `${mRest} min`;
-                return `${txt} <span class="text-[8px] text-slate-400 font-normal">(${pct}%)</span>`;
+                return `<span class="text-white font-black">${txt}</span> <span class="text-[10px] text-emerald-300 font-black ml-1.5 bg-emerald-950/90 border border-emerald-400/50 px-1.5 py-0.5 rounded shadow-sm">${pct}%</span>`;
             };
 
             const elLuz = document.getElementById('tempoLuz');
