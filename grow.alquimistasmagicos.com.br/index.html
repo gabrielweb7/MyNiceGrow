@@ -5,8 +5,13 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>🍄 Grow do Txai — Painel de Controle</title>
     <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🍄</text></svg>">
+    <link rel="manifest" href="manifest.json">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="Grow Txai">
+    <meta name="theme-color" content="#060913">
+    <link rel="apple-touch-icon" href="icon.png">
     <script src="https://cdn.tailwindcss.com"></script>
-    <script src="https://cdn.jsdelivr.net/npm/apexcharts"></script>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
     <script>
@@ -301,7 +306,7 @@
         <!-- FOOTER -->
         <footer class="text-center text-[10px] text-slate-500 py-4 space-y-1">
             <div>Grow do Txai — IoT Cloud System — Dados atualizados a cada 60 segundos</div>
-            <div id="txtGitHash" class="text-emerald-400 font-bold tracking-widest text-xs drop-shadow-[0_0_8px_rgba(52,211,153,0.7)]">Versão: 1.0.0</div>
+            <div id="txtGitHash" class="text-emerald-400 font-bold tracking-widest text-xs drop-shadow-[0_0_8px_rgba(52,211,153,0.7)]">Versão: 1.0.1</div>
         </footer>
     </main>
 
@@ -1122,7 +1127,7 @@
                     window.fwNuvem = fwData.nuvem || '0';
                     window.fwError = fwData.error || '0';
                     if (fwData.gitHash) {
-                        document.getElementById('txtGitHash').textContent = `Versão: 1.0.0`;
+                        document.getElementById('txtGitHash').textContent = `Versão: 1.0.1`;
                     }
                 }
 
@@ -1134,11 +1139,22 @@
                     return;
                 }
 
-                // Status online
-                document.getElementById('statusText').textContent = 'Online';
-                document.getElementById('dotColor').className = 'w-2 h-2 rounded-full bg-emerald-500 pulse-dot';
-
                 const ultimo = data[data.length - 1];
+
+                // Última atualização & Status Online Real (Tolerância de 3 minutos)
+                let tsAbsoluto = ultimo.unix_ts ? (ultimo.unix_ts * 1000) : new Date(ultimo.timestamp.replace(' ', 'T')).getTime();
+                let diffMinutos = Math.max(0, Math.round((Date.now() - tsAbsoluto) / 60000));
+                document.getElementById('valUltimaAtt').textContent = (diffMinutos === 0 ? 'Agora mesmo' : 'Atualizado há ' + diffMinutos + ' min');
+
+                if (diffMinutos <= 3) {
+                    document.getElementById('statusText').textContent = 'Online';
+                    document.getElementById('statusText').className = 'text-slate-300 font-semibold';
+                    document.getElementById('dotColor').className = 'w-2 h-2 rounded-full bg-emerald-500 pulse-dot';
+                } else {
+                    document.getElementById('statusText').textContent = `Offline (${diffMinutos}m)`;
+                    document.getElementById('statusText').className = 'text-rose-400 font-semibold';
+                    document.getElementById('dotColor').className = 'w-2 h-2 rounded-full bg-rose-500 pulse-dot';
+                }
 
                 // Cards
                 const ti = parseFloat(ultimo.temp_int);
@@ -1156,7 +1172,7 @@
                 
                 let agoraTime = Date.now();
                 
-                // BUG 13: Desbloqueio Inteligente
+                // Desbloqueio Inteligente
                 // Se a placa já respondeu e atualizou o banco com a fase exata que pedimos, destravamos a UI imediatamente!
                 if (fasePendenteAlvo && ultimo.fase === fasePendenteAlvo) {
                     fasePendenteTempo = 0;
@@ -1172,11 +1188,6 @@
                     atualizarBotoesFase(f_limpa, false);
                     fasePendenteAlvo = null; // limpa por precaução
                 }
-
-                // Última atualização
-                let tsAbsoluto = ultimo.unix_ts ? (ultimo.unix_ts * 1000) : new Date(ultimo.timestamp.replace(' ', 'T')).getTime();
-                let diffMinutos = Math.round((Date.now() - tsAbsoluto) / 60000);
-                document.getElementById('valUltimaAtt').textContent = 'Atualizado há ' + diffMinutos + ' min';
 
                 // Min/Max do período
                 let minT = Infinity, maxT = -Infinity, minH = Infinity, maxH = -Infinity;
@@ -1389,11 +1400,20 @@
             if (loopTimeout) clearTimeout(loopTimeout);
             await carregarDados(limitAtual);
             
-            // Sincroniza a cada 2s se tiver comando pendente, senão varre a cada 5s
+            // Sincroniza a cada 2s se tiver comando pendente
+            // Se aba estiver em segundo plano (document.hidden), reduz para 30s para economizar bateria e dados móveis
             let isPendente = (Date.now() - luzPendenteTempo < 25000) || (Date.now() - fasePendenteTempo < 25000);
-            let delay = forceDelay || (isPendente ? 2000 : 5000);
+            let delayPadrao = document.hidden ? 30000 : 5000;
+            let delay = forceDelay || (isPendente ? 2000 : delayPadrao);
             loopTimeout = setTimeout(() => loopDados(), delay);
         }
+
+        // Ao desbloquear o celular ou retornar para a aba, puxa dados imediatamente!
+        document.addEventListener('visibilitychange', () => {
+            if (!document.hidden) {
+                loopDados(100);
+            }
+        });
 
         function initCosmicNetwork() {
             const canvas = document.getElementById('canvasCosmic');

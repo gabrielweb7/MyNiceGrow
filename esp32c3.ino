@@ -271,29 +271,56 @@ void enviarNuvem(unsigned long agora) {
     return;
   }
   
-  // 1. TENTA ENVIAR DADOS ATRASADOS (OFFLINE BACKLOG)
+  // 1. TENTA ENVIAR DADOS ATRASADOS (OFFLINE BACKLOG EM LOTES SEGUROS DE ATÉ 50 REGISTROS)
   if (LittleFS.exists("/offline.log")) {
     File f = LittleFS.open("/offline.log", "r");
-    String bulk = "["; bool first = true;
-    while(f.available()) {
-      String linha = f.readStringUntil('\n'); linha.trim();
-      if (linha.length() > 5) {
-        if (!first) bulk += ",";
-        bulk += linha; first = false;
+    if (f) {
+      String bulk = "["; bool first = true;
+      int count = 0;
+      while (f.available() && count < 50) {
+        String linha = f.readStringUntil('\n'); linha.trim();
+        if (linha.length() > 5) {
+          if (!first) bulk += ",";
+          bulk += linha; first = false;
+          count++;
+        }
       }
-    }
-    bulk += "]"; f.close();
+      bulk += "]";
+      
+      // Se houver mais linhas acumuladas, guarda temporariamente o restante
+      File tmp = LittleFS.open("/offline.tmp", "w");
+      while (f.available()) {
+        String resto = f.readStringUntil('\n'); resto.trim();
+        if (resto.length() > 5 && tmp) tmp.println(resto);
+      }
+      if (tmp) tmp.close();
+      f.close();
 
-    WiFiClientSecure clientBulk; clientBulk.setInsecure();
-    HTTPClient httpBulk;
-    if (httpBulk.begin(clientBulk, CLOUD_URL)) {
-      httpBulk.addHeader("Content-Type", "application/json");
-      httpBulk.addHeader("X-Api-Key", CLOUD_KEY);
-      int code = httpBulk.POST(bulk);
-      httpBulk.end();
-      if (code == 200) {
-        LittleFS.remove("/offline.log");
-        Serial.println("[NUVEM] Lote offline sincronizado!");
+      WiFiClientSecure clientBulk; clientBulk.setInsecure();
+      HTTPClient httpBulk;
+      if (httpBulk.begin(clientBulk, CLOUD_URL)) {
+        httpBulk.addHeader("Content-Type", "application/json");
+        httpBulk.addHeader("X-Api-Key", CLOUD_KEY);
+        int code = httpBulk.POST(bulk);
+        httpBulk.end();
+        if (code == 200) {
+          LittleFS.remove("/offline.log");
+          if (LittleFS.exists("/offline.tmp")) {
+            File checkTmp = LittleFS.open("/offline.tmp", "r");
+            if (checkTmp && checkTmp.size() > 10) {
+              checkTmp.close();
+              LittleFS.rename("/offline.tmp", "/offline.log");
+            } else {
+              if (checkTmp) checkTmp.close();
+              LittleFS.remove("/offline.tmp");
+            }
+          }
+          Serial.printf("[NUVEM] Lote offline (%d registros) sincronizado com sucesso!\n", count);
+        } else {
+          LittleFS.remove("/offline.tmp");
+        }
+      } else {
+        LittleFS.remove("/offline.tmp");
       }
     }
   }

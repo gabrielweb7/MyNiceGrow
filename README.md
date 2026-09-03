@@ -1,6 +1,6 @@
 # 🍄 Grow do Txai — Sistema Inteligente de Automação IoT (v1.0 Oficial / Estável)
 
-[![Release v1.0](https://img.shields.io/badge/Release-v1.0%20Oficial%20%2F%20Est%C3%A1vel-gold?style=for-the-badge&logo=target)](https://github.com/)
+[![Release v1.0.1](https://img.shields.io/badge/Release-v1.0.1%20Oficial%20%2F%20Est%C3%A1vel-gold?style=for-the-badge&logo=target)](https://github.com/)
 [![ESP32-C3](https://img.shields.io/badge/Hardware-ESP32--C3%20SuperMini-brightgreen?style=for-the-badge&logo=espressif)](https://www.espressif.com/)
 [![Arduino / C++](https://img.shields.io/badge/Firmware-Arduino%20%2F%20C%2B%2B-blue?style=for-the-badge&logo=arduino)](https://www.arduino.cc/)
 [![PHP 8.x](https://img.shields.io/badge/Backend-PHP%208.x%20%2F%20REST-purple?style=for-the-badge&logo=php)](https://www.php.net/)
@@ -15,8 +15,25 @@ O sistema combina um controlador embutido **ESP32-C3** de alta confiabilidade, l
 
 ---
 
+## 🏷️ Política Oficial de Versionamento (SemVer) & Diretrizes para IA
+
+A partir da versão inicial estável **v1.0.0**, o projeto segue rigorosamente o padrão SemVer. **Toda alteração deve ser versionada no código e refletida visualmente no Dashboard Web e nas Tags do Git:**
+
+- **`1.0.x` (Patch / Pequenos Updates):**
+  - Correções pontuais de bugs, pequenos ajustes visuais na UI, polimento de estilos e correções de segurança menores.
+- **`1.x.0` (Minor / Updates Mais Robustos):**
+  - Adição de novos recursos (ex: Bot do Telegram, calculadora de energia, novas telas/modais, suporte a novos sensores ou protocolos de emergência).
+- **`x.0.0` (Major / Novas Versões Maiores):**
+  - Mudanças arquiteturais profundas, troca ou migração de hardware (ex: ESP32-S3), reestruturações completas do banco de dados ou reformulação geral do sistema.
+
+> 🤖 **Diretriz Obrigatória para Agentes de IA / Desenvolvedores:**
+> A cada novo ciclo de alterações, a versão DEVE ser atualizada no rodapé de `grow.alquimistasmagicos.com.br/index.html` (tanto no HTML quanto na atribuição em JavaScript), no `README.md` e acompanhada pela respectiva `git tag -a vX.X.X`.
+
+---
+
 ## 📑 Sumário
 
+- [Política de Versionamento](#-política-oficial-de-versionamento-semver--diretrizes-para-ia)
 - [Visão Geral & Arquitetura](#-visão-geral--arquitetura)
 - [Funcionalidades Principais](#-funcionalidades-principais)
 - [Hardware & Pinagem (Pinout)](#-hardware--pinagem-pinout)
