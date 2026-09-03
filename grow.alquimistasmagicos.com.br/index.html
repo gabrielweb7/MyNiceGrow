@@ -306,7 +306,7 @@
                 </div>
             </div>
 
-            <div style="position:relative; height:180px;"><canvas id="canvasReles"></canvas></div>
+            <div style="position:relative; height:210px;"><canvas id="canvasReles"></canvas></div>
         </section>
 
         <!-- FOOTER -->
@@ -916,18 +916,43 @@
             chartReles = new Chart(document.getElementById('canvasReles').getContext('2d'), {
                 type: 'bar',
                 data: { datasets: [
-                    { label: 'Luz', data: [], backgroundColor: 'rgba(255,220,0,0.5)', barPercentage: 1.0, categoryPercentage: 1.0 },
-                    { label: 'Umidif.', data: [], backgroundColor: 'rgba(0,200,255,0.5)', barPercentage: 1.0, categoryPercentage: 1.0 },
-                    { label: 'Vento', data: [], backgroundColor: 'rgba(0,255,170,0.4)', barPercentage: 1.0, categoryPercentage: 1.0 },
-                    { label: 'Exaustor', data: [], backgroundColor: 'rgba(255,100,0,0.5)', barPercentage: 1.0, categoryPercentage: 1.0 }
+                    { label: 'Luz', data: [], backgroundColor: 'rgba(255, 220, 0, 0.85)', borderColor: '#ffdc00', borderWidth: 0, barPercentage: 1.0, categoryPercentage: 1.0 },
+                    { label: 'Umidif.', data: [], backgroundColor: 'rgba(0, 200, 255, 0.85)', borderColor: '#00c8ff', borderWidth: 0, barPercentage: 1.0, categoryPercentage: 1.0 },
+                    { label: 'Vento', data: [], backgroundColor: 'rgba(0, 255, 170, 0.85)', borderColor: '#00ffaa', borderWidth: 0, barPercentage: 1.0, categoryPercentage: 1.0 },
+                    { label: 'Exaustor', data: [], backgroundColor: 'rgba(255, 100, 0, 0.85)', borderColor: '#ff6400', borderWidth: 0, barPercentage: 1.0, categoryPercentage: 1.0 }
                 ]},
-                options: baseOptions({ min: 0, max: 1.2, display: false }),
+                options: baseOptions({
+                    min: -0.6,
+                    max: 3.6,
+                    grid: { color: 'rgba(255, 255, 255, 0.05)' },
+                    ticks: {
+                        stepSize: 1,
+                        autoSkip: false,
+                        color: (c) => {
+                            const colors = ['#ff6400', '#00ffaa', '#00c8ff', '#ffdc00'];
+                            return colors[c.tick.value] || '#94a3b8';
+                        },
+                        font: { size: 10, weight: 'bold' },
+                        callback: function(v) {
+                            switch(v) {
+                                case 0: return '🌬️ Exaust';
+                                case 1: return '🌀 Vento';
+                                case 2: return '💨 Umidif';
+                                case 3: return '💡 Luz';
+                                default: return '';
+                            }
+                        }
+                    }
+                }),
                 plugins: [crosshairPlugin]
             });
             
-            // Corrige o tooltip dos relés para mostrar ON/OFF
+            // Corrige o tooltip dos relés nas trilhas para indicar ON ou OFF
             chartReles.options.plugins.tooltip.callbacks = {
-                label: ctx => ` ${ctx.dataset.label}: ${ctx.parsed.y > 0 ? 'ON' : 'OFF'}`
+                label: ctx => {
+                    const isLigado = ctx.raw && ctx.raw.y !== null && Array.isArray(ctx.raw.y);
+                    return ` ${ctx.dataset.label}: ${isLigado ? '🟢 ON' : '⚪ OFF'}`;
+                }
             };
         }
 
@@ -1168,11 +1193,15 @@
                     dHumInt.push({ x: ts, y: (hI > 0 && hI <= 100) ? hI : null });
                     dHumExt.push({ x: ts, y: (hE > 0 && hE <= 100) ? hE : null });
 
-                    // Relés: valor 1 ou null (null = não mostra barra)
-                    const rLuz = parseInt(d.rele_luz) === 1 ? 1 : null;
-                    const rUmid = parseInt(d.rele_umid) === 1 ? 1 : null;
-                    const rVento = parseInt(d.rele_vento) === 1 ? 1 : null;
-                    const rExaust = parseInt(d.rele_exaust) === 1 ? 1 : null;
+                    // Relés em 4 pistas horizontais independentes (Swimlanes):
+                    // Pista 3 = Luz [2.65, 3.35]
+                    // Pista 2 = Umidificador [1.65, 2.35]
+                    // Pista 1 = Ventilador [0.65, 1.35]
+                    // Pista 0 = Exaustor [-0.35, 0.35]
+                    const rLuz = parseInt(d.rele_luz) === 1 ? [2.65, 3.35] : null;
+                    const rUmid = parseInt(d.rele_umid) === 1 ? [1.65, 2.35] : null;
+                    const rVento = parseInt(d.rele_vento) === 1 ? [0.65, 1.35] : null;
+                    const rExaust = parseInt(d.rele_exaust) === 1 ? [-0.35, 0.35] : null;
 
                     dLuz.push({ x: ts, y: rLuz });
                     dUmid.push({ x: ts, y: rUmid });
