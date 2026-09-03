@@ -261,8 +261,8 @@
             <div class="flex flex-col sm:flex-row justify-between sm:items-center gap-2 mb-3">
                 <div class="flex items-center gap-2">
                     <h2 class="text-sm font-bold text-slate-300">⚡ Timeline dos Relés</h2>
-                    <span class="text-[10px] text-slate-400 bg-slate-800/90 px-2 py-0.5 rounded border border-slate-700/60 font-semibold">
-                        ⏱️ Total Ativo (<span id="txtFiltroAtivo" class="text-emerald-400 font-bold">24 Horas</span>):
+                    <span id="containerFiltroReles" class="text-[10px] text-slate-400 bg-slate-800/90 px-2 py-0.5 rounded border border-slate-700/60 font-semibold">
+                        ⏱️ Total Ligado (24h)
                     </span>
                 </div>
                 <button id="btnResetZoom" onclick="resetarZoom()" class="hidden px-2.5 py-1 text-[10px] font-bold bg-slate-700 hover:bg-slate-600 border border-slate-500 rounded text-white transition-all">
@@ -270,31 +270,39 @@
                 </button>
             </div>
 
-            <!-- Horímetro / Legenda com Tempo Ativo no Período -->
+            <!-- Horímetro / Legenda Interativa com Filtros Clicáveis -->
             <div class="grid grid-cols-2 md:grid-cols-4 gap-2 mb-3">
-                <div class="bg-slate-800/50 rounded-lg px-3 py-2 border border-slate-700/40 flex items-center justify-between">
+                <div id="btnLegendaLuz" onclick="toggleDatasetReles(0, 'btnLegendaLuz')" 
+                     class="bg-slate-800/60 hover:bg-slate-700/60 cursor-pointer rounded-lg px-3 py-2 border border-slate-700/40 flex items-center justify-between transition-all duration-300 select-none shadow-sm"
+                     title="Clique para ocultar/mostrar a Luz no gráfico">
                     <span class="flex items-center gap-1.5 text-xs font-bold text-slate-300">
                         <span style="background:#ffdc00" class="w-2.5 h-2.5 inline-block rounded-sm shadow-sm"></span> Luz
                     </span>
-                    <span id="tempoLuz" class="text-xs font-black text-white flex items-center">--</span>
+                    <span id="tempoLuz" class="text-xs font-black text-white">--</span>
                 </div>
-                <div class="bg-slate-800/50 rounded-lg px-3 py-2 border border-slate-700/40 flex items-center justify-between">
+                <div id="btnLegendaUmid" onclick="toggleDatasetReles(1, 'btnLegendaUmid')" 
+                     class="bg-slate-800/60 hover:bg-slate-700/60 cursor-pointer rounded-lg px-3 py-2 border border-slate-700/40 flex items-center justify-between transition-all duration-300 select-none shadow-sm"
+                     title="Clique para ocultar/mostrar o Umidificador no gráfico">
                     <span class="flex items-center gap-1.5 text-xs font-bold text-slate-300">
                         <span style="background:#00c8ff" class="w-2.5 h-2.5 inline-block rounded-sm shadow-sm"></span> Umidif.
                     </span>
-                    <span id="tempoUmid" class="text-xs font-black text-white flex items-center">--</span>
+                    <span id="tempoUmid" class="text-xs font-black text-white">--</span>
                 </div>
-                <div class="bg-slate-800/50 rounded-lg px-3 py-2 border border-slate-700/40 flex items-center justify-between">
+                <div id="btnLegendaVento" onclick="toggleDatasetReles(2, 'btnLegendaVento')" 
+                     class="bg-slate-800/60 hover:bg-slate-700/60 cursor-pointer rounded-lg px-3 py-2 border border-slate-700/40 flex items-center justify-between transition-all duration-300 select-none shadow-sm"
+                     title="Clique para ocultar/mostrar o Ventilador no gráfico">
                     <span class="flex items-center gap-1.5 text-xs font-bold text-slate-300">
                         <span style="background:#00ffaa" class="w-2.5 h-2.5 inline-block rounded-sm shadow-sm"></span> Vento
                     </span>
-                    <span id="tempoVento" class="text-xs font-black text-white flex items-center">--</span>
+                    <span id="tempoVento" class="text-xs font-black text-white">--</span>
                 </div>
-                <div class="bg-slate-800/50 rounded-lg px-3 py-2 border border-slate-700/40 flex items-center justify-between">
+                <div id="btnLegendaExaust" onclick="toggleDatasetReles(3, 'btnLegendaExaust')" 
+                     class="bg-slate-800/60 hover:bg-slate-700/60 cursor-pointer rounded-lg px-3 py-2 border border-slate-700/40 flex items-center justify-between transition-all duration-300 select-none shadow-sm"
+                     title="Clique para ocultar/mostrar o Exaustor no gráfico">
                     <span class="flex items-center gap-1.5 text-xs font-bold text-slate-300">
                         <span style="background:#ff6400" class="w-2.5 h-2.5 inline-block rounded-sm shadow-sm"></span> Exaustor
                     </span>
-                    <span id="tempoExaust" class="text-xs font-black text-white flex items-center">--</span>
+                    <span id="tempoExaust" class="text-xs font-black text-white">--</span>
                 </div>
             </div>
 
@@ -579,10 +587,27 @@
         }
 
         function calcularTempoReles(data) {
+            const elLuz = document.getElementById('tempoLuz');
+            const elUmid = document.getElementById('tempoUmid');
+            const elVento = document.getElementById('tempoVento');
+            const elExaust = document.getElementById('tempoExaust');
+            const elContainer = document.getElementById('containerFiltroReles');
+
+            // No filtro de 7 dias, não mostra quantidade de horas (conforme solicitado)
+            if (limitAtual === 10080) {
+                if (elLuz) elLuz.textContent = '';
+                if (elUmid) elUmid.textContent = '';
+                if (elVento) elVento.textContent = '';
+                if (elExaust) elExaust.textContent = '';
+                if (elContainer) elContainer.classList.add('hidden');
+                return;
+            }
+
+            if (elContainer) elContainer.classList.remove('hidden');
+
             if (!data || data.length === 0) return;
 
             let segLuz = 0, segUmid = 0, segVento = 0, segExaust = 0;
-            let totalSegundosMonitorados = 0;
 
             for (let i = 0; i < data.length; i++) {
                 let duracao = 60; // Duração padrão estimada para cada registro (1 minuto)
@@ -590,41 +615,50 @@
                     let tsAtual = data[i].unix_ts || Math.floor(new Date(data[i].timestamp.replace(' ', 'T')).getTime() / 1000);
                     let tsProx = data[i+1].unix_ts || Math.floor(new Date(data[i+1].timestamp.replace(' ', 'T')).getTime() / 1000);
                     let delta = tsProx - tsAtual;
-                    // Se o delta for razoável (até 15 minutos sem considerar interrupção/apagão)
                     if (delta > 0 && delta <= 900) {
                         duracao = delta;
                     }
                 }
 
-                totalSegundosMonitorados += duracao;
                 if (parseInt(data[i].rele_luz) === 1) segLuz += duracao;
                 if (parseInt(data[i].rele_umid) === 1) segUmid += duracao;
                 if (parseInt(data[i].rele_vento) === 1) segVento += duracao;
                 if (parseInt(data[i].rele_exaust) === 1) segExaust += duracao;
             }
 
-            const formatarTempo = (seg, total) => {
-                if (seg <= 0) return `<span class="text-slate-300 font-bold">0 min</span> <span class="text-[10px] text-slate-400 font-bold ml-1.5 bg-slate-900/90 border border-slate-700/60 px-1.5 py-0.5 rounded">0%</span>`;
-                let pct = total > 0 ? Math.round((seg / total) * 100) : 0;
+            const formatarTempo = (seg) => {
+                if (seg <= 0) return '<span class="text-slate-400 font-bold">0 min</span>';
                 let m = Math.round(seg / 60);
                 let h = Math.floor(m / 60);
                 let mRest = m % 60;
-
                 let txt = (h > 0) ? `${h}h ${mRest.toString().padStart(2, '0')}m` : `${mRest} min`;
-                return `<span class="text-white font-black">${txt}</span> <span class="text-[10px] text-emerald-300 font-black ml-1.5 bg-emerald-950/90 border border-emerald-400/50 px-1.5 py-0.5 rounded shadow-sm">${pct}%</span>`;
+                return `<span class="text-white font-black">${txt}</span>`;
             };
 
-            const elLuz = document.getElementById('tempoLuz');
-            const elUmid = document.getElementById('tempoUmid');
-            const elVento = document.getElementById('tempoVento');
-            const elExaust = document.getElementById('tempoExaust');
-            const elFiltro = document.getElementById('txtFiltroAtivo');
+            if (elLuz) elLuz.innerHTML = formatarTempo(segLuz);
+            if (elUmid) elUmid.innerHTML = formatarTempo(segUmid);
+            if (elVento) elVento.innerHTML = formatarTempo(segVento);
+            if (elExaust) elExaust.innerHTML = formatarTempo(segExaust);
+        }
 
-            if (elLuz) elLuz.innerHTML = formatarTempo(segLuz, totalSegundosMonitorados);
-            if (elUmid) elUmid.innerHTML = formatarTempo(segUmid, totalSegundosMonitorados);
-            if (elVento) elVento.innerHTML = formatarTempo(segVento, totalSegundosMonitorados);
-            if (elExaust) elExaust.innerHTML = formatarTempo(segExaust, totalSegundosMonitorados);
-            if (elFiltro) elFiltro.textContent = (limitAtual === 10080 ? '7 Dias' : '24 Horas');
+        function toggleDatasetReles(index, elId) {
+            if (!chartReles) return;
+            const isVisible = chartReles.isDatasetVisible(index);
+            chartReles.setDatasetVisibility(index, !isVisible);
+            chartReles.update();
+
+            const el = document.getElementById(elId);
+            if (el) {
+                if (isVisible) {
+                    // Ficou invisível
+                    el.classList.add('opacity-30', 'grayscale', 'bg-slate-950/40', 'border-slate-800');
+                    el.classList.remove('bg-slate-800/60', 'hover:bg-slate-700/60', 'border-slate-700/40');
+                } else {
+                    // Ficou visível
+                    el.classList.remove('opacity-30', 'grayscale', 'bg-slate-950/40', 'border-slate-800');
+                    el.classList.add('bg-slate-800/60', 'hover:bg-slate-700/60', 'border-slate-700/40');
+                }
+            }
         }
 
         function formatarDataFW(ts) {
