@@ -92,6 +92,8 @@ enum StatusSis   { SIS_OK, SIS_SEM_WIFI, SIS_ERRO_SENSOR };
 struct PerfilClimatico {
   float tempMax, umidMin, umidMax;
   unsigned long faeOnMs, faeOffMs;
+  unsigned long ventoOnMs, ventoOffMs;
+  bool ventoComUmid;
 };
 
 // ============================================================
@@ -159,11 +161,11 @@ const char* nomeModoLuz() {
   if(modoLuz==LUZ_AUTO) return "AUTO"; if(modoLuz==LUZ_FORCADA_ON) return "ON"; return "OFF";
 }
 PerfilClimatico perfis[5] = {
-  {TEMP_ALVO_MAX, 97.0, 99.9, 1UL*60000, FAE_OFF_MS}, // 0: Standby (padrão)
-  {28.0, 97.0, 99.9, 1UL*60000, 40UL*60000},          // 1: Pinagem
-  {29.0, 97.0, 99.9, 2UL*60000, 25UL*60000},          // 2: Frutificacao
-  {28.0, 97.0, 99.9, 1UL*60000, 40UL*60000},          // 3: Segundo Flush
-  {TEMP_ALVO_MAX, 97.0, 99.9, 1UL*60000, FAE_OFF_MS}  // 4: Secagem
+  {TEMP_ALVO_MAX, 97.0, 99.9, 1UL*60000, FAE_OFF_MS, 1UL*60000, 2UL*60000, false}, // 0: Standby (padrão)
+  {28.0, 97.0, 99.9, 1UL*60000, 40UL*60000, 1UL*60000, 2UL*60000, true},          // 1: Pinagem (1m ON / 2m OFF + névoa)
+  {29.0, 92.0, 94.0, 2UL*60000, 25UL*60000, 1UL*60000, 2UL*60000, true},          // 2: Frutificacao (1m ON / 2m OFF + névoa)
+  {28.0, 97.0, 99.9, 1UL*60000, 40UL*60000, 1UL*60000, 2UL*60000, true},          // 3: Segundo Flush (1m ON / 2m OFF + névoa)
+  {TEMP_ALVO_MAX, 97.0, 99.9, 1UL*60000, FAE_OFF_MS, 1UL*60000, 2UL*60000, false}  // 4: Secagem
 };
 
 void salvarPerfisNVS() {
@@ -341,6 +343,11 @@ void enviarNuvem(unsigned long agora) {
                      perfis[i].umidMax = cfg[key]["uX"].as<float>();
                      perfis[i].faeOnMs = cfg[key]["fO"].as<unsigned long>() * 60000UL;
                      perfis[i].faeOffMs = cfg[key]["fF"].as<unsigned long>() * 60000UL;
+                     unsigned long vO = cfg[key].containsKey("vO") ? cfg[key]["vO"].as<unsigned long>() : 1;
+                     unsigned long vF = cfg[key].containsKey("vF") ? cfg[key]["vF"].as<unsigned long>() : 2;
+                     perfis[i].ventoOnMs = vO * 60000UL;
+                     perfis[i].ventoOffMs = vF * 60000UL;
+                     perfis[i].ventoComUmid = cfg[key].containsKey("vU") ? (cfg[key]["vU"].as<int>() == 1) : true;
                      configAlterada = true;
                   }
                }
@@ -556,28 +563,35 @@ void executarMotor(unsigned long agora) {
 
   if (faeLigado) { releExaustExt = true; releVentoInt = true; }
 
-  // --- CIRCULACAO INTERNA PREVENTIVA (Estufa Grande) ---
-  // Gira o ar internamente para evitar bolsões de ar parado e CO2 pesado.
+  // --- CIRCULACAO INTERNA DINAMICA & BRISA COM NEVOA ---
+  // Gira o ar internamente para evitar bolsões de CO2 pesado e, se configurado, injeta névoa viva.
   bool brisaUmidificadora = false;
   if (!releVentoInt) { 
-    if (faseAtual == FASE_FRUTIFICACAO) {
-      if ((agora % 600000) < 120000) { releVentoInt = true; } // 2 min ON a cada 10 min
-      if ((agora % 600000) < 60000 && humInt < pf.umidMax) { brisaUmidificadora = true; } // Umidificador na metade inicial (1 min) apenas se não passou da meta máxima
-    } else {
-      if ((agora % 600000) < 60000) { releVentoInt = true; }  // 1 min ON a cada 10 min
-      if ((agora % 600000) < 30000 && humInt < pf.umidMax) { brisaUmidificadora = true; } // Umidificador na metade inicial (30s) apenas se não passou da meta máxima
+    if (pf.ventoOnMs > 0) {
+      if (pf.ventoOffMs == 0) {
+        releVentoInt = true; // 100% contínuo
+        if (pf.ventoComUmid) brisaUmidificadora = true;
+      } else {
+        unsigned long cicloVento = pf.ventoOnMs + pf.ventoOffMs;
+        if (cicloVento > 0 && (agora % cicloVento) < pf.ventoOnMs) {
+          releVentoInt = true;
+          if (pf.ventoComUmid) {
+            brisaUmidificadora = true; // Injeta névoa fresca viva junto com a brisa independente do sensor!
+          }
+        }
+      }
     }
   }
   // -----------------------------------------------------
 
   if (!alertaFaltaAgua) {
     if (defesaEvap) releUmidific = true;
-    else if (brisaUmidificadora) releUmidific = true; // Injeta névoa junto com o ventilador preventivo
+    else if (brisaUmidificadora) releUmidific = true; // Injeta vapor de umidade junto com o ventilador preventivo
     else if (humInt < pf.umidMin) {
       if (!releUmidific) tempoInicioSaturacaoUmid = agora; // Inicia contagem do tempo mínimo
       releUmidific = true;
     }
-    else if (humInt > pf.umidMax && !defesaEvap) {
+    else if (humInt > pf.umidMax && !defesaEvap && !brisaUmidificadora) {
       // TEMPO MÍNIMO DE SATURAÇÃO VÍSUAL (2 Minutos)
       if (agora - tempoInicioSaturacaoUmid >= 120000UL || tempoInicioSaturacaoUmid == 0) {
         releUmidific = false;

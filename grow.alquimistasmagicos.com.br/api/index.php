@@ -21,9 +21,9 @@ function garantirTabelaConfig($conn) {
     $check = $conn->query("SELECT valor FROM config_sistema WHERE chave = 'clima'");
     if ($check && $check->num_rows === 0) {
         $padrao = json_encode([
-            "1" => ["tX" => 28.0, "uN" => 97.0, "uX" => 99.9, "fO" => 1, "fF" => 40],
-            "2" => ["tX" => 29.0, "uN" => 92.0, "uX" => 94.0, "fO" => 2, "fF" => 25],
-            "3" => ["tX" => 28.0, "uN" => 97.0, "uX" => 99.9, "fO" => 1, "fF" => 40]
+            "1" => ["tX" => 28.0, "uN" => 97.0, "uX" => 99.9, "fO" => 1, "fF" => 40, "vO" => 1, "vF" => 2, "vU" => 1],
+            "2" => ["tX" => 29.0, "uN" => 92.0, "uX" => 94.0, "fO" => 2, "fF" => 25, "vO" => 1, "vF" => 2, "vU" => 1],
+            "3" => ["tX" => 28.0, "uN" => 97.0, "uX" => 99.9, "fO" => 1, "fF" => 40, "vO" => 1, "vF" => 2, "vU" => 1]
         ]);
         $t = time();
         $conn->query("INSERT INTO config_sistema (chave, valor, atualizado_em) VALUES ('clima', '$padrao', $t)");
