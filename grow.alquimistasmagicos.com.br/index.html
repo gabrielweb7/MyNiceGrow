@@ -1057,12 +1057,33 @@
                 status = "☀️ Injeção de Ar Quente"; desc = "A estufa esfriou demais. Sugando ar mais quente da sala para equilibrar."; cor = "text-amber-400";
             } else if (rExaust === 1 && rVento === 1 && !quente && !frio) {
                 status = "💨 Troca de Ar (FAE)"; desc = "Expulsando o gás carbônico (CO2) pesado e trazendo oxigênio fresco."; cor = "text-teal-400";
+            } else if (rVento === 1 && rExaust === 0) {
+                if (rUmid === 1) {
+                    status = "🌀 Brisa com Névoa em Execução";
+                    desc = "Ventilador interno girando e injetando névoa fresca viva para oxigenar e hidratar os cogumelos.";
+                    cor = "text-cyan-300";
+                } else {
+                    status = "🌀 Brisa Preventiva em Execução";
+                    desc = "Ventilador interno circulando o ar para quebrar bolsões de CO2 acumulados no fundo.";
+                    cor = "text-indigo-400";
+                }
             } else if (rUmid === 1 && rExaust === 0) {
                 status = "💦 Umidificando"; desc = "A umidade caiu abaixo do nível seguro. Corrigindo o clima."; cor = "text-blue-300";
-            } else if (rVento === 1 && rExaust === 0 && rUmid === 0) {
-                status = "🌀 Brisa Preventiva"; desc = "Girando o ar internamente para evitar mofo, teia de aranha ou bolsões de CO2 parado."; cor = "text-indigo-400";
             } else if (quente && !arFrio && rUmid === 0 && rExaust === 0) {
                  status = "⚠️ Calor Intratável"; desc = "Está quente, mas a sala também está. Evaporação bloqueada para não molhar os cogumelos em excesso."; cor = "text-orange-400";
+            }
+
+            // Indicador dinâmico no card de Brisa Interna
+            const cardVento = document.getElementById('infoFaseVento');
+            if (cardVento) {
+                const cicloPadrao = cardVento.getAttribute('data-ciclo') || cardVento.textContent;
+                if (!cardVento.getAttribute('data-ciclo')) cardVento.setAttribute('data-ciclo', cicloPadrao);
+
+                if (rVento === 1 && rExaust === 0) {
+                    cardVento.innerHTML = `<span class="bg-emerald-500/20 text-emerald-400 text-[10px] px-1.5 py-0.5 rounded font-bold animate-pulse">● SOPRANDO AGORA</span> <span class="text-[10px] text-slate-400 block mt-0.5">${cardVento.getAttribute('data-ciclo')}</span>`;
+                } else {
+                    cardVento.textContent = cardVento.getAttribute('data-ciclo');
+                }
             }
 
             document.getElementById('iaStatus').textContent = status;
