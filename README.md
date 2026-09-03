@@ -263,6 +263,52 @@ CREATE TABLE IF NOT EXISTS `telemetria` (
 
 ---
 
+## 🤖 Manual de Bordo & Diretrizes Críticas para Futuras IAs
+
+Se você é um agente de Inteligência Artificial assumindo a manutenção deste projeto, **leia atentamente estas diretrizes antes de modificar qualquer linha de código:**
+
+### 🗂️ Mapa de Arquivos do Projeto (File Tree)
+
+```text
+├── esp32c3.ino                           # Código-fonte oficial do Firmware C++ (ESP32-C3)
+├── build/esp32.esp32.esp32c3/            # Diretório de binários compilados
+│   └── esp32c3.ino.bin                   # Binário de produção servido para atualizações OTA
+├── grow.alquimistasmagicos.com.br/       # Diretório raiz da aplicação Web (cPanel / Apache)
+│   ├── index.html                        # Dashboard SPA (TailwindCSS, Chart.js 4.4, Canvas Cósmico)
+│   ├── manifest.json                     # Manifesto PWA para instalação no celular
+│   ├── icon.png / icon-512.png           # Ícones oficiais do aplicativo PWA
+│   ├── config.php                        # Chaves de segurança e credenciais do MySQL
+│   ├── config.example.php                # Template de configuração para deploy limpo
+│   ├── database.sql                      # Script de inicialização da tabela `telemetria`
+│   └── api/                              # Endpoints REST em PHP 8.x
+│       ├── index.php                     # Telemetria (POST ESP32 / GET Dashboard) & Limpeza
+│       ├── comando.php                   # Fila de comandos pendentes (Fases, Luz, Reset Água)
+│       ├── fw.php                        # Sincronização de versões de firmware e hash do Git
+│       └── comando_pendente.json         # Fila volátil de comandos entregues à placa
+└── README.md                             # Documentação mestra e Single Source of Truth
+```
+
+### 🛑 Regras de Ouro Invioláveis (Golden Rules)
+
+1. **Segurança Biológica do Cultivo:**
+   * **NUNCA remova a Proteção Anti-Queima da Bomba** (`rUmid = 2`). Se o umidificador passar 15 min ligado sem subir umidade, o desarme é mandatório para não queimar o piezoelétrico.
+   * **NUNCA remova o Corte Térmico da Luz aos 34°C**.
+   * Ao modificar o ciclo de brisa, preserve a injeção simultânea de névoa viva (`pf.ventoComUmid`), pois vento seco resseca os primórdios e aborta o cultivo.
+
+2. **Compatibilidade da API REST:**
+   * Se alterar qualquer chave no payload JSON em `esp32c3.ino` (ex: `tI`, `uI`, `rLuz`), lembre-se que `api/index.php` e `index.html` dependem exatamente destes nomes. Altere nas 3 camadas de forma síncrona.
+
+3. **Memória do ESP32 (Heap Safety):**
+   * O ESP32-C3 possui cerca de 320 KB de RAM. Nunca concatene `Strings` dinâmicas gigantes em loop. Sempre use o envio em blocos/lotes de até 50 registros no datalogger offline.
+
+4. **Versionamento e Rastreabilidade Obrigatória:**
+   * A cada modificação entregue, atualize:
+     1. O rodapé em `index.html` (tanto no HTML quanto no JS `txtGitHash`).
+     2. O badge e o histórico no `README.md`.
+     3. Crie e envie a tag Git correspondente (`git tag -a v1.0.x`).
+
+---
+
 ## 🧙‍♂️ Créditos & Licença
 
 Desenvolvido com carinho para o **Grow do Txai** por **Alquimistas Mágicos**.
