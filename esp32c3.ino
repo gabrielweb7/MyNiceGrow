@@ -460,7 +460,7 @@ void enviarNuvem(unsigned long agora) {
 //  MÓDULOS LOCAIS
 // ============================================================
 void atualizarMinMax() {
-  struct tm ti; if (!getLocalTime(&ti)) return;
+  struct tm ti; if (!getLocalTime(&ti, 0)) return;
   if (ultimoDia != -1 && ultimoDia != ti.tm_mday) {
     tempIntMin = tempInt; tempIntMax = tempInt; humIntMin = humInt; humIntMax = humInt;
   }
@@ -822,12 +822,23 @@ void loop() {
     static int shtFalhasFisicas = 0;
     if (shtFisicoOk) {
       shtFalhasFisicas = 0;
-      sensorIntOk = true;
+      if (!sensorIntOk) {
+        sensorIntOk = true;
+        Serial.println("[RECUPERACAO] SHT30 voltou a responder!");
+      }
       atualizarFiltroInt(tI, hI);
       atualizarMinMax();
     } else {
       shtFalhasFisicas++;
-      if (shtFalhasFisicas >= 6) sensorIntOk = false; // 12s de falha contínua
+      if (shtFalhasFisicas >= 6) { // 12s de falha contínua
+        sensorIntOk = false;
+        // Tentativa de recuperação do I2C (comum travar durante quedas/picos de Wi-Fi)
+        if (shtFalhasFisicas % 6 == 0) {
+          Serial.println("[RECUPERACAO] Reiniciando barramento I2C do SHT30...");
+          Wire.begin(PIN_SDA, PIN_SCL);
+          sht30.begin(0x44);
+        }
+      }
     }
 
     // Leitura e Filtro Resiliente para DHT11 (Sensor de Sala/Ambiente)
@@ -855,7 +866,7 @@ void loop() {
       }
     }
 
-    struct tm ti; horaValida = getLocalTime(&ti); horaAtual = horaValida ? ti.tm_hour : -1;
+    struct tm ti; horaValida = getLocalTime(&ti, 0); horaAtual = horaValida ? ti.tm_hour : -1;
     if (horaValida && inicioFaseTempo == 0 && faseAtual != FASE_STANDBY) {
       time_t stamp; time(&stamp);
       if (stamp > 1600000000) { inicioFaseTempo = stamp; prefs.putUInt("inicio", (uint32_t)inicioFaseTempo); }
@@ -870,14 +881,23 @@ void loop() {
       aplicarSeguranca(); 
     } else {
       // FALHA CRÍTICA DO SENSOR SHT30:
-      // Se queimar ou desconectar, não sabemos a umidade nem temperatura.
-      // O código antigo "congelaria" os relés no último estado (ex: umidificador ligado pra sempre).
-      // Agora forçamos o desligamento seguro.
-      releUmidific = false;
-      releExaustExt = false;
-      releVentoInt = true; // Mantém ventilação interna para evitar mofo
+      releUmidific = false; // Não injeta água as cegas
+      releVentoInt = true;  // Mantém ventilação interna sempre
       
-      // A luz pode continuar rodando independentemente do clima, guiada pelo relógio
+      // Em modo cego, executa o FAE (Renovação de ar) baseado no tempo para os cogumelos não sufocarem
+      if (faseAtual != FASE_STANDBY && faseAtual != FASE_SECAGEM) {
+          PerfilClimatico pf = obterPerfil(faseAtual);
+          if (pf.faeOnMs > 0 && pf.faeOffMs > 0) {
+              unsigned long cicloFAE = pf.faeOnMs + pf.faeOffMs;
+              releExaustExt = ((agora % cicloFAE) < pf.faeOnMs);
+          } else {
+              releExaustExt = false;
+          }
+      } else {
+          releExaustExt = (faseAtual == FASE_SECAGEM);
+      }
+      
+      // Luz continua rodando independentemente do clima
       if (modoLuz == LUZ_AUTO) {
         if (horaValida) releLuz = (horaAtual >= LUZ_HORA_LIGA || horaAtual < LUZ_HORA_DESLIGA);
         else releLuz = ((agora % 86400000UL) < 43200000UL); // Fallback 12/12
