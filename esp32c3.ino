@@ -126,6 +126,8 @@ bool releLuz = false, releUmidific = false, releVentoInt = false, releExaustExt 
 bool lastReleLuz = false, lastReleUmidific = false, lastReleVento = false, lastReleExaust = false;
 
 unsigned long ultimaLeitura = 0, ultimoCicloFAE = 0, inicioUmidificacao = 0, ultimoEnvioNuvem = 0;
+#define PIN_BOOT 9 // Botão BOOT da placa ESP32-C3
+
 unsigned long ultimoLogSerial = 0;
 bool faeLigado = false, alertaFaltaAgua = false;
 
@@ -135,7 +137,22 @@ uint32_t fwAtual = 0;
 uint32_t tempoUmidAcumuladoMs = 0;
 unsigned long ultimoSaveUmidAcum = 0;
 
-// --- Proteção Anti-Fricção de Relés (Minimo Dwell Time) ---
+// Cão de Guarda (Watchdog por FreeRTOS - 100% seguro contra falhas de bibliotecas)
+TaskHandle_t wdtTask;
+volatile unsigned long ultimoSuspiro = 0;
+void watchdogTask(void *pvParameters) {
+  for(;;) {
+    if (millis() - ultimoSuspiro > 25000) { // Se o loop ficar 25 segundos congelado
+      Serial.println("?? [WATCHDOG] O Sistema travou completamente! Forcando reinicio de seguranca...");
+      ESP.restart();
+    }
+    vTaskDelay(2000 / portTICK_PERIOD_MS);
+  }
+}
+
+// ---------------------------------------------------------
+// DECLARACAO DAS ESTRUTURAS
+// ---------------------------------------------------------
 const unsigned long MIN_DWELL_RELE_MS = 15000; // Minimo 15s entre ligar/desligar
 unsigned long lastSwitchLuz = 0, lastSwitchUmid = 0, lastSwitchVento = 0, lastSwitchExaust = 0;
 
@@ -785,6 +802,11 @@ void setup() {
   ArduinoOTA.setHostname("grow"); ArduinoOTA.begin();
   
   server.on("/", webRoot); server.on("/api/cmd", webApiCmd); server.begin();
+
+  // Inicializa proteção por hardware (Cão de Guarda e Botão Físico)
+  pinMode(PIN_BOOT, INPUT_PULLUP);
+  ultimoSuspiro = millis();
+  xTaskCreate(watchdogTask, "WDT", 2048, NULL, 1, &wdtTask);
 }
 
 // ============================================================
@@ -792,6 +814,24 @@ void setup() {
 // ============================================================
 void loop() {
   unsigned long agora = millis();
+  ultimoSuspiro = agora; // Alimenta o cão de guarda
+  
+  // Botão de Factory Reset (Segurar por 5 segundos limpa a memória inteira)
+  static unsigned long tempoBotaoPressionado = 0;
+  if (digitalRead(PIN_BOOT) == LOW) {
+    if (tempoBotaoPressionado == 0) tempoBotaoPressionado = agora;
+    else if (agora - tempoBotaoPressionado > 5000) {
+      Serial.println("[RESET] Botao BOOT segurado por 5s! Formatando sistema...");
+      rgbLedWrite(RGB_BUILTIN, 255, 0, 0); delay(1000); // Vermelho forte
+      wm.resetSettings(); // Limpa as senhas de Wi-Fi
+      prefs.begin("grow", false); prefs.clear(); prefs.end();
+      prefs.begin("grow_perfis", false); prefs.clear(); prefs.end();
+      LittleFS.format(); // Formata memoria de logs
+      ESP.restart(); // Reinicia novinho em folha
+    }
+  } else {
+    tempoBotaoPressionado = 0;
+  }
   
   // Anti-Brick: Se após 5 minutos do boot de teste não validar a conexão, reverte
   if (agora > 300000UL) {
