@@ -685,27 +685,17 @@ void executarMotor(unsigned long agora) {
     unsigned long decorrido = (agora - inicioUmidificacao) + tempoUmidAcumuladoMs;
     
     if (decorrido >= TIMEOUT_UMID_MS) {
-      if (humInt > 90.0) {
-        // FALSO POSITIVO: Se a umidade está acima de 90%, é óbvio que tem água no tanque.
-        // O motor só não alcançou a meta (ex: 99.9%) por limitação física do sensor (que as vezes trava em 99.7%).
-        // Apenas resetamos o cronômetro de segurança e deixamos a vida seguir.
-        tempoUmidAcumuladoMs = 0;
-        inicioUmidificacao = agora;
-        prefs.begin("grow", false);
-        prefs.putUInt("umid_acum", 0);
-        prefs.end();
-      } else {
-        // REALMENTE SEM ÁGUA
-        alertaFaltaAgua = true; 
-        releUmidific = false;
-        tempoUmidAcumuladoMs = 0;
-        inicioUmidificacao = 0;
-        prefs.begin("grow", false);
-        prefs.putBool("sem_agua", true);
-        prefs.putUInt("umid_acum", 0);
-        prefs.end();
-        Serial.println("🚨 SEGURANCA: Falta de Agua detectada (salvo na memoria)!");
-      }
+      // Se não atingiu o alvo dentro dos 15 minutos, a mangueira obstruiu ou a água acabou.
+      // Foi removido o bypass de "Falso Positivo" a pedido do usuário, agora o alerta é estrito!
+      alertaFaltaAgua = true; 
+      releUmidific = false;
+      tempoUmidAcumuladoMs = 0;
+      inicioUmidificacao = 0;
+      prefs.begin("grow", false);
+      prefs.putBool("sem_agua", true);
+      prefs.putUInt("umid_acum", 0);
+      prefs.end();
+      Serial.println("🚨 SEGURANCA: Falta de Agua / Mangueira obstruida detectada!");
     } else if (agora - ultimoSaveUmidAcum >= 60000) { // Salva o tempo decorrido na memória a cada 1 minuto
       ultimoSaveUmidAcum = agora;
       prefs.begin("grow", false);
