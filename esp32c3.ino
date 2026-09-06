@@ -93,6 +93,7 @@ struct PerfilClimatico {
   float tempMax, umidMin, umidMax;
   unsigned long faeOnMs, faeOffMs;
   unsigned long ventoOnMs, ventoOffMs;
+  unsigned long emergOnMs, emergOffMs;
   bool ventoComUmid;
 };
 
@@ -161,11 +162,11 @@ const char* nomeModoLuz() {
   if(modoLuz==LUZ_AUTO) return "AUTO"; if(modoLuz==LUZ_FORCADA_ON) return "ON"; return "OFF";
 }
 PerfilClimatico perfis[5] = {
-  {TEMP_ALVO_MAX, 97.0, 99.9, 1UL*60000, FAE_OFF_MS, 1UL*60000, 2UL*60000, false}, // 0: Standby (padrão)
-  {28.0, 97.0, 99.9, 1UL*60000, 40UL*60000, 1UL*60000, 2UL*60000, true},          // 1: Pinagem (1m ON / 2m OFF + névoa)
-  {29.0, 92.0, 94.0, 2UL*60000, 25UL*60000, 1UL*60000, 2UL*60000, true},          // 2: Frutificacao (1m ON / 2m OFF + névoa)
-  {28.0, 97.0, 99.9, 1UL*60000, 40UL*60000, 1UL*60000, 2UL*60000, true},          // 3: Segundo Flush (1m ON / 2m OFF + névoa)
-  {TEMP_ALVO_MAX, 97.0, 99.9, 1UL*60000, FAE_OFF_MS, 1UL*60000, 2UL*60000, false}  // 4: Secagem
+  {TEMP_ALVO_MAX, 97.0, 99.9, 1UL*60000, FAE_OFF_MS, 1UL*60000, 2UL*60000, 2UL*60000, 8UL*60000, false}, // 0: Standby (padrão)
+  {28.0, 97.0, 99.9, 1UL*60000, 40UL*60000, 1UL*60000, 2UL*60000, 2UL*60000, 8UL*60000, true},          // 1: Pinagem (1m ON / 2m OFF + névoa)
+  {29.0, 92.0, 94.0, 2UL*60000, 25UL*60000, 1UL*60000, 2UL*60000, 2UL*60000, 8UL*60000, true},          // 2: Frutificacao (1m ON / 2m OFF + névoa)
+  {28.0, 97.0, 99.9, 1UL*60000, 40UL*60000, 1UL*60000, 2UL*60000, 2UL*60000, 8UL*60000, true},          // 3: Segundo Flush (1m ON / 2m OFF + névoa)
+  {TEMP_ALVO_MAX, 97.0, 99.9, 1UL*60000, FAE_OFF_MS, 1UL*60000, 2UL*60000, 2UL*60000, 8UL*60000, false}  // 4: Secagem
 };
 
 void salvarPerfisNVS() {
@@ -371,8 +372,12 @@ void enviarNuvem(unsigned long agora) {
                      perfis[i].faeOffMs = cfg[key]["fF"].as<unsigned long>() * 60000UL;
                      unsigned long vO = cfg[key].containsKey("vO") ? cfg[key]["vO"].as<unsigned long>() : 1;
                      unsigned long vF = cfg[key].containsKey("vF") ? cfg[key]["vF"].as<unsigned long>() : 2;
+                     unsigned long eO = cfg[key].containsKey("eO") ? cfg[key]["eO"].as<unsigned long>() : 2;
+                     unsigned long eF = cfg[key].containsKey("eF") ? cfg[key]["eF"].as<unsigned long>() : 8;
                      perfis[i].ventoOnMs = vO * 60000UL;
                      perfis[i].ventoOffMs = vF * 60000UL;
+                     perfis[i].emergOnMs = eO * 60000UL;
+                     perfis[i].emergOffMs = eF * 60000UL;
                      perfis[i].ventoComUmid = cfg[key].containsKey("vU") ? (cfg[key]["vU"].as<int>() == 1) : true;
                      configAlterada = true;
                   }
@@ -568,9 +573,13 @@ void executarMotor(unsigned long agora) {
   releExaustExt = false; releVentoInt = false;
 
   if (quente) {
-    // Nova Lógica (Troca de Ar Emergencial): 2 min LIGADO a cada 10 min
+    // Nova Lógica (Troca de Ar Emergencial): Usando tempos configurados pelo usuário
     // Evita ligar o exaustor de forma "infinita" e perder toda a umidade da estufa.
-    bool trocaEmergencial = ((agora % 600000) < 120000); 
+    bool trocaEmergencial = false;
+    unsigned long cicloEmerg = pf.emergOnMs + pf.emergOffMs;
+    if (cicloEmerg > 0) {
+      trocaEmergencial = ((agora % cicloEmerg) < pf.emergOnMs);
+    }
 
     if (trocaEmergencial) {
       releExaustExt = true;

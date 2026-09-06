@@ -306,7 +306,7 @@
         <!-- FOOTER -->
         <footer class="text-center text-[10px] text-slate-500 py-4 space-y-1">
             <div>Grow do Txai — IoT Cloud System — Dados atualizados a cada 60 segundos</div>
-            <div id="txtGitHash" class="text-emerald-400 font-bold tracking-widest text-xs drop-shadow-[0_0_8px_rgba(52,211,153,0.7)]">Versão: 1.0.2</div>
+            <div id="txtGitHash" class="text-emerald-400 font-bold tracking-widest text-xs drop-shadow-[0_0_8px_rgba(52,211,153,0.7)]">Versão: 1.0.3</div>
         </footer>
     </main>
 
@@ -371,6 +371,16 @@
                     <div>
                         <label class="text-[10px] text-slate-500 block mb-1">Exaustor DESLIG. (min)</label>
                         <input type="number" id="cfgFf" class="w-full bg-slate-800 text-slate-200 text-xs border border-slate-700 rounded p-2 text-center outline-none">
+                    </div>
+                </div>
+                <div class="grid grid-cols-2 gap-2 mb-3">
+                    <div>
+                        <label class="text-[10px] text-orange-400 block mb-1 font-bold">Exaust. EMERGÊNCIA LIGADO (min)</label>
+                        <input type="number" id="cfgEo" class="w-full bg-slate-800 text-slate-200 text-xs border border-orange-700/50 rounded p-2 text-center outline-none">
+                    </div>
+                    <div>
+                        <label class="text-[10px] text-orange-400 block mb-1 font-bold">Exaust. EMERGÊNCIA DESLIG. (min)</label>
+                        <input type="number" id="cfgEf" class="w-full bg-slate-800 text-slate-200 text-xs border border-orange-700/50 rounded p-2 text-center outline-none">
                     </div>
                 </div>
                 <div class="grid grid-cols-2 gap-2 mb-3">
@@ -770,6 +780,8 @@
                 document.getElementById('cfgUx').value = cfg.uX;
                 document.getElementById('cfgFo').value = cfg.fO;
                 document.getElementById('cfgFf').value = cfg.fF;
+                document.getElementById('cfgEo').value = cfg.eO !== undefined ? cfg.eO : 2;
+                document.getElementById('cfgEf').value = cfg.eF !== undefined ? cfg.eF : 8;
                 document.getElementById('cfgVo').value = cfg.vO !== undefined ? cfg.vO : 1;
                 document.getElementById('cfgVf').value = cfg.vF !== undefined ? cfg.vF : 2;
                 document.getElementById('cfgVu').checked = cfg.vU !== undefined ? (cfg.vU == 1) : true;
@@ -784,6 +796,8 @@
             configClima[f].uX = parseFloatSafe(document.getElementById('cfgUx').value);
             configClima[f].fO = parseInt(document.getElementById('cfgFo').value) || 0;
             configClima[f].fF = parseInt(document.getElementById('cfgFf').value) || 0;
+            configClima[f].eO = parseInt(document.getElementById('cfgEo').value) || 2;
+            configClima[f].eF = parseInt(document.getElementById('cfgEf').value) || 8;
             configClima[f].vO = parseInt(document.getElementById('cfgVo').value) || 0;
             configClima[f].vF = parseInt(document.getElementById('cfgVf').value) || 0;
             configClima[f].vU = document.getElementById('cfgVu').checked ? 1 : 0;
@@ -1127,7 +1141,7 @@
                     window.fwNuvem = fwData.nuvem || '0';
                     window.fwError = fwData.error || '0';
                     if (fwData.gitHash) {
-                        document.getElementById('txtGitHash').textContent = `Versão: 1.0.2`;
+                        document.getElementById('txtGitHash').textContent = `Versão: 1.0.3`;
                     }
                 }
 
