@@ -195,7 +195,12 @@ void salvarPerfisNVS() {
 void carregarPerfisNVS() {
   prefs.begin("grow_perfis", true);
   if (prefs.isKey("cfg")) {
-    prefs.getBytes("cfg", &perfis, sizeof(perfis));
+    size_t len = prefs.getBytesLength("cfg");
+    if (len == sizeof(perfis)) {
+      prefs.getBytes("cfg", &perfis, sizeof(perfis));
+    } else {
+      Serial.println("[AVISO] Tamanho da estrutura de clima mudou na atualizacao do firmware. O NVS antigo foi ignorado para evitar bugs bizarrros.");
+    }
   }
   prefs.end();
 }
