@@ -813,6 +813,14 @@ void loop() {
 
   wm.process(); server.handleClient(); ArduinoOTA.handle();
 
+  // Auto-Reconnect Passivo: Se ligou sem Wi-Fi (roteador desligado), tenta reconectar sozinho a cada 2 minutos
+  static unsigned long ultimaTentativaWifi = 0;
+  if (WiFi.status() != WL_CONNECTED && agora > 60000 && (agora - ultimaTentativaWifi > 120000)) {
+    ultimaTentativaWifi = agora;
+    Serial.println("[WIFI] Roteador ausente no boot. Tentando reconexão em background...");
+    WiFi.reconnect();
+  }
+
   if (agora - ultimaLeitura >= 2000) {
     ultimaLeitura = agora;
     float tI = sht30.readTemperature(), hI = sht30.readHumidity();
