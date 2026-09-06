@@ -563,25 +563,31 @@ void executarMotor(unsigned long agora) {
 
   // --- CONTROLE TÉRMICO E FAE ---
   bool quente = (tempInt >= pf.tempMax);
-  bool arFrio = false, defesaEvap = false;
-  if (sensorExtOk) { // Só confia na temperatura da rua se o DHT estiver funcionando!
-    arFrio = (tempExt < tempInt);
-  }
+  bool defesaEvap = false;
+  
   releExaustExt = false; releVentoInt = false;
 
   if (quente) {
-    if (arFrio) { 
-      releExaustExt = true; 
+    // Nova Lógica (Troca de Ar Emergencial): 2 min LIGADO a cada 10 min
+    // Evita ligar o exaustor de forma "infinita" e perder toda a umidade da estufa.
+    bool trocaEmergencial = ((agora % 600000) < 120000); 
+
+    if (trocaEmergencial) {
+      releExaustExt = true;
+      releVentoInt = true;
+      // Repõe umidade rapidamente para criar névoa fria junto com a exaustão
+      if (humInt < pf.umidMax && !alertaFaltaAgua) {
+         defesaEvap = true;
+      }
+    } else {
+      releExaustExt = false;
+      // Nos 8 minutos de pausa, liga apenas a brisa interna 
+      // para resfriar os bolos suavemente por contato.
       releVentoInt = true; 
-    } else { 
-      releExaustExt = false; 
-      releVentoInt = true; // Mantém o vento interno sempre ligado para resfriar os bolos
       
-      // Para não encharcar (já que a evaporação tem limite físico e não vai baixar muito mais a temp),
-      // criamos um ciclo: umidifica por 5 minutos, descansa 5 minutos.
+      // Ciclo de descanso de evaporação (5 min ON / 5 min OFF)
       bool cicloDescanso = ((agora / 60000) % 10) >= 5; 
-      
-      if (humInt < 98 && !alertaFaltaAgua && !cicloDescanso) { 
+      if (humInt < 98.0 && !alertaFaltaAgua && !cicloDescanso) { 
         defesaEvap = true; 
       } 
     }
