@@ -1,6 +1,6 @@
 # 🍄 Grow do Txai — Sistema Inteligente de Automação IoT (v1.0 Oficial / Estável)
 
-[![Release v1.0.4](https://img.shields.io/badge/Release-v1.0.4%20Oficial%20%2F%20Est%C3%A1vel-gold?style=for-the-badge&logo=target)](https://github.com/)
+[![Release v1.0.5](https://img.shields.io/badge/Release-v1.0.5%20Oficial%20%2F%20Est%C3%A1vel-gold?style=for-the-badge&logo=target)](https://github.com/)
 [![ESP32-C3](https://img.shields.io/badge/Hardware-ESP32--C3%20SuperMini-brightgreen?style=for-the-badge&logo=espressif)](https://www.espressif.com/)
 [![Arduino / C++](https://img.shields.io/badge/Firmware-Arduino%20%2F%20C%2B%2B-blue?style=for-the-badge&logo=arduino)](https://www.arduino.cc/)
 [![PHP 8.x](https://img.shields.io/badge/Backend-PHP%208.x%20%2F%20REST-purple?style=for-the-badge&logo=php)](https://www.php.net/)

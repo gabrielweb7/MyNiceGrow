@@ -943,12 +943,29 @@ void loop() {
 
 
 
-  // Dashboard LED RGB
-  if (alertaFaltaAgua) rgbLedWrite(RGB_BUILTIN, (agora%200<100)?LED_BRILHO:0,0,0);
-  else if (statusSis==SIS_ERRO_SENSOR) rgbLedWrite(RGB_BUILTIN, (agora%1000<500)?LED_BRILHO:0,0,0);
-  else if (statusSis==SIS_SEM_WIFI) rgbLedWrite(RGB_BUILTIN, (agora%1000<500)?LED_BRILHO:0,0,(agora%1000<500)?LED_BRILHO:0);
-  else if (faseAtual==FASE_STANDBY) rgbLedWrite(RGB_BUILTIN, (agora%3000<100)?LED_BRILHO:0,(agora%3000<100)?LED_BRILHO:0,(agora%3000<100)?LED_BRILHO:0);
-  else if (releUmidific) rgbLedWrite(RGB_BUILTIN, 0,(agora%1000<50)?LED_BRILHO:0,(agora%1000<50)?LED_BRILHO:0);
-  else if (releExaustExt) rgbLedWrite(RGB_BUILTIN, (agora%1000<50)?LED_BRILHO:0,(agora%1000<50)?LED_BRILHO:0,0);
-  else rgbLedWrite(RGB_BUILTIN, 0,(agora%2000<50)?LED_BRILHO:0,0);
+  // Dashboard Visual LED RGB (Feedback de Status)
+  if (alertaFaltaAgua) {
+    rgbLedWrite(RGB_BUILTIN, (agora%250<125)?LED_BRILHO:0, 0, 0); // VERMELHO PISCANDO RÁPIDO (Emergência Água)
+  }
+  else if (statusSis == SIS_ERRO_SENSOR) {
+    rgbLedWrite(RGB_BUILTIN, LED_BRILHO, 0, 0); // VERMELHO FIXO (Sensor SHT30 Morto/Desconectado)
+  }
+  else if (statusSis == SIS_SEM_WIFI) {
+    rgbLedWrite(RGB_BUILTIN, (agora%1000<500)?LED_BRILHO:0, 0, (agora%1000<500)?LED_BRILHO:0); // MAGENTA/ROXO PISCANDO (Modo Offline/Sem Wi-Fi)
+  }
+  else if (faseAtual == FASE_STANDBY) {
+    rgbLedWrite(RGB_BUILTIN, (agora%4000<2000)?LED_BRILHO/2:0, (agora%4000<2000)?LED_BRILHO/2:0, (agora%4000<2000)?LED_BRILHO/2:0); // BRANCO SUAVE (Standby)
+  }
+  else if (releUmidific) {
+    rgbLedWrite(RGB_BUILTIN, 0, 0, LED_BRILHO); // AZUL FIXO (Injetando Névoa)
+  }
+  else if (releExaustExt) {
+    rgbLedWrite(RGB_BUILTIN, LED_BRILHO, LED_BRILHO/2, 0); // LARANJA FIXO (Trocando Ar / Exaustão)
+  }
+  else if (releVentoInt) {
+    rgbLedWrite(RGB_BUILTIN, 0, LED_BRILHO, LED_BRILHO); // CIANO FIXO (Apenas Brisa Interna)
+  }
+  else {
+    rgbLedWrite(RGB_BUILTIN, 0, (agora%2000<100)?LED_BRILHO:0, 0); // VERDE PISCANDO LENTO (Sistema Saudável e Idle)
+  }
 }
