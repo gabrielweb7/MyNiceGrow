@@ -267,6 +267,36 @@ CREATE TABLE IF NOT EXISTS `telemetria` (
 
 Se você é um agente de Inteligência Artificial assumindo a manutenção deste projeto, **leia atentamente estas diretrizes antes de modificar qualquer linha de código:**
 
+### 🧠 Regras de Ouro Invioláveis (Golden Rules & Contexto Arquitetural)
+
+1. **Mapeamento de Pastas (cPanel vs GitHub):**
+   * **CUIDADO:** O servidor web no cPanel aponta para a raiz deste repositório Git, e não para a pasta interna `grow.alquimistasmagicos.com.br`. Portanto, a URL pública final para arquivos web requer que a pasta seja duplicada no caminho absoluto (ex: `https://grow.alquimistasmagicos.com.br/grow.alquimistasmagicos.com.br/thumb.png`). Ao adicionar metatags de Open Graph ou caminhos absolutos, sempre lembre deste mapeamento.
+
+2. **Janela Deslizante de 24h (Rolling Window):**
+   * O gráfico do dashboard não usa "dias de calendário" (00:00 às 23:59). Ele usa uma janela móvel estrita das últimas 24 horas a partir do momento atual (`ORDER BY id DESC LIMIT 1440`). Não mude isso. É intencional para garantir que o cultivador nunca veja um gráfico vazio ao acessar de madrugada.
+
+3. **Fallback da Luz (Modo Offline/Boot):**
+   * Se a placa reiniciar e não conseguir a hora do NTP imediatamente, a luz deve inicializar no modo **DESLIGADO** (`(agora % 86400000UL) >= 43200000UL`). Nunca reverta para iniciar ligada, pois reboots esporádicos do Watchdog dariam "choques de luz" nos cogumelos quebrando o fotoperíodo.
+
+4. **Single-Thread e Cão de Guarda (Watchdog):**
+   * O firmware C++ atual roda em uma única thread (fila indiana). Envios HTTP bloqueiam o `loop()`. Para evitar congelamentos crônicos caso o servidor engasgue, um FreeRTOS Watchdog reseta a placa após 25s de bloqueio. Esse é um comportamento de segurança esperado (Tanque de Guerra). 
+   * **Visão de Futuro (v2.0):** Se for refatorar para resolver isso, não remova o Watchdog; em vez disso, implemente **FreeRTOS Multi-Tasking**, isolando a função `enviarNuvem()` em uma Task separada da Task de controle climático.
+
+5. **Segurança Biológica do Cultivo:**
+   * **NUNCA remova a Proteção Anti-Queima da Bomba** (`rUmid = 2`). Se o umidificador passar 15 min ligado sem subir umidade, o desarme é mandatário para não queimar o piezoelétrico. O bypass de "Falso Positivo" de 90% foi **removido a pedido do usuário** — a regra agora é estrita.
+   * **NUNCA remova o Corte Térmico da Luz aos 34°C**.
+   * Ao modificar o ciclo de brisa, preserve a injeção simultânea de névoa viva (`pf.ventoComUmid`), pois vento seco resseca os primórdios e aborta o cultivo.
+
+6. **Compatibilidade da API REST e Tamanho de Memória:**
+   * Se alterar qualquer chave no payload JSON em `esp32c3.ino`, lembre-se que `api/index.php` e `index.html` dependem exatamente destes nomes. Altere nas 3 camadas de forma síncrona.
+   * O ESP32-C3 possui cerca de 320 KB de RAM. Nunca concatene `Strings` dinâmicas gigantes em loop. Use datalogging offline em blocos limitados a 50 registros.
+
+7. **Versionamento e Rastreabilidade Obrigatória:**
+   * A cada modificação entregue, atualize:
+     1. O rodapé em `index.html`.
+     2. O badge e o histórico no `README.md`.
+     3. Crie e envie a tag Git correspondente (`git tag -a v1.0.x`).
+
 ### 🗂️ Mapa de Arquivos do Projeto (File Tree)
 
 ```text
@@ -288,7 +318,6 @@ Se você é um agente de Inteligência Artificial assumindo a manutenção deste
 └── README.md                             # Documentação mestra e Single Source of Truth
 ```
 
-### 🛑 Regras de Ouro Invioláveis (Golden Rules)
 
 1. **Segurança Biológica do Cultivo:**
    * **NUNCA remova a Proteção Anti-Queima da Bomba** (`rUmid = 2`). Se o umidificador passar 15 min ligado sem subir umidade, o desarme é mandatório para não queimar o piezoelétrico.
