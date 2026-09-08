@@ -710,9 +710,9 @@ void executarMotor(unsigned long agora) {
     if (horaValida) {
       releLuz = (horaAtual >= LUZ_HORA_LIGA || horaAtual < LUZ_HORA_DESLIGA);
     } else {
-      // MODO FALLBACK SEM INTERNET: Ciclo relativo 12h ON / 12h OFF a partir do boot
-      // 86.400.000 ms = 24h. Primeiras 12h (43.200.000 ms) ON, próximas 12h OFF.
-      releLuz = ((agora % 86400000UL) < 43200000UL);
+      // MODO FALLBACK SEM INTERNET: Ciclo relativo 12h OFF / 12h ON a partir do boot
+      // Como a placa acabou de ligar e nao sabe a hora, inicia desligada
+      releLuz = ((agora % 86400000UL) >= 43200000UL);
     }
     // LOGICA DE FRIO REMOVIDA AQUI: A luz nao liga para aquecer, preservando o fotoperiodo (12/12).
     // Um rele de aquecedor sera adicionado em atualizacoes futuras caso o clima exija.
@@ -943,7 +943,7 @@ void loop() {
       // Luz continua rodando independentemente do clima
       if (modoLuz == LUZ_AUTO) {
         if (horaValida) releLuz = (horaAtual >= LUZ_HORA_LIGA || horaAtual < LUZ_HORA_DESLIGA);
-        else releLuz = ((agora % 86400000UL) < 43200000UL); // Fallback 12/12
+        else releLuz = ((agora % 86400000UL) >= 43200000UL); // Fallback offline
       }
     }
     
