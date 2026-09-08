@@ -3,7 +3,14 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>🍄 Grow do Txai — Painel de Controle</title>
+    <title>🍄 Grow do Txai - Painel de Controle</title>
+    <!-- Meta Tags Sociais / Open Graph -->
+    <meta property="og:title" content="🍄 Grow do Txai - Automação Micológica">
+    <meta property="og:description" content="Painel de controle IoT em tempo real. Monitore o clima, temperatura e umidade da estufa de cultivo.">
+    <meta property="og:image" content="https://grow.alquimistasmagicos.com.br/icon.png">
+    <meta property="og:url" content="https://grow.alquimistasmagicos.com.br/">
+    <meta property="og:type" content="website">
+    <meta name="description" content="Painel de controle IoT em tempo real para estufa de cultivo micológico.">
     <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🍄</text></svg>">
     <link rel="manifest" href="manifest.json">
     <meta name="apple-mobile-web-app-capable" content="yes">
@@ -306,7 +313,7 @@
         <!-- FOOTER -->
         <footer class="text-center text-[10px] text-slate-500 py-4 space-y-1">
             <div>Grow do Txai — IoT Cloud System — Dados atualizados a cada 60 segundos</div>
-            <div id="txtGitHash" class="text-emerald-400 font-bold tracking-widest text-xs drop-shadow-[0_0_8px_rgba(52,211,153,0.7)]">Versão: 1.1.0</div>
+            <div id="txtGitHash" class="text-emerald-400 font-bold tracking-widest text-xs drop-shadow-[0_0_8px_rgba(52,211,153,0.7)]">Versão: 1.1.1</div>
         </footer>
     </main>
 
@@ -1141,7 +1148,7 @@
                     window.fwNuvem = fwData.nuvem || '0';
                     window.fwError = fwData.error || '0';
                     if (fwData.gitHash) {
-                        document.getElementById('txtGitHash').textContent = `Versão: 1.1.0`;
+                        document.getElementById('txtGitHash').textContent = `Versão: 1.1.1`;
                     }
                 }
 
