@@ -909,7 +909,11 @@ void loop() {
       }
     }
 
-    struct tm ti; horaValida = getLocalTime(&ti, 0); horaAtual = horaValida ? ti.tm_hour : -1;
+    struct tm ti; 
+    if (getLocalTime(&ti, 0)) {
+      horaValida = true; 
+      horaAtual = ti.tm_hour; 
+    }
     if (horaValida && inicioFaseTempo == 0 && faseAtual != FASE_STANDBY) {
       time_t stamp; time(&stamp);
       if (stamp > 1600000000) { inicioFaseTempo = stamp; prefs.putUInt("inicio", (uint32_t)inicioFaseTempo); }
