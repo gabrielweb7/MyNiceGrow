@@ -519,7 +519,9 @@ void aplicarReles() {
   bool corteLuzImediato = (tempInt >= TEMP_CORTE_LUZ || modoLuz == LUZ_FORCADA_OFF);
   bool corteUmidImediato = alertaFaltaAgua;
 
-  if (releLuz != lastReleLuz && (corteLuzImediato || agora - lastSwitchLuz >= MIN_DWELL_RELE_MS)) {
+  // Luz: Bypass do dwell time quando está DESLIGANDO (false) ou em corte de emergência
+  bool desligandoLuz = (!releLuz && lastReleLuz);
+  if (releLuz != lastReleLuz && (corteLuzImediato || desligandoLuz || agora - lastSwitchLuz >= MIN_DWELL_RELE_MS)) {
     lastReleLuz = releLuz;
     lastSwitchLuz = agora;
     digitalWrite(PIN_RELE_LUZ, releLuz ? LOW : HIGH);
@@ -593,7 +595,10 @@ void executarMotor(unsigned long agora) {
   bool quente = (tempInt >= pf.tempMax);
   bool defesaEvap = false;
   
+  // RESET EXPLICITO: Todos os reles partem de OFF e sao ligados explicitamente pela logica abaixo.
+  // Sem isso, releLuz herdava valor residual do ciclo anterior causando picos fantasma no grafico.
   releExaustExt = false; releVentoInt = false;
+  if (modoLuz == LUZ_AUTO) releLuz = false;
 
   if (quente) {
     // Nova Lógica (Troca de Ar Emergencial): Usando tempos configurados pelo usuário
