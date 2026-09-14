@@ -4,7 +4,7 @@
 //  Autor: Gabriel + Antigravity AI
 // ============================================================
 
-#define FW_VERSION 402
+#define FW_VERSION 403
 
 #include <Arduino.h>
 #include <ArduinoJson.h>
@@ -452,6 +452,10 @@ void enviarNuvem(unsigned long agora) {
             prefs.putInt("ota_boot_fails", 0);
             prefs.end();
             
+            // SUSPENDE O CAO DE GUARDA: O download OTA pode demorar minutos.
+            // Sem isso, o Watchdog reinicia a placa no meio da gravacao do firmware!
+            vTaskSuspend(wdtTask);
+            
             WiFiClientSecure otaClient; 
             otaClient.setInsecure();
             httpUpdate.rebootOnUpdate(false);
@@ -459,9 +463,12 @@ void enviarNuvem(unsigned long agora) {
             String fwUrl = "https://grow.alquimistasmagicos.com.br/build/esp32.esp32.esp32c3/esp32c3.ino.bin";
             t_httpUpdate_return ret = httpUpdate.update(otaClient, fwUrl);
             
+            // REATIVA O CAO DE GUARDA (caso o OTA falhe e a placa continue rodando)
+            ultimoSuspiro = millis();
+            vTaskResume(wdtTask);
+            
             if (ret == HTTP_UPDATE_OK) {
                Serial.println("✅ OTA CONCLUIDO! Reiniciando em modo de teste (Anti-Brick)...");
-               delay(1000);
                delay(1000);
                ESP.restart();
             } else if (ret == HTTP_UPDATE_FAILED) {
@@ -779,20 +786,24 @@ void setup() {
   
   Wire.begin(PIN_SDA, PIN_SCL);
   if (sht30.begin(0x44)) Serial.println("[OK] SHT30"); else statusSis = SIS_ERRO_SENSOR;
+  dht.begin(); Serial.println("[OK] DHT11");
   // ANTI-BRICK AVANCADO (Deteccao de Bootloop)
+  prefs.begin("grow", false);
   if (prefs.getBool("ota_test", false)) {
       int fails = prefs.getInt("ota_boot_fails", 0) + 1;
       prefs.putInt("ota_boot_fails", fails);
       if (fails > 2) {
           Serial.println("🚨 [ANTI-BRICK] Bootloop detectado! Revertendo para firmware antigo...");
-          if (Update.canRollBack()) Update.rollBack();
           prefs.putBool("ota_test", false);
           prefs.putBool("ota_falhou", true);
           prefs.putInt("ota_boot_fails", 0);
+          prefs.end();
+          if (Update.canRollBack()) Update.rollBack();
           delay(500);
           ESP.restart();
       }
   }
+  prefs.end();
 
   wm.setConfigPortalBlocking(false);
   wm.autoConnect("GROW_SETUP");
@@ -835,7 +846,9 @@ void loop() {
   }
   
   // Anti-Brick: Se após 5 minutos do boot de teste não validar a conexão, reverte
-  if (agora > 300000UL) {
+  static bool antiBrickVerificado = false;
+  if (!antiBrickVerificado && agora > 300000UL) {
+    antiBrickVerificado = true;
     prefs.begin("grow", true);
     bool emTeste = prefs.getBool("ota_test", false);
     prefs.end();
