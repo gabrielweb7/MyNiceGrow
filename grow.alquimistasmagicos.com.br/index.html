@@ -1329,10 +1329,24 @@
                     // Para bater com o ESP32, precisamos usar a hora em GMT-3!
                     let hGMT3 = (dObj.getUTCHours() - 3 + 24) % 24;
                     
-                    // Luz (baseada na hora do ESP32)
+                    // Luz (baseada na hora do ESP32 ou inferida da realidade)
                     let isLuzOn = (hGMT3 >= 20 || hGMT3 < 8);
-                    if (luzState === 1) isLuzOn = true;
-                    else if (luzState === 2) isLuzOn = false;
+                    
+                    if (luzState === 1) {
+                        isLuzOn = true;
+                    } else if (luzState === 2) {
+                        isLuzOn = false;
+                    } else {
+                        // Se não apertamos nenhum botão nesta sessão (luzState = 0), a placa pode estar com
+                        // a luz forçada via outro celular, ou com relógio dessincronizado. 
+                        // Vamos inferir a regra a partir do último estado real conhecido para não criar "buracos" na projeção.
+                        const luzReal = dLuz.length > 0 ? dLuz[dLuz.length - 1].y : null;
+                        if (luzReal !== null && !isLuzOn) {
+                            isLuzOn = true; // AUTO manda desligar, mas placa mandou ligado. Infere Forçada ON.
+                        } else if (luzReal === null && isLuzOn) {
+                            isLuzOn = false; // AUTO manda ligar, mas placa mandou desligado. Infere Forçada OFF.
+                        }
+                    }
                     
                     // FAE / Exaustor
                     let isExaustOn = false;
