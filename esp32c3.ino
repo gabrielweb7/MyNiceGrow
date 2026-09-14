@@ -482,7 +482,8 @@ void enviarNuvem(unsigned long agora) {
 //  MÓDULOS LOCAIS
 // ============================================================
 void atualizarMinMax() {
-  struct tm ti; if (!getLocalTime(&ti, 0)) return;
+  struct tm ti; 
+  if (!getLocalTime(&ti, 0) || (ti.tm_year + 1900 < 2024)) return;
   if (ultimoDia != -1 && ultimoDia != ti.tm_mday) {
     tempIntMin = tempInt; tempIntMax = tempInt; humIntMin = humInt; humIntMax = humInt;
   }
@@ -911,8 +912,12 @@ void loop() {
 
     struct tm ti; 
     if (getLocalTime(&ti, 0)) {
-      horaValida = true; 
-      horaAtual = ti.tm_hour; 
+      if (ti.tm_year + 1900 >= 2024) {
+        horaValida = true; 
+        horaAtual = ti.tm_hour; 
+      } else {
+        horaValida = false; // RTC foi resetado para 1970 devido a Brownout Reset (Kickback)!
+      }
     }
     if (horaValida && inicioFaseTempo == 0 && faseAtual != FASE_STANDBY) {
       time_t stamp; time(&stamp);
