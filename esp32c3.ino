@@ -612,8 +612,11 @@ void executarMotor(unsigned long agora) {
   if (modoLuz == LUZ_AUTO) releLuz = false;
 
   if (quente) {
-    // Nova Lógica (Troca de Ar Emergencial): Usando tempos configurados pelo usuário
-    // Evita ligar o exaustor de forma "infinita" e perder toda a umidade da estufa.
+    // PRIORIDADE MÁXIMA: EMERGÊNCIA TÉRMICA!
+    // Suspende o FAE normal e zera seu contador para evitar sobreposição de exaustão.
+    faeLigado = false;
+    ultimoCicloFAE = agora;
+
     bool trocaEmergencial = false;
     unsigned long cicloEmerg = pf.emergOnMs + pf.emergOffMs;
     if (cicloEmerg > 0) {
@@ -629,8 +632,7 @@ void executarMotor(unsigned long agora) {
       }
     } else {
       releExaustExt = false;
-      // Nos 8 minutos de pausa, liga apenas a brisa interna 
-      // para resfriar os bolos suavemente por contato.
+      // Na pausa da emergência, liga apenas a brisa interna para resfriar por contato
       releVentoInt = true; 
       
       // Ciclo de descanso de evaporação (5 min ON / 5 min OFF)
@@ -639,12 +641,12 @@ void executarMotor(unsigned long agora) {
         defesaEvap = true; 
       } 
     }
-  }
-
-  // Renovação de Ar Programada (FAE) - O exaustor agora obedece estritamente a este ciclo
-  if (faeLigado) { 
-    releExaustExt = true; 
-    releVentoInt = true; 
+  } else {
+    // Clima normal: Renovação de Ar Programada (FAE) roda exclusivamente aqui!
+    if (faeLigado) { 
+      releExaustExt = true; 
+      releVentoInt = true; 
+    }
   }
 
   // --- CIRCULACAO INTERNA DINAMICA & BRISA COM NEVOA ---
