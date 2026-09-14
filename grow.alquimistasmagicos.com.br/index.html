@@ -1015,10 +1015,10 @@
             chartReles = new Chart(document.getElementById('canvasReles').getContext('2d'), {
                 type: 'bar',
                 data: { datasets: [
-                    { label: 'Luz', data: [], backgroundColor: (ctx) => (ctx.raw && ctx.raw.ghost) ? 'rgba(255, 220, 0, 0.15)' : 'rgba(255, 220, 0, 0.9)', borderColor: '#ffdc00', borderWidth: 0, barPercentage: 1.05, categoryPercentage: 1.0, grouped: false },
-                    { label: 'Umidif.', data: [], backgroundColor: (ctx) => (ctx.raw && ctx.raw.ghost) ? 'rgba(0, 200, 255, 0.15)' : 'rgba(0, 200, 255, 0.9)', borderColor: '#00c8ff', borderWidth: 0, barPercentage: 1.05, categoryPercentage: 1.0, grouped: false },
-                    { label: 'Vento', data: [], backgroundColor: (ctx) => (ctx.raw && ctx.raw.ghost) ? 'rgba(0, 255, 170, 0.15)' : 'rgba(0, 255, 170, 0.9)', borderColor: '#00ffaa', borderWidth: 0, barPercentage: 1.05, categoryPercentage: 1.0, grouped: false },
-                    { label: 'Exaustor', data: [], backgroundColor: (ctx) => (ctx.raw && ctx.raw.ghost) ? 'rgba(255, 100, 0, 0.15)' : 'rgba(255, 100, 0, 0.9)', borderColor: '#ff6400', borderWidth: 0, barPercentage: 1.05, categoryPercentage: 1.0, grouped: false }
+                    { label: 'Luz', data: [], backgroundColor: (ctx) => (ctx.raw && ctx.raw.ghost) ? 'rgba(51, 52, 35, 1)' : 'rgba(255, 220, 0, 0.9)', borderColor: '#ffdc00', borderWidth: 0, barPercentage: 1.05, categoryPercentage: 1.0, grouped: false },
+                    { label: 'Umidif.', data: [], backgroundColor: (ctx) => (ctx.raw && ctx.raw.ghost) ? 'rgba(12, 49, 73, 1)' : 'rgba(0, 200, 255, 0.9)', borderColor: '#00c8ff', borderWidth: 0, barPercentage: 1.05, categoryPercentage: 1.0, grouped: false },
+                    { label: 'Vento', data: [], backgroundColor: (ctx) => (ctx.raw && ctx.raw.ghost) ? 'rgba(12, 57, 60, 1)' : 'rgba(0, 255, 170, 0.9)', borderColor: '#00ffaa', borderWidth: 0, barPercentage: 1.05, categoryPercentage: 1.0, grouped: false },
+                    { label: 'Exaustor', data: [], backgroundColor: (ctx) => (ctx.raw && ctx.raw.ghost) ? 'rgba(51, 34, 35, 1)' : 'rgba(255, 100, 0, 0.9)', borderColor: '#ff6400', borderWidth: 0, barPercentage: 1.05, categoryPercentage: 1.0, grouped: false }
                 ]},
                 options: relesOpts,
                 plugins: [crosshairPlugin]
@@ -1337,18 +1337,10 @@
                     }
                     if (isExaustOn) isVentoOn = true;
                     
-                    // Umidificador (Projeção visual falsa, 2 min ON a cada 15 min)
-                    let isUmidOn = false;
-                    if (cfgProj) {
-                        let offsetUmid = (t % (15 * 60000)) / 60000;
-                        if (offsetUmid < 2) isUmidOn = true;
-                    }
-                    if (isExaustOn) isUmidOn = false; // Exaustor bloqueia
-                    
                     dLuz.push({ x: t, y: isLuzOn ? [2.65, 3.35] : null, ghost: true });
                     dExaust.push({ x: t, y: isExaustOn ? [-0.35, 0.35] : null, ghost: true });
                     dVento.push({ x: t, y: isVentoOn ? [0.65, 1.35] : null, ghost: true });
-                    dUmid.push({ x: t, y: isUmidOn ? [1.65, 2.35] : null, ghost: true }); 
+                    dUmid.push({ x: t, y: null, ghost: true }); // Difícil prever a umidade exata, deixa vazio
                     
                     // Empurra nulls pros outros gráficos para sincronizar o eixo X e consertar o Pan/Zoom!
                     dTempInt.push({ x: t, y: null });
