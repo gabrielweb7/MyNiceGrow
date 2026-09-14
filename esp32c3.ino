@@ -4,7 +4,7 @@
 //  Autor: Gabriel + Antigravity AI
 // ============================================================
 
-#define FW_VERSION 403
+#define FW_VERSION 404
 
 #include <Arduino.h>
 #include <ArduinoJson.h>
@@ -322,6 +322,7 @@ void enviarNuvem(unsigned long agora) {
       WiFiClientSecure clientBulk; clientBulk.setInsecure();
       HTTPClient httpBulk;
       if (httpBulk.begin(clientBulk, CLOUD_URL)) {
+        httpBulk.setTimeout(5000); // <-- Adicionado: Timeout explícito p/ upload em lote
         httpBulk.addHeader("Content-Type", "application/json");
         httpBulk.addHeader("X-Api-Key", CLOUD_KEY);
         int code = httpBulk.POST(bulk);
@@ -429,7 +430,10 @@ void enviarNuvem(unsigned long agora) {
             if (cl == 0 && modoLuz != LUZ_AUTO) { modoLuz = LUZ_AUTO; Serial.println("📥 COMANDO NUVEM: Luz mudou para modo AUTO"); luzMudou = true; }
             else if (cl == 1 && modoLuz != LUZ_FORCADA_ON) { modoLuz = LUZ_FORCADA_ON; Serial.println("📥 COMANDO NUVEM: Luz mudou para FORCADA LIGADA"); luzMudou = true; }
             else if (cl == 2 && modoLuz != LUZ_FORCADA_OFF) { modoLuz = LUZ_FORCADA_OFF; Serial.println("📥 COMANDO NUVEM: Luz mudou para FORCADA DESLIGADA"); luzMudou = true; }
-            if (luzMudou) ultimoEnvioNuvem = 0; // Dispara atualização imediata
+            if (luzMudou) {
+               prefs.begin("grow", false); prefs.putInt("modoLuz", (int)modoLuz); prefs.end();
+               ultimoEnvioNuvem = 0; // Dispara atualização imediata
+            }
          }
          if (docRes.containsKey("comando_reset_agua")) {
             Serial.println("📥 COMANDO NUVEM: Reset de Alerta de Agua recebido!!");
@@ -747,7 +751,12 @@ void webApiCmd() {
     if(v=="0") nova=FASE_STANDBY; else if(v=="P") nova=FASE_PINANDO; else if(v=="F") nova=FASE_FRUTIFICACAO; else if(v=="S") nova=FASE_SEGUNDO_FLUSH; else if(v=="D") nova=FASE_SECAGEM;
     setNovaFase(nova);
   }
-  if (server.hasArg("l")) { if(modoLuz==LUZ_AUTO) modoLuz=LUZ_FORCADA_ON; else if(modoLuz==LUZ_FORCADA_ON) modoLuz=LUZ_FORCADA_OFF; else modoLuz=LUZ_AUTO; }
+  if (server.hasArg("l")) { 
+    if(modoLuz==LUZ_AUTO) modoLuz=LUZ_FORCADA_ON; 
+    else if(modoLuz==LUZ_FORCADA_ON) modoLuz=LUZ_FORCADA_OFF; 
+    else modoLuz=LUZ_AUTO; 
+    prefs.begin("grow", false); prefs.putInt("modoLuz", (int)modoLuz); prefs.end();
+  }
   if (server.hasArg("r")) { 
     alertaFaltaAgua = false; inicioUmidificacao = 0; tempoUmidAcumuladoMs = 0;
     prefs.begin("grow", false); prefs.putBool("sem_agua", false); prefs.putUInt("umid_acum", 0); prefs.end();
@@ -771,6 +780,7 @@ void setup() {
 
   prefs.begin("grow", false);
   faseAtual = (FaseCultivo)prefs.getInt("fase", (int)FASE_STANDBY);
+  modoLuz = (ModoLuz)prefs.getInt("modoLuz", (int)LUZ_AUTO);
   inicioFaseTempo = prefs.getUInt("inicio", 0);
   fwAtual = prefs.getUInt("fw_ver", 0);
   alertaFaltaAgua = prefs.getBool("sem_agua", false);
