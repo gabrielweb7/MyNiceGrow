@@ -1337,10 +1337,24 @@
                     }
                     if (isExaustOn) isVentoOn = true;
                     
+                    // Umidificador (Projeção visual falsa, 2 min ON a cada 15 min)
+                    let isUmidOn = false;
+                    if (cfgProj) {
+                        let offsetUmid = (t % (15 * 60000)) / 60000;
+                        if (offsetUmid < 2) isUmidOn = true;
+                    }
+                    if (isExaustOn) isUmidOn = false; // Exaustor bloqueia
+                    
                     dLuz.push({ x: t, y: isLuzOn ? [2.65, 3.35] : null, ghost: true });
                     dExaust.push({ x: t, y: isExaustOn ? [-0.35, 0.35] : null, ghost: true });
                     dVento.push({ x: t, y: isVentoOn ? [0.65, 1.35] : null, ghost: true });
-                    dUmid.push({ x: t, y: null, ghost: true }); // Difícil prever a umidade exata
+                    dUmid.push({ x: t, y: isUmidOn ? [1.65, 2.35] : null, ghost: true }); 
+                    
+                    // Empurra nulls pros outros gráficos para sincronizar o eixo X e consertar o Pan/Zoom!
+                    dTempInt.push({ x: t, y: null });
+                    dTempExt.push({ x: t, y: null });
+                    dHumInt.push({ x: t, y: null });
+                    dHumExt.push({ x: t, y: null });
                 }
 
                 if (chartUmid && chartTemp && chartReles) {
