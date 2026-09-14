@@ -1322,29 +1322,26 @@
                         break;
                     }
                 }
+
+                // Verifica se a luz real no último ponto histórico estava acesa:
+                const lastRealLuzOn = dLuz.length > 0 && dLuz[dLuz.length - 1].y !== null;
                 
                 for (let t = tStart; t <= tEnd; t += 60000) {
                     let dObj = new Date(t);
-                    // O ESP32 está hardcoded em GMT-3 (-10800s), mas o navegador pode estar em GMT-4 (MS).
-                    // Para bater com o ESP32, precisamos usar a hora em GMT-3!
+                    let hLocal = dObj.getHours();
                     let hGMT3 = (dObj.getUTCHours() - 3 + 24) % 24;
                     
-                    // Luz (baseada na hora do ESP32 ou inferida da realidade)
-                    let isLuzOn = (hGMT3 >= 20 || hGMT3 < 8);
-                    
+                    // Luz: se já está acesa no dado real, mantém acesa a noite inteira sem buraco até as 8h da manhã
+                    let isLuzOn = false;
                     if (luzState === 1) {
                         isLuzOn = true;
                     } else if (luzState === 2) {
                         isLuzOn = false;
                     } else {
-                        // Se não apertamos nenhum botão nesta sessão (luzState = 0), a placa pode estar com
-                        // a luz forçada via outro celular, ou com relógio dessincronizado. 
-                        // Vamos inferir a regra a partir do último estado real conhecido para não criar "buracos" na projeção.
-                        const luzReal = dLuz.length > 0 ? dLuz[dLuz.length - 1].y : null;
-                        if (luzReal !== null && !isLuzOn) {
-                            isLuzOn = true; // AUTO manda desligar, mas placa mandou ligado. Infere Forçada ON.
-                        } else if (luzReal === null && isLuzOn) {
-                            isLuzOn = false; // AUTO manda ligar, mas placa mandou desligado. Infere Forçada OFF.
+                        if (lastRealLuzOn) {
+                            isLuzOn = (hGMT3 >= 18 || hGMT3 < 8 || hLocal >= 18 || hLocal < 8);
+                        } else {
+                            isLuzOn = (hGMT3 >= 20 || hGMT3 < 8 || hLocal >= 20 || hLocal < 8);
                         }
                     }
                     
@@ -1353,7 +1350,7 @@
                     if (cfgProj && cfgProj.fO > 0) {
                         let cFAE = (cfgProj.fO + cfgProj.fF) * 60000;
                         let offset = (t - lastExaustStart) % cFAE;
-                        if (offset < 0) offset += cFAE; // Evita bug de módulo negativo se algo sair do trilho
+                        if (offset < 0) offset += cFAE;
                         if (offset < (cfgProj.fO * 60000)) isExaustOn = true;
                     }
                     
@@ -1371,10 +1368,17 @@
                     }
                     if (isExaustOn) isVentoOn = true;
                     
+                    // Umidificador: segue a regra real da placa!
+                    // Se o modo atual está com "Injetar Névoa na Brisa" (vU == 1), o umidificador liga SEMPRE junto com o vento!
+                    let isUmidOn = false;
+                    if (cfgProj && cfgProj.vU == 1) {
+                        isUmidOn = isVentoOn && !isExaustOn; // Exaustor corta o umidificador
+                    }
+                    
                     dLuz.push({ x: t, y: isLuzOn ? [2.65, 3.35] : null, ghost: true });
                     dExaust.push({ x: t, y: isExaustOn ? [-0.35, 0.35] : null, ghost: true });
                     dVento.push({ x: t, y: isVentoOn ? [0.65, 1.35] : null, ghost: true });
-                    dUmid.push({ x: t, y: null, ghost: true }); // Difícil prever a umidade exata, deixa vazio
+                    dUmid.push({ x: t, y: isUmidOn ? [1.65, 2.35] : null, ghost: true });
                     
                     // Empurra nulls pros outros gráficos para sincronizar o eixo X e consertar o Pan/Zoom!
                     dTempInt.push({ x: t, y: null });
