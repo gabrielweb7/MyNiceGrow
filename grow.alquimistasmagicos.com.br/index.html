@@ -1015,10 +1015,10 @@
             chartReles = new Chart(document.getElementById('canvasReles').getContext('2d'), {
                 type: 'bar',
                 data: { datasets: [
-                    { label: 'Luz', data: [], backgroundColor: (ctx) => (ctx.raw && ctx.raw.ghost) ? 'rgba(255, 220, 0, 0.15)' : 'rgba(255, 220, 0, 0.9)', borderColor: '#ffdc00', borderWidth: 0, barPercentage: 1.05, categoryPercentage: 1.0, grouped: false },
-                    { label: 'Umidif.', data: [], backgroundColor: (ctx) => (ctx.raw && ctx.raw.ghost) ? 'rgba(0, 200, 255, 0.15)' : 'rgba(0, 200, 255, 0.9)', borderColor: '#00c8ff', borderWidth: 0, barPercentage: 1.05, categoryPercentage: 1.0, grouped: false },
-                    { label: 'Vento', data: [], backgroundColor: (ctx) => (ctx.raw && ctx.raw.ghost) ? 'rgba(0, 255, 170, 0.15)' : 'rgba(0, 255, 170, 0.9)', borderColor: '#00ffaa', borderWidth: 0, barPercentage: 1.05, categoryPercentage: 1.0, grouped: false },
-                    { label: 'Exaustor', data: [], backgroundColor: (ctx) => (ctx.raw && ctx.raw.ghost) ? 'rgba(255, 100, 0, 0.15)' : 'rgba(255, 100, 0, 0.9)', borderColor: '#ff6400', borderWidth: 0, barPercentage: 1.05, categoryPercentage: 1.0, grouped: false }
+                    { label: 'Luz', data: [], backgroundColor: 'rgba(255, 220, 0, 0.9)', borderColor: '#ffdc00', borderWidth: 0, barPercentage: 1.05, categoryPercentage: 1.0, grouped: false },
+                    { label: 'Umidif.', data: [], backgroundColor: 'rgba(0, 200, 255, 0.9)', borderColor: '#00c8ff', borderWidth: 0, barPercentage: 1.05, categoryPercentage: 1.0, grouped: false },
+                    { label: 'Vento', data: [], backgroundColor: 'rgba(0, 255, 170, 0.9)', borderColor: '#00ffaa', borderWidth: 0, barPercentage: 1.05, categoryPercentage: 1.0, grouped: false },
+                    { label: 'Exaustor', data: [], backgroundColor: 'rgba(255, 100, 0, 0.9)', borderColor: '#ff6400', borderWidth: 0, barPercentage: 1.05, categoryPercentage: 1.0, grouped: false }
                 ]},
                 options: relesOpts,
                 plugins: [crosshairPlugin]
@@ -1292,56 +1292,6 @@
                     dVento.push({ x: ts, y: rVento });
                     dExaust.push({ x: ts, y: rExaust });
                 });
-
-                // PROJEÇÃO DO FUTURO (GRÁFICO FANTASMA)
-                const ultimaFase = data[data.length - 1].fase || '';
-                let cfgKey = null;
-                if (ultimaFase.includes('Pinagem')) cfgKey = "1";
-                else if (ultimaFase.includes('Frutifica')) cfgKey = "2";
-                else if (ultimaFase.includes('Flush')) cfgKey = "3";
-                
-                const cfgProj = cfgKey ? configClima[cfgKey] : null;
-                
-                // Pega exatamente o timestamp do último ponto traçado no gráfico
-                const maxTs = dExaust.length > 0 ? dExaust[dExaust.length - 1].x : Date.now();
-                const tStart = maxTs + 60000; // Começa 1 minuto depois do último dado
-                const tEnd = tStart + (3 * 3600 * 1000); // 3 horas pra frente
-                
-                for (let t = tStart; t <= tEnd; t += 60000) {
-                    let dObj = new Date(t);
-                    let h = dObj.getHours();
-                    
-                    // Luz
-                    let isLuzOn = (h >= 20 || h < 8);
-                    if (luzState === 1) isLuzOn = true;
-                    else if (luzState === 2) isLuzOn = false;
-                    
-                    // FAE / Exaustor
-                    let isExaustOn = false;
-                    if (cfgProj && cfgProj.fO > 0) {
-                        let cFAE = (cfgProj.fO + cfgProj.fF) * 60000;
-                        let offset = (t % cFAE) / 60000;
-                        if (offset < cfgProj.fO) isExaustOn = true;
-                    }
-                    
-                    // Vento
-                    let isVentoOn = false;
-                    if (cfgProj && cfgProj.vO > 0) {
-                        if (cfgProj.vF == 0) {
-                            isVentoOn = true;
-                        } else {
-                            let cVento = (cfgProj.vO + cfgProj.vF) * 60000;
-                            let offsetVento = (t % cVento) / 60000;
-                            if (offsetVento < cfgProj.vO) isVentoOn = true;
-                        }
-                    }
-                    if (isExaustOn) isVentoOn = true;
-                    
-                    dLuz.push({ x: t, y: isLuzOn ? [2.65, 3.35] : null, ghost: true });
-                    dExaust.push({ x: t, y: isExaustOn ? [-0.35, 0.35] : null, ghost: true });
-                    dVento.push({ x: t, y: isVentoOn ? [0.65, 1.35] : null, ghost: true });
-                    dUmid.push({ x: t, y: null, ghost: true }); // Difícil prever a umidade exata
-                }
 
                 if (chartUmid && chartTemp && chartReles) {
                     chartTemp.data.datasets[0].data = dTempInt;
