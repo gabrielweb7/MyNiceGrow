@@ -1307,12 +1307,30 @@
                 const tStart = maxTs + 60000; // Começa 1 minuto depois do último dado
                 const tEnd = tStart + (3 * 3600 * 1000); // 3 horas pra frente
                 
+                // Sincroniza a fase da projeção com a realidade usando os últimos dados históricos!
+                let lastExaustStart = maxTs;
+                for (let i = dExaust.length - 1; i >= 1; i--) {
+                    if (dExaust[i].y !== null && dExaust[i-1].y === null) {
+                        lastExaustStart = dExaust[i].x;
+                        break;
+                    }
+                }
+                let lastVentoStart = maxTs;
+                for (let i = dVento.length - 1; i >= 1; i--) {
+                    if (dVento[i].y !== null && dVento[i-1].y === null) {
+                        lastVentoStart = dVento[i].x;
+                        break;
+                    }
+                }
+                
                 for (let t = tStart; t <= tEnd; t += 60000) {
                     let dObj = new Date(t);
-                    let h = dObj.getHours();
+                    // O ESP32 está hardcoded em GMT-3 (-10800s), mas o navegador pode estar em GMT-4 (MS).
+                    // Para bater com o ESP32, precisamos usar a hora em GMT-3!
+                    let hGMT3 = (dObj.getUTCHours() - 3 + 24) % 24;
                     
-                    // Luz
-                    let isLuzOn = (h >= 20 || h < 8);
+                    // Luz (baseada na hora do ESP32)
+                    let isLuzOn = (hGMT3 >= 20 || hGMT3 < 8);
                     if (luzState === 1) isLuzOn = true;
                     else if (luzState === 2) isLuzOn = false;
                     
@@ -1320,8 +1338,9 @@
                     let isExaustOn = false;
                     if (cfgProj && cfgProj.fO > 0) {
                         let cFAE = (cfgProj.fO + cfgProj.fF) * 60000;
-                        let offset = (t % cFAE) / 60000;
-                        if (offset < cfgProj.fO) isExaustOn = true;
+                        let offset = (t - lastExaustStart) % cFAE;
+                        if (offset < 0) offset += cFAE; // Evita bug de módulo negativo se algo sair do trilho
+                        if (offset < (cfgProj.fO * 60000)) isExaustOn = true;
                     }
                     
                     // Vento
@@ -1331,8 +1350,9 @@
                             isVentoOn = true;
                         } else {
                             let cVento = (cfgProj.vO + cfgProj.vF) * 60000;
-                            let offsetVento = (t % cVento) / 60000;
-                            if (offsetVento < cfgProj.vO) isVentoOn = true;
+                            let offsetVento = (t - lastVentoStart) % cVento;
+                            if (offsetVento < 0) offsetVento += cVento;
+                            if (offsetVento < (cfgProj.vO * 60000)) isVentoOn = true;
                         }
                     }
                     if (isExaustOn) isVentoOn = true;
