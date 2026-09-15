@@ -728,13 +728,11 @@ void executarMotor(unsigned long agora) {
   if (modoLuz == LUZ_AUTO) {
     if (horaValida) {
       releLuz = (horaAtual >= LUZ_HORA_LIGA || horaAtual < LUZ_HORA_DESLIGA);
-    } else {
-      // MODO FALLBACK SEM INTERNET: Ciclo relativo 12h OFF / 12h ON a partir do boot
-      // Como a placa acabou de ligar e nao sabe a hora, inicia desligada
-      releLuz = ((agora % 86400000UL) >= 43200000UL);
     }
-    // LOGICA DE FRIO REMOVIDA AQUI: A luz nao liga para aquecer, preservando o fotoperiodo (12/12).
-    // Um rele de aquecedor sera adicionado em atualizacoes futuras caso o clima exija.
+    // Se horaValida == false (NTP ainda nao sincronizou ou brownout resetou o RTC),
+    // NAO mexemos em releLuz. Ela fica no estado anterior (false no boot frio).
+    // Isso evita picos fantasma no grafico causados pelo fallback de millis().
+    // O NTP sincroniza em < 10s e assume o controle normalmente.
   }
 }
 
@@ -982,7 +980,6 @@ void loop() {
       // Luz continua rodando independentemente do clima
       if (modoLuz == LUZ_AUTO) {
         if (horaValida) releLuz = (horaAtual >= LUZ_HORA_LIGA || horaAtual < LUZ_HORA_DESLIGA);
-        else releLuz = ((agora % 86400000UL) >= 43200000UL); // Fallback offline
       }
     }
     
