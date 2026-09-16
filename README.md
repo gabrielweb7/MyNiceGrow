@@ -1,345 +1,269 @@
-# 🍄 Grow do Txai — Sistema Inteligente de Automação IoT (v1.0 Oficial / Estável)
+# 🍄 Grow do Txai — Sistema Inteligente de Automação IoT (v4.0 Oficial / Estável)
 
-[![Release v1.1.1](https://img.shields.io/badge/Release-v1.1.1%20Oficial%20%2F%20Est%C3%A1vel-gold?style=for-the-badge&logo=target)](https://github.com/)
-[![ESP32-C3](https://img.shields.io/badge/Hardware-ESP32--C3%20SuperMini-brightgreen?style=for-the-badge&logo=espressif)](https://www.espressif.com/)
+[![Release v4.0](https://img.shields.io/badge/Release-v4.0%20Oficial%20%2F%20Est%C3%A1vel-gold?style=for-the-badge&logo=target)](https://github.com/gabrielweb7/MyNiceGrow)
+[![ESP32-C3](https://img.shields.io/badge/Hardware-ESP32--C3%20SuperMini%20(RISC--V)-brightgreen?style=for-the-badge&logo=espressif)](https://www.espressif.com/)
 [![Arduino / C++](https://img.shields.io/badge/Firmware-Arduino%20%2F%20C%2B%2B-blue?style=for-the-badge&logo=arduino)](https://www.arduino.cc/)
+[![FreeRTOS](https://img.shields.io/badge/RTOS-FreeRTOS%20Watchdog-red?style=for-the-badge&logo=freertos)](https://www.freertos.org/)
 [![PHP 8.x](https://img.shields.io/badge/Backend-PHP%208.x%20%2F%20REST-purple?style=for-the-badge&logo=php)](https://www.php.net/)
 [![MySQL](https://img.shields.io/badge/Database-MySQL-orange?style=for-the-badge&logo=mysql)](https://www.mysql.com/)
-[![TailwindCSS](https://img.shields.io/badge/Frontend-TailwindCSS%203-38bdf8?style=for-the-badge&logo=tailwindcss)](https://tailwindcss.com/)
-[![Chart.js 4.4](https://img.shields.io/badge/Charts-Chart.js%204.4-ff6384?style=for-the-badge&logo=chartdotjs)](https://www.chartjs.org/)
-[![OTA Updates](https://img.shields.io/badge/Deploy-Continuous%20OTA-emerald?style=for-the-badge&logo=git)](https://github.com/)
+[![Chart.js 4.4](https://img.shields.io/badge/Charts-Chart.js%204.4%20%2B%20Zoom-ff6384?style=for-the-badge&logo=chartdotjs)](https://www.chartjs.org/)
+[![Auto-OTA](https://img.shields.io/badge/Deploy-Continuous%20Auto--OTA-emerald?style=for-the-badge&logo=git)](https://github.com/)
 
-Um ecossistema IoT completo, autônomo e de nível profissional projetado especificamente para **micologia de precisão e cultivo protegido em ambiente controlado**.
+Um ecossistema IoT autônomo, robusto e de nível profissional projetado especificamente para **micologia de precisão e controle ambiental de cultivo protegido** (especialmente fungos como *Psilocybe cubensis*, shimeji, cogumelos medicinais e comestíveis).
 
-O sistema combina um controlador embutido **ESP32-C3** de alta confiabilidade, leitura climática multissensorial redundante, atuadores de 4 canais, inteligência para proteção contra falhas e um **Dashboard Web SPA em tempo real** com interface *frosted glass* sobre um **fundo cósmico com rede micelial dinâmica**.
+O sistema integra o processador **ESP32-C3 (RISC-V 32-bit)**, leitura com sensor industrial de precisão **SHT30 via I2C**, atuadores de **4 canais com optoacoplamento**, memória não-volátil anti-apagão, datalogger offline, máquina de estados não-bloqueante, atualização remota **Auto-OTA** com rollback anti-brick e um **Dashboard Web SPA em tempo real com projeção futura (Ghost Chart)**.
 
 ---
 
-## 🏷️ Política Oficial de Versionamento (SemVer) & Diretrizes para IA
+## 📸 Demonstração do Ecossistema
 
-A partir da versão inicial estável **v1.0.0**, o projeto segue rigorosamente o padrão SemVer. **Toda alteração deve ser versionada no código e refletida visualmente no Dashboard Web e nas Tags do Git:**
+![Dashboard Geral](docs/img/dashboard_preview.png)
+*Figura 1: Dashboard SPA em tempo real com telemetria, controles remotos e gráficos sincronizados de umidade, temperatura e relés.*
 
-- **`1.0.x` (Patch / Pequenos Updates):**
-  - Correções pontuais de bugs, pequenos ajustes visuais na UI, polimento de estilos e correções de segurança menores.
-- **`1.x.0` (Minor / Updates Mais Robustos):**
-  - Adição de novos recursos (ex: Bot do Telegram, calculadora de energia, novas telas/modais, suporte a novos sensores ou protocolos de emergência).
-- **`x.0.0` (Major / Novas Versões Maiores):**
-  - Mudanças arquiteturais profundas, troca ou migração de hardware (ex: ESP32-S3), reestruturações completas do banco de dados ou reformulação geral do sistema.
-
-> 🤖 **Diretriz Obrigatória para Agentes de IA / Desenvolvedores:**
-> A cada novo ciclo de alterações, a versão DEVE ser atualizada no rodapé de `grow.alquimistasmagicos.com.br/index.html` (tanto no HTML quanto na atribuição em JavaScript), no `README.md` e acompanhada pela respectiva `git tag -a vX.X.X`.
+![Timeline dos Relés e Projeção Futura](docs/img/timeline_relays.png)
+*Figura 2: Timeline dos 4 relés em trilhas horizontais independentes (swimlanes) e projeção preditiva (3 horas à frente).*
 
 ---
 
 ## 📑 Sumário
 
-- [Política de Versionamento](#-política-oficial-de-versionamento-semver--diretrizes-para-ia)
-- [Visão Geral & Arquitetura](#-visão-geral--arquitetura)
-- [Funcionalidades Principais](#-funcionalidades-principais)
-- [Hardware & Pinagem (Pinout)](#-hardware--pinagem-pinout)
-- [Fases de Cultivo & Perfis Climáticos](#-fases-de-cultivo--perfis-climáticos)
-- [Protocolos de Segurança & Proteções Ativas](#-protocolos-de-segurança--proteções-ativas)
-- [Dashboard Web & Visualização de Dados](#-dashboard-web--visualização-de-dados)
-- [Pipeline de Atualização Contínua (OTA via Git)](#-pipeline-de-atualização-contínua-ota-via-git)
-- [API REST & Estrutura do Banco de Dados](#-api-rest--estrutura-do-banco-de-dados)
-- [Guia de Instalação & Compilação](#-guia-de-instalação--compilação)
-- [Deploy do Servidor (cPanel / Apache)](#-deploy-do-servidor-cpanel--apache)
+- [Visão Geral & Arquitetura do Sistema](#-visão-geral--arquitetura-do-sistema)
+- [Diagrama de Conexões & Pinagem (Wiring & Pinout)](#-diagrama-de-conexões--pinagem-wiring--pinout)
+- [Cérebro Climático & Fases de Cultivo](#-cérebro-climático--fases-de-cultivo)
+- [Engenharia de Resiliência & Blindagem contra Falhas](#-engenharia-de-resiliência--blindagem-contra-falhas)
+- [Dashboard Web & Projeção Futura (Ghost Chart)](#-dashboard-web--projeção-futura-ghost-chart)
+- [Pipeline de Auto-Atualização Contínua (Auto-OTA)](#-pipeline-de-auto-atualização-contínua-auto-ota)
+- [Estrutura de Arquivos do Repositório](#-estrutura-de-arquivos-do-repositório)
+- [Guia de Compilação & Exportação](#-guia-de-compilação--exportação)
+- [Diretrizes para Desenvolvedores & Futuras IAs](#-diretrizes-para-desenvolvedores--futuras-ias)
 
 ---
 
-## 🏛️ Visão Geral & Arquitetura
+## 🏛️ Visão Geral & Arquitetura do Sistema
 
-O sistema opera em uma topologia híbrida resiliente onde a placa toma **decisões autônomas mesmo sem internet**, enquanto a nuvem fornece persistência histórica, relatórios de telemetria e controle remoto bidirecional instantâneo.
+O ecossistema opera em uma **topologia híbrida e resiliente**: a placa ESP32-C3 tem **100% de autonomia local** (toma decisões a cada 2 segundos mesmo que fique sem internet por meses), enquanto a nuvem na HostGator gerencia persistência histórica, dashboard gráfico e entrega de comandos remotos.
 
 ```
 ┌────────────────────────────────────────────────────────────────────────┐
 │                        ESP32-C3 SUPERMINI                              │
 │                                                                        │
 │   [ Sensor SHT30 (I2C) ] ──┐                                           │
-│   [ Sensor DHT11 (GPIO10)] ┼─► [ FSM - Máquina de Estados ]            │
+│   [ Sensor DHT11 (GPIO10)] ┼─► [ Loop Não-Bloqueante (millis) ]        │
+│   [ Botão Físico (GPIO9) ] │   [ NVS - Memória Flash Permanente ]      │
 │                            │   [ LittleFS Datalogger Offline ]         │
-│                            │   [ NVS - Memória Anti-Apagão ]           │
+│                            │   [ FreeRTOS Cão de Guarda (25s) ]        │
 │                            │                 │                         │
 │                            │                 ▼                         │
-│                            │      [ Módulo Relé 4 Canais ]             │
-│                            │        ├── Ch 1: Luz                      │
-│                            │        ├── Ch 2: Umidificador             │
-│                            │        ├── Ch 3: Ventilador (Brisa)       │
-│                            │        └── Ch 4: Exaustor (FAE)           │
+│                            │      [ Módulo 4 Relés (Active LOW) ]      │
+│                            │        ├── Ch 1 (GPIO 0): Iluminação      │
+│                            │        ├── Ch 2 (GPIO 1): Umidificador    │
+│                            │        ├── Ch 3 (GPIO 3): Ventilador Int. │
+│                            │        └── Ch 4 (GPIO 6): Exaustor Ext.   │
 └────────────────────────────┼───────────────────────────────────────────┘
-                             │ HTTPS / TLS (POST Telemetria a cada 10s-60s)
+                             │ HTTPS / TLS (POST Telemetria a cada 10s)
                              ▼
 ┌────────────────────────────────────────────────────────────────────────┐
-│                   BACKEND EM NUVEM (HOSTGATOR / CPANEL)                │
+│                   NUVEM / BACKEND (HOSTGATOR CPANEL)                   │
 │                                                                        │
-│   [ API REST PHP 8.x ] ◄──► [ Banco de Dados MySQL ]                   │
-│   [ Gerenciador OTA (fw.php & esp32c3.ino.bin) ]                       │
+│   [ API REST PHP 8.x ] ◄──► [ Banco MySQL (`telemetria`) ]             │
+│   [ Servidor de OTA ]  ◄──► [ Binário `esp32c3.ino.bin` ]              │
 └────────────────────────────┬───────────────────────────────────────────┘
-                             │ JSON / SSE (Polling dinâmico 2s - 5s)
+                             │ JSON / Polling Dinâmico
                              ▼
 ┌────────────────────────────────────────────────────────────────────────┐
 │                   DASHBOARD WEB (SPA RESPONSIVO)                       │
 │                                                                        │
-│   • Frosted Glassmorphism com Fundo Cósmico & Rede Micelial 2D         │
-│   • 3 Gráficos Chart.js Sincronizados (Umidade, Temp, Relés)           │
-│   • Timeline dos Relés em 4 Trilhas Horizontais (Analisador Lógico)    │
-│   • Foco Automático de 3 Horas + Zoom Dinâmico 24h / 7 Dias            │
-│   • Horímetro / Legenda Interativa com Filtros Clicáveis               │
-│   • Controle Remoto de Relés e Transição Imediata de Fases             │
+│   • Gráficos Chart.js 4.4 Sincronizados (Umidade, Temp, Timeline Relés)│
+│   • Projeção Futura de 3 Horas (Ghost Bars sem barcode effect)         │
+│   • Controle Remoto Imediato de Luz, Fases, Alertas e Configurações    │
+│   • Horímetro de Manutenção Preventiva em Horas Reais de Operação      │
 └────────────────────────────────────────────────────────────────────────┘
 ```
 
 ---
 
-## ⚡ Funcionalidades Principais
+## 🔌 Diagrama de Conexões & Pinagem (Wiring & Pinout)
 
-### 🧠 Firmware & Hardware (ESP32-C3)
-- **FSM Não-Bloqueante:** Todo o código é baseado em temporizadores assíncronos (`millis()`), garantindo que leituras sensoriais, acionamentos de relés e requisições HTTP aconteçam sem travamentos de loop.
-- **Datalogger Anti-Apagão (LittleFS):** Se a conexão Wi-Fi cair, o ESP32 salva todos os registros minuto a minuto na memória flash interna (`/offline.log`). Ao restabelecer a rede, sincroniza todo o lote com a nuvem sem perder um único segundo de histórico.
-- **NVS (Non-Volatile Storage):** Fase ativa, setpoints e estados de luz são gravados na memória não-volátil do microcontrolador. Se houver queda de energia, ele retorna exatamente no mesmo estado.
-- **Filtros Anti-Ruído Sensoriais:** Descarte de leituras espúrias (glitches) e validação de sanidade antes de qualquer acionamento.
-- **WiFiManager & mDNS:** Se a rede não for encontrada, sobe um portal de configuração via celular (`Grow-Txai-AP`) e oferece acesso local via `http://grow.local`.
+### Tabela de Pinagem Oficial (ESP32-C3 SuperMini)
 
-### 🌌 Interface Web & Dashboard
-- **Fundo Cósmico com Rede Micelial:** Canvas 2D acelerado por hardware com esporos estelares flutuantes e conexões filamentosas dinâmicas. Super leve (< 0.01% de CPU), pausando automaticamente quando a aba fica inativa para economizar 100% de bateria.
-- **Timeline dos Relés em 4 Trilhas Paralelas (Swimlanes):** Gráfico estilo analisador lógico industrial onde Luz, Umidificador, Ventilador e Exaustor rodam em faixas horizontais independentes — **sem nenhuma sobreposição ou código de barras misturado**.
-- **Zoom Inteligente com Foco em 3 Horas:** Ao abrir o painel ou alternar filtros, os gráficos já abrem focados no momento atual com máximo detalhamento, oferecendo um botão dinâmico para expandir para **24 Horas** ou **7 Dias**.
-- **Crosshair Neon & Zoom Sincronizado:** A linha guia vertical corta simultaneamente os gráficos de Umidade, Temperatura e Relés sem atraso.
-- **Horímetro Integrado:** Resumo no topo da timeline calculando com exatidão matemática o tempo ativo de cada relé (`11h 57m de Luz`, `8h 48m de Umidificador`, etc.).
-- **Filtros Interativos na Legenda:** Clique em qualquer relé da legenda para ocultá-lo ou exibi-lo no gráfico instantaneamente.
+| Componente | Função | Pino ESP32-C3 | Nível Lógico / Tensão | Protocolo |
+| :--- | :--- | :---: | :---: | :--- |
+| **SHT30 (Interno)** | Linha de Dados (SDA) | **GPIO 4** | 3.3V (Pull-up interno) | I2C (Endereço `0x44`) |
+| **SHT30 (Interno)** | Linha de Clock (SCL) | **GPIO 5** | 3.3V (Pull-up interno) | I2C |
+| **DHT11 (Ambiente/Sala)** | Leitura de Referência Externa | **GPIO 10** | 3.3V (Resistor 10k pull-up) | One-Wire Digital |
+| **Relé 1 (Luz)** | Iluminação do Cultivo (12/12) | **GPIO 0** | Nível Baixo Ativo (`LOW`=Liga) | Digital Output |
+| **Relé 2 (Umidificador)** | Névoa Ultrassônica | **GPIO 1** | Nível Baixo Ativo (`LOW`=Liga) | Digital Output |
+| **Relé 3 (Ventilador)** | Circulação Interna / Brisa | **GPIO 3** | Nível Baixo Ativo (`LOW`=Liga) | Digital Output |
+| **Relé 4 (Exaustor)** | Troca de Ar (FAE / Emergência) | **GPIO 6** | Nível Baixo Ativo (`LOW`=Liga) | Digital Output |
+| **Botão Físico (BOOT)** | Reset de Fábrica (Segurar 5s) | **GPIO 9** | Pull-up Interno (`LOW` pressionado) | Interrupção / Polling |
+| **LED RGB Integrado** | Sinalização de Status / Alertas | **GPIO 8** | WS2812 / RGB | Pulso Serial |
+
+### Esquema Elétrico das Conexões
+
+```
+                    +-----------------------+
+                    |   ESP32-C3 SuperMini  |
+                    |                       |
+   (3.3V) --------> | 3V3               GND | <-------- (GND Geral)
+   (5V Ext) ------> | 5V                G0  | --------> IN1 (Relé Luz)
+                    |                   G1  | --------> IN2 (Relé Umidificador)
+   (SHT30 SDA) ---> | G4                G3  | --------> IN3 (Relé Ventilador)
+   (SHT30 SCL) ---> | G5                G6  | --------> IN4 (Relé Exaustor)
+   (DHT11 Data) --> | G10               G9  | <-------- Botão BOOT Integrado
+                    +-----------------------+
+
+  ALIMENTAÇÃO & PROTEÇÃO:
+  • Fonte DC: 5V / 2A a 3A estabilizada com capacitor de desacoplamento de 1000uF.
+  • Módulo de Relés: Alimentado em 5V com jumper VCC-JDVCC separado se disponível para isolação óptica total.
+  • Relés acionados em nível lógico BAIXO (Active LOW): 
+      - LOW  = Relé Atracado (Equipamento LIGADO)
+      - HIGH = Relé Aberto    (Equipamento DESLIGADO)
+```
 
 ---
 
-## 🔌 Hardware & Pinagem (Pinout)
+## 🍄 Cérebro Climático & Fases de Cultivo
 
-Configuração oficial de hardware para a placa **ESP32-C3 SuperMini**:
+O algoritmo implementa perfis climáticos autônomos por fase. As configurações ficam salvas na memória permanente Flash NVS e podem ser ajustadas em tempo real pelo painel web:
 
-| Componente | Função | Pino ESP32-C3 | Protocolo / Tipo |
-| :--- | :--- | :--- | :--- |
-| **SHT30 (Interno)** | Temperatura & Umidade da Estufa | **GPIO 4 (SDA)** | I2C (0x44 / 0x45) |
-| **SHT30 (Interno)** | Clock I2C | **GPIO 5 (SCL)** | I2C |
-| **DHT11 (Externo)** | Temperatura & Umidade da Sala | **GPIO 10** | One-Wire Digital |
-| **Relé 1** | Iluminação do Cultivo | **GPIO 0** | Saída Digital (Nível Baixo/Ativo) |
-| **Relé 2** | Umidificador Ultrassônico | **GPIO 1** | Saída Digital |
-| **Relé 3** | Ventilador Interno (Brisa) | **GPIO 3** | Saída Digital |
-| **Relé 4** | Exaustor de Ar (FAE) | **GPIO 6** | Saída Digital |
-| **LED Status** | Indicador RGB Integrado | **GPIO 8** | WS2812 / RGB |
-
----
-
-## 🍄 Fases de Cultivo & Perfis Climáticos
-
-O sistema implementa perfis automatizados ajustáveis para as diferentes fases do ciclo fúngico:
-
-| Fase | Ícone | Temp. Alvo | Umidade Alvo | Renovação de Ar (FAE) | Brisa Interna | Objetivo Biológico |
+| Fase | Ícone | Temp. Alvo | Umidade Alvo | Renovação de Ar (FAE) | Brisa Interna + Névoa | Objetivo Biológico |
 | :--- | :---: | :---: | :---: | :---: | :---: | :--- |
-| **Standby** | ⏸️ | Desligado | Desligado | Desligado | Desligado | Higienização, manutenção ou repouso entre ciclos. |
-| **Pinagem** | 🍄 | Máx 24.0 °C | 90% a 98% | 2 min ON / 58 min OFF | 2 min ON / 8 min OFF (+Névoa) | Estimula a formação de primórdios por alta umidade e orvalho. |
-| **Frutificação**| 🌳 | Máx 25.0 °C | 88% a 95% | 2 min ON / 30 min OFF | 3 min ON / 3 min OFF (+Névoa) | Umidade levemente menor para evaporação transpiratória nos chapéus. |
-| **Segundo Flush**| 🔄 | Máx 24.5 °C | 90% a 96% | 2 min ON / 45 min OFF | 2 min ON / 10 min OFF | Recuperação do bolo pós-colheita reduzindo perda de água. |
-| **Secagem Total**| 🏜️ | Ambiente | Mínima | 100% LIGADO (Direto) | 100% LIGADO (Direto) | Umidificador bloqueado e coolers no talo para processar colheita. |
+| **Standby** | ⏸️ | Desligado | Desligado | Desligado | Desligado | Higienização, manutenção ou repouso entre safras. |
+| **Pinagem** | 🍄 | Máx 24.0 °C | 90% a 98% | 2 min ON / 58 min OFF | 2 min ON / 8 min OFF (`vU=1`) | Estimula primórdios por alta umidade, micro-orvalho e ar rico. |
+| **Frutificação**| 🌳 | Máx 25.0 °C | 88% a 95% | 2 min ON / 30 min OFF | 3 min ON / 3 min OFF (`vU=1`) | Transpiração controlada para crescimento vigoroso dos frutos. |
+| **Segundo Flush**| 🔄 | Máx 24.5 °C | 90% a 96% | 2 min ON / 45 min OFF | 2 min ON / 10 min OFF (`vU=1`) | Hidratação profunda e recuperação do bolo pós-colheita. |
+| **Secagem Total**| 🏜️ | Ambiente | Mínima | 100% LIGADO (Direto) | 100% LIGADO (Direto) | Umidificador travado e fluxo máximo para desidratar colheita. |
 
 ---
 
-## 🛡️ Protocolos de Segurança & Proteções Ativas
+## 🛡️ Engenharia de Resiliência & Blindagem contra Falhas
 
-O algoritmo executa verificações de segurança em segundo plano em cada iteração:
+O firmware foi desenhado com múltiplos anéis de proteção contra qualquer falha elétrica ou ambiental:
 
-1. **🚨 Proteção Anti-Queima do Umidificador (Falta D'água):**
-   * Se o umidificador permanecer ligado continuamente por **mais de 15 minutos** sem que a umidade suba ao menos 1%, o firmware desarma o relé imediatamente (`rUmid = 2`) e envia alerta vermelho para a nuvem. Evita queimar a membrana piezoelétrica sem água.
-2. **🔥 Corte Térmico de Emergência da Iluminação:**
-   * Se a temperatura ultrapassar **34.0 °C**, a iluminação é desligada na hora para cessar a irradiação de calor.
-3. **🌙 Ciclo Fotoperiódico Invertido:**
-   * No modo automático, a luz opera das **20:00 às 08:00**, aproveitando a temperatura mais fresca da noite para compensar o calor emitido pela lâmpada.
-4. **🌫️ Sincronia de Brisa com Névoa:**
-   * Ao acionar a brisa interna, o sistema injeta simultaneamente pulsos de névoa viva para que o vento não resseque a superfície dos frutos.
+### 1. 💡 Trava Diurna Absoluta & Debounce da Luz (Anti-Picos Fantasma)
+* **Debounce de 3 Ciclos:** A luz só liga se a condição noturna (`hora >= 20 || hora < 8`) permanecer confirmada por **3 ciclos consecutivos (~6 segundos)**. Glitches isolados de 1 ciclo são sumariamente descartados.
+* **Trava Diurna no `aplicarReles()`:** Se o relógio indicar horário diurno (entre **08:00 e 19:59**), `releLuz` é forçado a `false` diretamente antes de tocar no pino físico.
+* **Filtro Anti-Jitter:** Rejeita saltos temporais impossíveis causados por jitter em pacotes NTP de fundo.
+
+### 2. 🌪️ Isolamento Térmico do Exaustor (Sem Sobreposição de Ciclos)
+* O ciclo regular de FAE só roda quando `quente == false`.
+* Ao atingir a temperatura máxima (`tempInt >= tempMax`), a placa suspende o FAE normal, zera o contador e assume a **Exaustão de Emergência** de forma exclusiva, garantindo períodos de descanso limpos.
+
+### 3. 🚨 Proteção Anti-Queima do Umidificador (Alerta Estrito de Água)
+* Se o umidificador passar **15 minutos contínuos** ligado sem atingir o alvo de umidade, a placa assume falta de água ou mangueira obstruída:
+  - Desliga imediatamente o relé (`rUmid = 2`).
+  - Grava na NVS para não religar em reboots acidentais.
+  - Sinaliza alerta vermelho no dashboard com botão de reset manual.
+
+### 4. 🐕 Cão de Guarda Hardware FreeRTOS (Watchdog de 25s)
+* Uma tarefa FreeRTOS dedicada roda em segundo plano. Se o loop principal ficar mais de 25 segundos travado (ex: timeout de rede em biblioteca externa), a placa reinicia automaticamente de forma segura.
+
+### 5. 📦 Datalogger Anti-Apagão (LittleFS)
+* Se a internet cair, a telemetria é gravada na memória Flash local (`/offline.log`). Ao restabelecer a rede, as leituras são descarregadas em lotes seguros de 50 registros, sem perder o histórico do cultivo.
 
 ---
 
-## 📊 Dashboard Web & Visualização de Dados
+## 📊 Dashboard Web & Projeção Futura (Ghost Chart)
 
-O painel foi desenvolvido com tecnologias modernas sem dependências pesadas de frameworks:
+O painel é uma **SPA (Single Page Application)** ultra leve construída em Vanilla JavaScript ES6+, TailwindCSS e Chart.js 4.4:
 
-* **Arquitetura:** Vanilla JavaScript ES6+, TailwindCSS via CDN e Chart.js 4.4.4.
-* **Redução de Ruído:** O backend agrupa os registros por minuto (`date('Y-m-d H:i')`), eliminando timestamps duplicados e garantindo um gráfico perfeitamente limpo.
-* **Sincronia Total de Zoom & Pan:**
-  * O arraste com mouse, touch e scroll é sincronizado em tempo real entre os três gráficos.
-  * O botão dinâmico no topo permite alternar entre a visão detalhada de **3 Horas** e o panorama histórico de **24 Horas** ou **7 Dias**.
-  * Duplo clique em qualquer canvas reseta ou foca a janela instantaneamente.
+* **Trilhas de Relés (Swimlanes):** Gráfico estilo analisador lógico onde cada relé tem sua própria faixa horizontal de 0 a 1, eliminando completamente sobreposições ou efeito código de barras.
+* **Projeção Futura Predita ("Ghost Chart"):**
+  - Desenha as próximas **3 horas no futuro** usando a fase real do último pulso registrado na história.
+  - A iluminação projeta continuamente considerando o fuso GMT-3.
+  - O umidificador projeta acoplado ao ventilador quando a regra `vU = 1` estiver ativada.
+* **Sincronia de Pan & Zoom:** Eixos X perfeitamente alinhados entre os 3 gráficos (Umidade, Temperatura e Relés), permitindo arrastar ou aplicar zoom dinâmico sem perder a correlação dos dados.
+* **Horímetro de Manutenção:** Acumula os segundos reais de acionamento de cada relé gravados na Flash NVS para estimativa de desgaste da lâmpada, coolers e membrana ultrassônica.
 
 ---
 
-## 🚀 Pipeline de Atualização Contínua (OTA via Git)
+## 🚀 Pipeline de Auto-Atualização Contínua (Auto-OTA)
 
-A atualização de firmware é **100% remota e sem fio**:
+A atualização do firmware é **100% remota e autônoma**:
 
 ```
- [ Arduino IDE ] ────► Exportar Binário Compilado (.bin)
-                              │
-                              ▼
-                      [ Git Commit & Push ]
-                              │
-                              ▼
-                      [ Repositório GitHub ]
-                              │
-                              ▼
-                   [ cPanel Git Deployment ]
-                              │
-                              ▼
-     [ grow.alquimistasmagicos.com.br/api/fw.php ]
-                              │
-      HTTP GET periódica / aviso de comando
-                              ▼
-     [ ESP32-C3 baixa .bin via HTTP e reinicia atualizado! ]
+[ Arduino IDE ] ──(Ctrl + Alt + S)──► build/.../esp32c3.ino.bin
+                                               │
+                                       [ Git Commit & Push ]
+                                               │
+                                               ▼
+                                      [ Repositório GitHub ]
+                                               │
+                                       [ SSH / Git Pull ]
+                                               │
+                                               ▼
+                                  [ Servidor HostGator cPanel ]
+                                               │
+               ESP32 detecta nova versão (filemtime > fwAtual)
+                                               │
+                                               ▼
+                     [ ESP32 baixa binário via HTTPS e reinicia ]
+                                               │
+                             ┌─────────────────┴─────────────────┐
+                             ▼                                   ▼
+                      [ Boot OK ]                         [ Falha / Bootloop ]
+               Grava versão e roda estável            Rollback automático (Anti-Brick)
 ```
 
-1. Compile o projeto na Arduino IDE com `Ctrl + Alt + S` (Exportar Binário Compilado).
-2. O binário é salvo na pasta `build/esp32.esp32.esp32c3/esp32c3.ino.bin`.
-3. Faça o `git push` para o GitHub.
-4. No cPanel, clique em **Update from Remote**.
-5. O ESP32 verifica a versão via hash/timestamp através do `api/fw.php`. Se houver versão mais recente (ou por clique no painel), **ele baixa o binário e se atualiza sozinho via OTA em menos de 60 segundos!**
+1. Na IDE do Arduino, pressione `Ctrl + Alt + S` para exportar o binário compilado.
+2. Faça o `git commit` e `git push` do repositório (incluindo a pasta `build/`).
+3. Dê o `git pull` no servidor de produção HostGator.
+4. O ESP32, ao enviar telemetria (a cada 10s), recebe o timestamp do novo `.bin`. Se for mais novo que a versão da placa, **ele baixa o arquivo sozinho e se atualiza sem nenhuma intervenção manual!**
 
 ---
 
-## 📡 API REST & Estrutura do Banco de Dados
-
-### Endpoints Principais
-
-| Método | Endpoint | Descrição |
-| :--- | :--- | :--- |
-| `POST` | `/api/index.php` | Recebe a telemetria do ESP32 (requer header `x-api-key`). |
-| `GET` | `/api/index.php?limit=1440` | Retorna telemetria filtrada e deduplicada (24h = 1440, 7 dias = 10080). |
-| `GET` | `/api/fw.php` | Retorna o status de firmware da nuvem vs. placa e hash do commit Git. |
-| `POST` | `/api/config.php` | Envia comandos da interface para a placa (Fase, Luz, Parâmetros). |
-
-### Schema MySQL (Tabela `telemetria`)
-
-```sql
-CREATE TABLE IF NOT EXISTS `telemetria` (
-  `id` INT AUTO_INCREMENT PRIMARY KEY,
-  `timestamp` DATETIME NOT NULL,
-  `temp_int` DECIMAL(5,2) NOT NULL,
-  `hum_int` DECIMAL(5,2) NOT NULL,
-  `temp_ext` DECIMAL(5,2) DEFAULT NULL,
-  `hum_ext` DECIMAL(5,2) DEFAULT NULL,
-  `rele_luz` TINYINT(1) DEFAULT 0,
-  `rele_umid` TINYINT(1) DEFAULT 0,
-  `rele_vento` TINYINT(1) DEFAULT 0,
-  `rele_exaust` TINYINT(1) DEFAULT 0,
-  `fase` VARCHAR(32) DEFAULT 'Standby',
-  `unix_ts` INT UNSIGNED NOT NULL,
-  INDEX `idx_ts` (`unix_ts`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
-```
-
----
-
-## 🛠️ Guia de Instalação & Compilação
-
-### Configurações na Arduino IDE:
-1. Abra as **Preferências** e adicione o repositório da Espressif:
-   `https://raw.githubusercontent.com/espressif/arduino-esp32/gh-pages/package_esp32_index.json`
-2. Selecione a placa: **`ESP32C3 Dev Module`**
-3. **Partition Scheme:** `Minimal SPIFFS (1.9MB APP with OTA/128KB SPIFFS)` *(Obrigatório para comportar Wi-Fi, SSL e OTA)*
-4. **Flash Size:** `4MB (32Mb)`
-5. **USB CDC On Boot:** `Enabled`
-
-### Bibliotecas Necessárias:
-* `Adafruit SHT31 Library`
-* `DHT sensor library` (Adafruit)
-* `WiFiManager` (tzapu)
-* `ArduinoJson` (Benoit Blanchon)
-
----
-
-## 🌐 Deploy do Servidor (cPanel / Apache)
-
-1. No **cPanel**, acesse a ferramenta **Git™ Version Control**.
-2. Crie um novo repositório apontando para este repositório do GitHub.
-3. Configure o diretório público para a pasta do dashboard (`public_html` ou subdomínio).
-4. No **Gerenciador de Bancos MySQL**, crie a base e importe a estrutura SQL.
-5. Renomeie ou configure as credenciais de banco e a `API_KEY` nos arquivos PHP da pasta `api/`.
-6. Toda vez que houver novos commits na `main`, basta clicar em **Update from Remote** no cPanel!
-
----
-
-## 🤖 Manual de Bordo & Diretrizes Críticas para Futuras IAs
-
-Se você é um agente de Inteligência Artificial assumindo a manutenção deste projeto, **leia atentamente estas diretrizes antes de modificar qualquer linha de código:**
-
-### 🧠 Regras de Ouro Invioláveis (Golden Rules & Contexto Arquitetural)
-
-1. **Mapeamento de Pastas (cPanel vs GitHub):**
-   * **CUIDADO:** O servidor web no cPanel aponta para a raiz deste repositório Git, e não para a pasta interna `grow.alquimistasmagicos.com.br`. Portanto, a URL pública final para arquivos web requer que a pasta seja duplicada no caminho absoluto (ex: `https://grow.alquimistasmagicos.com.br/grow.alquimistasmagicos.com.br/thumb.png`). Ao adicionar metatags de Open Graph ou caminhos absolutos, sempre lembre deste mapeamento.
-
-2. **Janela Deslizante de 24h (Rolling Window):**
-   * O gráfico do dashboard não usa "dias de calendário" (00:00 às 23:59). Ele usa uma janela móvel estrita das últimas 24 horas a partir do momento atual (`ORDER BY id DESC LIMIT 1440`). Não mude isso. É intencional para garantir que o cultivador nunca veja um gráfico vazio ao acessar de madrugada.
-
-3. **Fallback da Luz (Modo Offline/Boot):**
-   * Se a placa reiniciar e não conseguir a hora do NTP imediatamente, a luz deve inicializar no modo **DESLIGADO** (`(agora % 86400000UL) >= 43200000UL`). Nunca reverta para iniciar ligada, pois reboots esporádicos do Watchdog dariam "choques de luz" nos cogumelos quebrando o fotoperíodo.
-
-4. **Single-Thread e Cão de Guarda (Watchdog):**
-   * O firmware C++ atual roda em uma única thread (fila indiana). Envios HTTP bloqueiam o `loop()`. Para evitar congelamentos crônicos caso o servidor engasgue, um FreeRTOS Watchdog reseta a placa após 25s de bloqueio. Esse é um comportamento de segurança esperado (Tanque de Guerra). 
-   * **Visão de Futuro (v2.0):** Se for refatorar para resolver isso, não remova o Watchdog; em vez disso, implemente **FreeRTOS Multi-Tasking**, isolando a função `enviarNuvem()` em uma Task separada da Task de controle climático.
-
-5. **Segurança Biológica do Cultivo:**
-   * **NUNCA remova a Proteção Anti-Queima da Bomba** (`rUmid = 2`). Se o umidificador passar 15 min ligado sem subir umidade, o desarme é mandatário para não queimar o piezoelétrico. O bypass de "Falso Positivo" de 90% foi **removido a pedido do usuário** — a regra agora é estrita.
-   * **NUNCA remova o Corte Térmico da Luz aos 34°C**.
-   * Ao modificar o ciclo de brisa, preserve a injeção simultânea de névoa viva (`pf.ventoComUmid`), pois vento seco resseca os primórdios e aborta o cultivo.
-
-6. **Compatibilidade da API REST e Tamanho de Memória:**
-   * Se alterar qualquer chave no payload JSON em `esp32c3.ino`, lembre-se que `api/index.php` e `index.html` dependem exatamente destes nomes. Altere nas 3 camadas de forma síncrona.
-   * O ESP32-C3 possui cerca de 320 KB de RAM. Nunca concatene `Strings` dinâmicas gigantes em loop. Use datalogging offline em blocos limitados a 50 registros.
-
-7. **Versionamento e Rastreabilidade Obrigatória:**
-   * A cada modificação entregue, atualize:
-     1. O rodapé em `index.html`.
-     2. O badge e o histórico no `README.md`.
-     3. Crie e envie a tag Git correspondente (`git tag -a v1.0.x`).
-
-### 🗂️ Mapa de Arquivos do Projeto (File Tree)
+## 🗂️ Estrutura de Arquivos do Repositório
 
 ```text
-├── esp32c3.ino                           # Código-fonte oficial do Firmware C++ (ESP32-C3)
-├── build/esp32.esp32.esp32c3/            # Diretório de binários compilados
-│   └── esp32c3.ino.bin                   # Binário de produção servido para atualizações OTA
-├── grow.alquimistasmagicos.com.br/       # Diretório raiz da aplicação Web (cPanel / Apache)
-│   ├── index.html                        # Dashboard SPA (TailwindCSS, Chart.js 4.4, Canvas Cósmico)
-│   ├── manifest.json                     # Manifesto PWA para instalação no celular
-│   ├── icon.png / icon-512.png           # Ícones oficiais do aplicativo PWA
-│   ├── config.php                        # Chaves de segurança e credenciais do MySQL
-│   ├── config.example.php                # Template de configuração para deploy limpo
-│   ├── database.sql                      # Script de inicialização da tabela `telemetria`
-│   └── api/                              # Endpoints REST em PHP 8.x
-│       ├── index.php                     # Telemetria (POST ESP32 / GET Dashboard) & Limpeza
-│       ├── comando.php                   # Fila de comandos pendentes (Fases, Luz, Reset Água)
-│       ├── fw.php                        # Sincronização de versões de firmware e hash do Git
-│       └── comando_pendente.json         # Fila volátil de comandos entregues à placa
-└── README.md                             # Documentação mestra e Single Source of Truth
+├── esp32c3.ino                                    # Código-fonte oficial do Firmware C++ (ESP32-C3)
+├── build/esp32.esp32.esp32c3/                     # Diretório de binários compilados pelo Arduino
+│   └── esp32c3.ino.bin                            # Binário de produção servido para atualizações OTA
+├── docs/img/                                      # Screenshots e diagramas do ecossistema
+│   ├── dashboard_preview.png                      # Visão do painel web SPA em tempo real
+│   └── timeline_relays.png                        # Swimlanes dos relés e projeção preditiva
+├── grow.alquimistasmagicos.com.br/                # Código do Dashboard Web e Backend REST
+│   ├── index.html                                 # Dashboard SPA (TailwindCSS, Chart.js 4.4, Canvas)
+│   ├── config.php                                 # Chaves de segurança e credenciais do MySQL
+│   ├── database.sql                               # Script de inicialização da tabela `telemetria`
+│   └── api/                                       # Endpoints REST em PHP 8.x
+│       ├── index.php                              # Telemetria (POST ESP32 / GET Dashboard) & Purge
+│       ├── comando.php                            # Fila de comandos pendentes (Fases, Luz, Reset)
+│       └── fw.php                                 # Sincronização de versões e hash do Git
+└── README.md                                      # Documentação mestra do ecossistema
 ```
 
+---
 
-1. **Segurança Biológica do Cultivo:**
-   * **NUNCA remova a Proteção Anti-Queima da Bomba** (`rUmid = 2`). Se o umidificador passar 15 min ligado sem subir umidade, o desarme é mandatório para não queimar o piezoelétrico.
-   * **NUNCA remova o Corte Térmico da Luz aos 34°C**.
-   * Ao modificar o ciclo de brisa, preserve a injeção simultânea de névoa viva (`pf.ventoComUmid`), pois vento seco resseca os primórdios e aborta o cultivo.
+## 🛠️ Guia de Compilação & Exportação
 
-2. **Compatibilidade da API REST:**
-   * Se alterar qualquer chave no payload JSON em `esp32c3.ino` (ex: `tI`, `uI`, `rLuz`), lembre-se que `api/index.php` e `index.html` dependem exatamente destes nomes. Altere nas 3 camadas de forma síncrona.
+### Configurações na Arduino IDE:
+1. Adicione a URL de placas Espressif em **Preferências**:
+   `https://raw.githubusercontent.com/espressif/arduino-esp32/gh-pages/package_esp32_index.json`
+2. Selecione a placa: **`ESP32C3 Dev Module`**
+3. **Partition Scheme:** `Minimal SPIFFS (1.9MB APP with OTA/128KB SPIFFS)` *(Obrigatório para suportar OTA)*
+4. **Flash Size:** `4MB (32Mb)`
+5. **USB CDC On Boot:** `Enabled`
+6. **Upload Speed:** `921600`
 
-3. **Memória do ESP32 (Heap Safety):**
-   * O ESP32-C3 possui cerca de 320 KB de RAM. Nunca concatene `Strings` dinâmicas gigantes em loop. Sempre use o envio em blocos/lotes de até 50 registros no datalogger offline.
+### Como Atualizar o Binário:
+* No Windows, com o sketch `esp32c3.ino` aberto: pressione **`Ctrl + Alt + S`** (*Sketch -> Export Compiled Binary*).
+* O Arduino compila e gera o arquivo `build/esp32.esp32.esp32c3/esp32c3.ino.bin`.
 
-4. **Versionamento e Rastreabilidade Obrigatória:**
-   * A cada modificação entregue, atualize:
-     1. O rodapé em `index.html` (tanto no HTML quanto no JS `txtGitHash`).
-     2. O badge e o histórico no `README.md`.
-     3. Crie e envie a tag Git correspondente (`git tag -a v1.0.x`).
+---
+
+## 🤖 Diretrizes para Desenvolvedores & Futuras IAs
+
+1. **Janela Deslizante de 24h:** O gráfico não usa dias de calendário (00:00 às 23:59). Ele usa uma janela contínua das últimas 24 horas a partir do momento atual (`ORDER BY id DESC LIMIT 1440`). Preserve este comportamento.
+2. **Preservar a Autonomia Local:** O ESP32 deve sempre ser capaz de operar de forma autônoma sem internet. Nunca crie dependências onde a falta de resposta da nuvem trave o controle térmico ou os relés.
+3. **Segurança Biológica Inviolável:**
+   - Nunca remova o desarme do umidificador aos 15 minutos sem resposta (`rUmid = 2`).
+   - Nunca remova o corte térmico de emergência da lâmpada aos 34 °C.
+   - Mantenha o isolamento do exaustor de emergência para não sobrepor o FAE normal.
+4. **Sincronia das Camadas:** Ao alterar nomes de chaves na telemetria JSON (`tI`, `uI`, `rLuz`, etc.), atualize de forma sincronizada em `esp32c3.ino`, `api/index.php` e `index.html`.
 
 ---
 
 ## 🧙‍♂️ Créditos & Licença
 
-Desenvolvido com carinho para o **Grow do Txai** por **Alquimistas Mágicos**.
-
-Distribuído sob a licença **MIT**. Sinta-se livre para utilizar, clonar, aprimorar e compartilhar este projeto com a comunidade de cultivadores e entusiastas de IoT. 🍄✨
+Desenvolvido com carinho para o **Grow do Txai** por **Alquimistas Mágicos**.  
+Distribuído sob licença **MIT**. Sinta-se livre para usar, estudar e evoluir a automação micológica! 🍄✨
