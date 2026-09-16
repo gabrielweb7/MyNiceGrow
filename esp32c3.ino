@@ -527,6 +527,13 @@ void aplicarReles() {
   unsigned long agora = millis();
   bool alterou = false;
   
+  // TRAVA DE SEGURANÇA ABSOLUTA DA LUZ:
+  // Se estiver em modo AUTO e o relógio confirmar que é horário diurno (entre 08h e 19h59),
+  // NUNCA permite que releLuz seja true, garantindo zero picos mesmo sob qualquer ruído.
+  if (modoLuz == LUZ_AUTO && horaValida && (horaAtual >= LUZ_HORA_DESLIGA && horaAtual < LUZ_HORA_LIGA)) {
+    releLuz = false;
+  }
+
   bool corteLuzImediato = (tempInt >= TEMP_CORTE_LUZ || modoLuz == LUZ_FORCADA_OFF);
   bool corteUmidImediato = alertaFaltaAgua;
 
@@ -726,13 +733,16 @@ void executarMotor(unsigned long agora) {
   }
 
   if (modoLuz == LUZ_AUTO) {
-    if (horaValida) {
-      releLuz = (horaAtual >= LUZ_HORA_LIGA || horaAtual < LUZ_HORA_DESLIGA);
+    static int confirmacoesNoite = 0;
+    if (horaValida && (horaAtual >= LUZ_HORA_LIGA || horaAtual < LUZ_HORA_DESLIGA)) {
+      confirmacoesNoite++;
+      if (confirmacoesNoite >= 3) {
+        releLuz = true;
+      }
+    } else {
+      confirmacoesNoite = 0;
+      releLuz = false;
     }
-    // Se horaValida == false (NTP ainda nao sincronizou ou brownout resetou o RTC),
-    // NAO mexemos em releLuz. Ela fica no estado anterior (false no boot frio).
-    // Isso evita picos fantasma no grafico causados pelo fallback de millis().
-    // O NTP sincroniza em < 10s e assume o controle normalmente.
   }
 }
 
@@ -938,11 +948,14 @@ void loop() {
       }
     }
 
-    struct tm ti; 
-    if (getLocalTime(&ti, 0)) {
-      if (ti.tm_year + 1900 >= 2024) {
-        horaValida = true; 
-        horaAtual = ti.tm_hour; 
+    struct tm ti = {0}; 
+    if (getLocalTime(&ti, 25)) {
+      if (ti.tm_year + 1900 >= 2024 && ti.tm_hour >= 0 && ti.tm_hour <= 23) {
+        // Anti-Jitter: Se a hora já era válida, rejeita saltos bruscos impossíveis (mais de 1h) em ciclos de 2s
+        if (!horaValida || horaAtual < 0 || abs(ti.tm_hour - horaAtual) <= 1 || (horaAtual == 23 && ti.tm_hour == 0) || (horaAtual == 0 && ti.tm_hour == 23)) {
+          horaValida = true; 
+          horaAtual = ti.tm_hour; 
+        }
       } else {
         horaValida = false; // RTC foi resetado para 1970 devido a Brownout Reset (Kickback)!
       }
@@ -979,7 +992,14 @@ void loop() {
       
       // Luz continua rodando independentemente do clima
       if (modoLuz == LUZ_AUTO) {
-        if (horaValida) releLuz = (horaAtual >= LUZ_HORA_LIGA || horaAtual < LUZ_HORA_DESLIGA);
+        static int confirmacoesNoiteOff = 0;
+        if (horaValida && (horaAtual >= LUZ_HORA_LIGA || horaAtual < LUZ_HORA_DESLIGA)) {
+          confirmacoesNoiteOff++;
+          if (confirmacoesNoiteOff >= 3) releLuz = true;
+        } else {
+          confirmacoesNoiteOff = 0;
+          releLuz = false;
+        }
       }
     }
     
