@@ -181,6 +181,11 @@ O painel é uma **SPA (Single Page Application)** ultra leve construída em Vani
   - **Aceleração `normalized: true`:** Chart.js não gasta ciclos ordenando dados cronológicos que já vêm ordenados.
   - **Downsampling adaptativo (7 Dias):** Agrupamento a cada 5 minutos no modo semanal (reduz de 10.080 para ~2.000 pontos) mantendo fluidez total em telas mobile.
 * **Sincronia de Pan & Zoom:** Eixos X perfeitamente alinhados entre os 3 gráficos (Umidade, Temperatura e Relés), com alternância rápida entre foco centralizado e visão geral de 24 horas.
+* **Controle Mão-Dupla de Iluminação (v1.3.4):**
+  - **Seletor Dedicado Tri-Modo:** Botões de ação rápida para `Automático (20h-08h)`, `Forçar LIGADA (ON)` e `Forçar DESLIGADA (OFF)`.
+  - **Persistência de Estado (F5-Proof):** O modo configurado é sincronizado continuamente entre ESP32, Nuvem e Dashboard (`modo_luz.txt` / NVS), garantindo que a seleção não seja perdida ao recarregar a página ou alternar de dispositivo.
+  - **Comutação Imediata:** Resposta rápida em comandos manuais com bypass do dwell time automático de 15s, preservando integralmente o corte térmico biológico absoluto em 34°C.
+  - **Gerenciador de Chave Admin:** Configuração visual da senha no modal do sistema com persistência local segura.
 * **Horímetro de Manutenção:** Acumula os segundos reais de acionamento de cada relé gravados na Flash NVS para estimativa de desgaste da lâmpada, coolers e membrana ultrassônica.
 
 ---

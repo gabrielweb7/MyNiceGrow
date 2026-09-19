@@ -84,6 +84,10 @@ if ($method === 'POST') {
         if (isset($row['fw'])) {
             file_put_contents(__DIR__ . '/fw_status.txt', $row['fw']);
         }
+        // Salva modo atual da luz se reportado
+        if (isset($row['modoLuz'])) {
+            file_put_contents(__DIR__ . '/modo_luz.txt', (string)(int)$row['modoLuz']);
+        }
         // Salva flag de erro de OTA se a placa reportar que precisou reverter
         if (isset($row['otaError']) && $row['otaError'] == 1) {
             file_put_contents(__DIR__ . '/fw_error.txt', '1');
@@ -182,6 +186,10 @@ elseif ($method === 'GET') {
     
     // Inverte a ordem para o gráfico ficar cronológico (da esquerda pra direita)
     $rows = array_reverse($rows);
+    if (count($rows) > 0) {
+        $modoLuzAtual = file_exists(__DIR__ . '/modo_luz.txt') ? (int)trim(file_get_contents(__DIR__ . '/modo_luz.txt')) : 0;
+        $rows[count($rows) - 1]['modo_luz'] = $modoLuzAtual;
+    }
     echo json_encode($rows);
     
     // Auto-purge inteligente: roda com probabilidade de 1% (a cada ~8 minutos) usando a coluna indexada unix_ts

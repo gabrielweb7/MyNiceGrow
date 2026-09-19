@@ -269,6 +269,7 @@ void enviarNuvem(unsigned long agora) {
   json += "\"tE\":" + String(tempExt, 1) + ",";
   json += "\"uE\":" + String(humExt, 1) + ",";
   json += "\"rLuz\":" + String(lastReleLuz?1:0) + ",";
+  json += "\"modoLuz\":" + String((int)modoLuz) + ",";
   json += "\"rUmid\":" + String(alertaFaltaAgua ? 2 : (lastReleUmidific?1:0)) + ",";
   json += "\"rVento\":" + String(lastReleVento?1:0) + ",";
   json += "\"rExaust\":" + String(lastReleExaust?1:0) + ",";
@@ -432,7 +433,15 @@ void enviarNuvem(unsigned long agora) {
             else if (cl == 2 && modoLuz != LUZ_FORCADA_OFF) { modoLuz = LUZ_FORCADA_OFF; Serial.println("📥 COMANDO NUVEM: Luz mudou para FORCADA DESLIGADA"); luzMudou = true; }
             if (luzMudou) {
                prefs.begin("grow", false); prefs.putInt("modoLuz", (int)modoLuz); prefs.end();
-               ultimoEnvioNuvem = 0; // Dispara atualização imediata
+               if (sensorIntOk) {
+                  executarMotor(agora);
+                  aplicarSeguranca();
+               } else {
+                  if (modoLuz == LUZ_FORCADA_ON) releLuz = true;
+                  if (modoLuz == LUZ_FORCADA_OFF) releLuz = false;
+               }
+               aplicarReles();
+               ultimoEnvioNuvem = 0; // Dispara atualização imediata com relés já comutados
             }
          }
          if (docRes.containsKey("comando_reset_agua")) {
@@ -537,9 +546,10 @@ void aplicarReles() {
   bool corteLuzImediato = (tempInt >= TEMP_CORTE_LUZ || modoLuz == LUZ_FORCADA_OFF);
   bool corteUmidImediato = alertaFaltaAgua;
 
-  // Luz: Bypass do dwell time quando está DESLIGANDO (false) ou em corte de emergência
+  // Luz: Bypass do dwell time quando está DESLIGANDO (false), em corte de emergência ou comando manual forçado
   bool desligandoLuz = (!releLuz && lastReleLuz);
-  if (releLuz != lastReleLuz && (corteLuzImediato || desligandoLuz || agora - lastSwitchLuz >= MIN_DWELL_RELE_MS)) {
+  bool comandoManualLuz = (modoLuz == LUZ_FORCADA_ON || modoLuz == LUZ_FORCADA_OFF);
+  if (releLuz != lastReleLuz && (corteLuzImediato || desligandoLuz || comandoManualLuz || agora - lastSwitchLuz >= MIN_DWELL_RELE_MS)) {
     lastReleLuz = releLuz;
     lastSwitchLuz = agora;
     digitalWrite(PIN_RELE_LUZ, releLuz ? LOW : HIGH);

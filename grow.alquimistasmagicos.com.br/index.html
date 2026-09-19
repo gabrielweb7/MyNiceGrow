@@ -209,6 +209,33 @@
             </div>
             <p class="text-[10px] text-slate-500 mt-3 text-center">*Ao clicar, a ordem é sincronizada instantaneamente com o ESP32.</p>
 
+            <!-- CONTROLE REMOTO DA ILUMINAÇÃO (MODO) -->
+            <div class="mt-4 pt-4 border-t border-slate-700/40">
+                <div class="flex items-center justify-between mb-2.5">
+                    <h3 class="text-xs font-bold text-slate-400 uppercase tracking-wider flex items-center gap-1.5">
+                        <span>💡</span> Controle de Iluminação
+                    </h3>
+                    <span id="txtModoLuzAtivo" class="text-[10px] text-amber-400 font-bold bg-slate-800/80 px-2 py-0.5 rounded border border-slate-700/50">Modo: AUTO</span>
+                </div>
+                <div class="grid grid-cols-3 gap-2.5">
+                    <button id="btnLuzAuto" onclick="mudarLuz(0)" class="btn-luz bg-amber-600/30 hover:bg-amber-600/40 rounded-lg p-2.5 text-center transition-all duration-300 border border-amber-400 text-amber-300 font-bold shadow-[0_0_12px_rgba(245,158,11,0.3)]" title="Luz liga automaticamente entre 20h e 08h">
+                        <div class="text-xl mb-0.5">🌙</div>
+                        <p class="text-xs">Automático</p>
+                        <p class="text-[9px] text-slate-400 font-normal mt-0.5">Ciclo Noturno (20h-08h)</p>
+                    </button>
+                    <button id="btnLuzOn" onclick="mudarLuz(1)" class="btn-luz bg-slate-800/80 hover:bg-slate-700 rounded-lg p-2.5 text-center transition-all duration-300 border border-slate-700/50 opacity-70" title="Força a lâmpada acesa imediatamente">
+                        <div class="text-xl mb-0.5">💡</div>
+                        <p class="text-xs">Forçar LIGADA</p>
+                        <p class="text-[9px] text-slate-400 font-normal mt-0.5">Luz Contínua (ON)</p>
+                    </button>
+                    <button id="btnLuzOff" onclick="mudarLuz(2)" class="btn-luz bg-slate-800/80 hover:bg-slate-700 rounded-lg p-2.5 text-center transition-all duration-300 border border-slate-700/50 opacity-70" title="Força a lâmpada apagada imediatamente">
+                        <div class="text-xl mb-0.5">🌑</div>
+                        <p class="text-xs">Forçar DESLIGADA</p>
+                        <p class="text-[9px] text-slate-400 font-normal mt-0.5">Luz Apagada (OFF)</p>
+                    </button>
+                </div>
+            </div>
+
             <!-- NOVO: Painel de Informações da Fase e Inteligência -->
             <div id="infoFaseContainer" class="hidden mt-6 pt-5 border-t border-slate-700/50">
                 <div class="w-full">
@@ -313,7 +340,7 @@
         <!-- FOOTER -->
         <footer class="text-center text-[10px] text-slate-500 py-4 space-y-1">
             <div>Grow do Txai — IoT Cloud System — Dados atualizados a cada 60 segundos</div>
-            <div id="txtGitHash" class="text-emerald-400 font-bold tracking-widest text-xs drop-shadow-[0_0_8px_rgba(52,211,153,0.7)]">Versão: 1.3.3</div>
+            <div id="txtGitHash" class="text-emerald-400 font-bold tracking-widest text-xs drop-shadow-[0_0_8px_rgba(52,211,153,0.7)]">Versão: 1.3.4</div>
         </footer>
     </main>
 
@@ -410,6 +437,16 @@
                 <button onclick="salvarFormClima()" id="btnSalvarClima" class="w-full bg-amber-600 hover:bg-amber-500 text-white font-bold text-xs py-2 rounded-lg transition-all shadow-[0_0_15px_rgba(217,119,6,0.2)]">
                     Salvar e Enviar para Placa
                 </button>
+
+                <hr class="border-slate-800 my-5">
+                <h3 class="text-slate-300 font-bold text-xs uppercase mb-2">🔑 Chave de Acesso Admin</h3>
+                <p class="text-[10px] text-slate-400 mb-2">Senha para autorizar comandos de fase, iluminação forçada e updates.</p>
+                <div class="flex gap-2">
+                    <input type="password" id="inputAdminPass" placeholder="Digite a chave admin..." class="flex-1 bg-slate-800 text-slate-200 text-xs border border-slate-700 rounded p-2 outline-none focus:border-emerald-500">
+                    <button onclick="salvarChaveAdmin()" class="bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold px-3 py-2 rounded transition-all">
+                        Salvar
+                    </button>
+                </div>
             </div>
         </div>
     </div>
@@ -528,7 +565,7 @@
             try {
                 let p = localStorage.getItem('adminPass');
                 if(!p) {
-                    p = prompt("Senha de Admin:");
+                    p = prompt("🔑 Senha de Administrador:");
                     if(!p) return false;
                     localStorage.setItem('adminPass', p);
                 }
@@ -552,12 +589,20 @@
                 }
 
                 const st = document.getElementById('cmdStatus');
-                st.style.opacity = '1'; setTimeout(() => st.style.opacity = '0', 3000);
+                if (st) { st.style.opacity = '1'; setTimeout(() => st.style.opacity = '0', 3000); }
                 return true;
             } catch(e) {
                 console.error("Falha ao enviar comando", e);
                 alert("❌ Falha de conexão. Verifique sua internet.");
                 return false;
+            }
+        }
+
+        function salvarChaveAdmin() {
+            const input = document.getElementById('inputAdminPass');
+            if (input && input.value.trim()) {
+                localStorage.setItem('adminPass', input.value.trim());
+                alert("✅ Chave de Administrador salva com sucesso no navegador!");
             }
         }
         
@@ -583,15 +628,23 @@
                 el.onclick = null;
             }
 
-            const isOn = (estadoRele === 1);
+            const isOn = (estadoRele === 1 || estadoRele === true || estadoRele === '1');
 
             if (isOn) {
                 el.className = (isLuz ? 'cursor-pointer hover:bg-emerald-500 ' : '') + 'bg-emerald-600 rounded-lg p-3 text-center transition-all duration-500 shadow-[0_0_15px_rgba(16,185,129,0.4)] border border-emerald-400/50';
-                st.textContent = isLuz ? (luzState === 0 ? 'AUTO (ON)' : 'ON') : 'ON';
+                if (isLuz) {
+                    st.textContent = (luzState === 0) ? 'AUTO (ON)' : (luzState === 1 ? 'FORÇADA (ON)' : 'ON');
+                } else {
+                    st.textContent = 'ON';
+                }
                 st.className = 'text-[10px] text-emerald-100 mt-0.5 font-bold tracking-wider';
             } else {
                 el.className = (isLuz ? 'cursor-pointer hover:bg-slate-700 ' : '') + 'bg-slate-800 rounded-lg p-3 text-center transition-all duration-500 border border-transparent opacity-80';
-                st.textContent = isLuz ? (luzState === 0 ? 'AUTO (OFF)' : 'OFF') : 'OFF';
+                if (isLuz) {
+                    st.textContent = (luzState === 0) ? 'AUTO (OFF)' : (luzState === 2 ? 'FORÇADA (OFF)' : 'OFF');
+                } else {
+                    st.textContent = 'OFF';
+                }
                 st.className = 'text-[10px] text-slate-500 mt-0.5 font-bold tracking-wider';
             }
         }
@@ -762,6 +815,10 @@
                 statusBadge.innerHTML = '';
             }
             
+            const savedPass = localStorage.getItem('adminPass') || '';
+            const inputPass = document.getElementById('inputAdminPass');
+            if (inputPass) inputPass.value = savedPass;
+
             document.getElementById('modalConfig').classList.remove('hidden'); 
             fetchConfigClima();
         }
@@ -870,19 +927,48 @@
             }
         }
         
-        async function mudarLuz() {
-            let proxLuz = (luzState + 1) % 3;
+        function atualizarBotoesLuz(modo) {
+            const btnAuto = document.getElementById('btnLuzAuto');
+            const btnOn = document.getElementById('btnLuzOn');
+            const btnOff = document.getElementById('btnLuzOff');
+            const txtModo = document.getElementById('txtModoLuzAtivo');
+            
+            if (txtModo) {
+                const nomesModo = {0: "Modo: AUTO 🌙", 1: "Modo: FORÇADA (ON) 💡", 2: "Modo: FORÇADA (OFF) 🌑"};
+                txtModo.textContent = (nomesModo[modo] !== undefined) ? nomesModo[modo] : "Modo: AUTO";
+                txtModo.className = "text-[10px] font-bold bg-slate-800/80 px-2 py-0.5 rounded border " + 
+                    (modo === 0 ? "border-amber-500/50 text-amber-400" : (modo === 1 ? "border-emerald-500/50 text-emerald-400" : "border-rose-500/50 text-rose-400"));
+            }
+
+            if (!btnAuto || !btnOn || !btnOff) return;
+
+            [btnAuto, btnOn, btnOff].forEach(b => {
+                b.className = "btn-luz bg-slate-800/80 hover:bg-slate-700 rounded-lg p-2.5 text-center transition-all duration-300 border border-slate-700/50 opacity-70";
+            });
+
+            if (modo === 0) {
+                btnAuto.className = "btn-luz bg-amber-600/30 hover:bg-amber-600/40 rounded-lg p-2.5 text-center transition-all duration-300 border border-amber-400 text-amber-300 font-bold shadow-[0_0_12px_rgba(245,158,11,0.3)] opacity-100";
+            } else if (modo === 1) {
+                btnOn.className = "btn-luz bg-emerald-600/30 hover:bg-emerald-600/40 rounded-lg p-2.5 text-center transition-all duration-300 border border-emerald-400 text-emerald-300 font-bold shadow-[0_0_12px_rgba(16,185,129,0.3)] opacity-100";
+            } else if (modo === 2) {
+                btnOff.className = "btn-luz bg-rose-600/30 hover:bg-rose-600/40 rounded-lg p-2.5 text-center transition-all duration-300 border border-rose-400 text-rose-300 font-bold shadow-[0_0_12px_rgba(244,63,94,0.3)] opacity-100";
+            }
+        }
+
+        async function mudarLuz(modoDesejado = null) {
+            let proxLuz = (modoDesejado !== null) ? modoDesejado : ((luzState + 1) % 3);
             if (await enviarComando({luz: proxLuz})) {
                 luzState = proxLuz;
                 luzPendenteTempo = Date.now();
+                atualizarBotoesLuz(luzState);
                 
-                // Feedback visual instantâneo (gambiarra visual segura)
+                // Feedback visual instantâneo (com tipagem correta de estado)
                 const rl = document.getElementById('releLuzStatus');
-                if (luzState === 1) { setRele('releLuz', 'releLuzStatus', true); rl.textContent = "ON (⏳)"; }
-                else if (luzState === 2) { setRele('releLuz', 'releLuzStatus', false); rl.textContent = "OFF (⏳)"; }
-                else { setRele('releLuz', 'releLuzStatus', false); rl.textContent = "AUTO (⏳)"; }
+                if (luzState === 1) { setRele('releLuz', 'releLuzStatus', 1); if (rl) rl.textContent = "ON (⏳)"; }
+                else if (luzState === 2) { setRele('releLuz', 'releLuzStatus', 0); if (rl) rl.textContent = "OFF (⏳)"; }
+                else { setRele('releLuz', 'releLuzStatus', 0); if (rl) rl.textContent = "AUTO (⏳)"; }
                 
-                loopDados(3000); // Força refresh rápido
+                loopDados(2000); // Força refresh rápido
             }
         }
 
@@ -1210,10 +1296,13 @@
                     window.fwPlaca = fwData.placa || '0';
                     window.fwNuvem = fwData.nuvem || '0';
                     window.fwError = fwData.error || '0';
+                    if (fwData.modoLuz !== undefined) {
+                        window.modoLuzNuvem = parseInt(fwData.modoLuz);
+                    }
                     if (fwData.gitHash && fwData.gitHash !== 'Desconhecido') {
-                        document.getElementById('txtGitHash').textContent = `Versão: 1.3.3 (${fwData.gitHash})`;
+                        document.getElementById('txtGitHash').textContent = `Versão: 1.3.4 (${fwData.gitHash})`;
                     } else {
-                        document.getElementById('txtGitHash').textContent = `Versão: 1.3.3`;
+                        document.getElementById('txtGitHash').textContent = `Versão: 1.3.4`;
                     }
                 }
 
@@ -1285,19 +1374,39 @@
                 document.getElementById('minMaxTemp').textContent = `Min ${minT === Infinity ? '--' : minT.toFixed(1)}° / Max ${maxT === -Infinity ? '--' : maxT.toFixed(1)}°`;
                 document.getElementById('minMaxHum').textContent = `Min ${minH === Infinity ? '--' : minH.toFixed(1)}% / Max ${maxH === -Infinity ? '--' : maxH.toFixed(1)}%`;
 
+                // Sincronização Inteligente do Modo da Luz com o Servidor
+                if (luzPendenteTempo === 0 || agoraTime - luzPendenteTempo > 20000) {
+                    if (window.modoLuzNuvem !== undefined) {
+                        luzState = window.modoLuzNuvem;
+                    } else if (ultimo.modo_luz !== undefined) {
+                        luzState = parseInt(ultimo.modo_luz);
+                    }
+                    atualizarBotoesLuz(luzState);
+                }
+
                 // Desbloqueio Inteligente da Luz
                 if (luzPendenteTempo > 0) {
                     // Se pediu ON e a placa retornou ON, destrava!
-                    if (luzState === 1 && parseInt(ultimo.rele_luz) === 1) luzPendenteTempo = 0;
+                    if (luzState === 1 && parseInt(ultimo.rele_luz) === 1) {
+                        luzPendenteTempo = 0;
+                        atualizarBotoesLuz(1);
+                    }
                     // Se pediu OFF e a placa retornou OFF, destrava!
-                    else if (luzState === 2 && parseInt(ultimo.rele_luz) === 0) luzPendenteTempo = 0;
-                    // Se pediu AUTO, destrava no primeiro dado recebido (já que não sabemos se será ON/OFF)
-                    else if (luzState === 0 && (agoraTime - luzPendenteTempo > 4000)) luzPendenteTempo = 0; 
+                    else if (luzState === 2 && parseInt(ultimo.rele_luz) === 0) {
+                        luzPendenteTempo = 0;
+                        atualizarBotoesLuz(2);
+                    }
+                    // Se pediu AUTO, destrava no primeiro dado recebido
+                    else if (luzState === 0 && (agoraTime - luzPendenteTempo > 3000)) {
+                        luzPendenteTempo = 0; 
+                        atualizarBotoesLuz(0);
+                    }
                 }
 
-                // Relés — protege Luz de sobrescrever estado durante a pendência (25s)
-                if (agoraTime - luzPendenteTempo > 25000 || luzPendenteTempo === 0) {
+                // Relés — protege Luz de sobrescrever estado durante a pendência (20s)
+                if (agoraTime - luzPendenteTempo > 20000 || luzPendenteTempo === 0) {
                     setRele('releLuz', 'releLuzStatus', parseInt(ultimo.rele_luz));
+                    atualizarBotoesLuz(luzState);
                 }
                 setRele('releUmid', 'releUmidStatus', parseInt(ultimo.rele_umid));
                 setRele('releVento', 'releVentoStatus', parseInt(ultimo.rele_vento));
