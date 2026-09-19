@@ -313,7 +313,7 @@
         <!-- FOOTER -->
         <footer class="text-center text-[10px] text-slate-500 py-4 space-y-1">
             <div>Grow do Txai — IoT Cloud System — Dados atualizados a cada 60 segundos</div>
-            <div id="txtGitHash" class="text-emerald-400 font-bold tracking-widest text-xs drop-shadow-[0_0_8px_rgba(52,211,153,0.7)]">Versão: 1.3.2</div>
+            <div id="txtGitHash" class="text-emerald-400 font-bold tracking-widest text-xs drop-shadow-[0_0_8px_rgba(52,211,153,0.7)]">Versão: 1.3.3</div>
         </footer>
     </main>
 
@@ -452,22 +452,36 @@
 
         function aplicarZoom3Horas() {
             if (!chartUmid || !chartTemp || !chartReles) return;
-            const ds = chartTemp.data.datasets;
-            if (!ds || !ds[0] || !ds[0].data || ds[0].data.length === 0) return;
+            
+            // Pega o timestamp do momento presente real (último dado medido pelo ESP32)
+            let tsAgora = window.tsUltimoDadoReal;
+            if (!tsAgora) {
+                const ds = chartTemp.data.datasets;
+                if (ds && ds[0] && ds[0].data && ds[0].data.length > 0) {
+                    for (let i = ds[0].data.length - 1; i >= 0; i--) {
+                        if (ds[0].data[i].y !== null) {
+                            tsAgora = ds[0].data[i].x;
+                            break;
+                        }
+                    }
+                }
+            }
+            if (!tsAgora) tsAgora = Date.now();
 
-            const ultPonto = ds[0].data[ds[0].data.length - 1];
-            const maxTs = ultPonto.x;
-            const minTs = maxTs - (3 * 3600 * 1000); // 3 horas
+            // Centraliza o momento presente ("Agora") no meio exato do gráfico:
+            // 3h de histórico real à esquerda e 3h de previsão futura à direita
+            const janelaMs = 3 * 3600 * 1000;
+            const minTs = tsAgora - janelaMs;
+            const maxTs = tsAgora + janelaMs;
 
             [chartUmid, chartTemp, chartReles].forEach(c => {
                 if (c) {
+                    c.options.scales.x.min = minTs;
+                    c.options.scales.x.max = maxTs;
                     if (typeof c.zoomScale === 'function') {
                         c.zoomScale('x', { min: minTs, max: maxTs }, 'none');
-                    } else {
-                        c.options.scales.x.min = minTs;
-                        c.options.scales.x.max = maxTs;
-                        c.update('none');
                     }
+                    c.update('none');
                 }
             });
             zoomAtivo3h = true;
@@ -505,7 +519,7 @@
                 btn.innerHTML = (limitAtual === 10080 ? '🔍 Ver 7 Dias' : '🔍 Ver 24 Horas');
                 btn.className = "px-2.5 py-1 text-[10px] font-bold bg-slate-800 hover:bg-slate-700 border border-slate-600 rounded text-emerald-400 transition-all shadow-sm";
             } else {
-                btn.innerHTML = '🔍 Focar Últimas 3h';
+                btn.innerHTML = '🔍 Focar no Meio (Agora)';
                 btn.className = "px-2.5 py-1 text-[10px] font-bold bg-emerald-700 hover:bg-emerald-600 border border-emerald-500 rounded text-white transition-all shadow-sm";
             }
         }
@@ -912,33 +926,78 @@
             }
         };
 
+        const agoraLinePlugin = {
+            id: 'agoraLine',
+            afterDraw: chart => {
+                if (!window.tsUltimoDadoReal) return;
+                const xAxis = chart.scales.x;
+                const yAxis = chart.scales[Object.keys(chart.scales).find(k => k !== 'x')];
+                if (!xAxis || !yAxis) return;
+                
+                const xPos = xAxis.getPixelForValue(window.tsUltimoDadoReal);
+                if (xPos < xAxis.left || xPos > xAxis.right) return;
+                
+                const ctx = chart.ctx;
+                ctx.save();
+                ctx.beginPath();
+                ctx.moveTo(xPos, yAxis.top);
+                ctx.lineTo(xPos, yAxis.bottom);
+                ctx.lineWidth = 1.5;
+                ctx.strokeStyle = 'rgba(52, 211, 153, 0.45)'; // Verde Esmeralda Neon
+                ctx.setLineDash([4, 3]);
+                ctx.stroke();
+
+                ctx.fillStyle = 'rgba(52, 211, 153, 0.9)';
+                ctx.font = 'bold 9px Inter, sans-serif';
+                ctx.textAlign = 'center';
+                ctx.textBaseline = 'top';
+                ctx.fillText('AGORA 📍', xPos, yAxis.top + 2);
+                ctx.restore();
+            }
+        };
+
+        let hoverRaf = null;
+        let lastHoverIdx = -1;
+
         function baseOptions(yScale) {
             return {
                 responsive: true, maintainAspectRatio: false, animation: false,
+                normalized: true, // Pula busca e ordenação interna no Chart.js (ganho massivo de FPS)
                 interaction: { mode: 'index', intersect: false },
                 onHover: (e, elements, chart) => {
                     if (elements.length > 0) {
                         const dataIndex = elements[0].index;
-                        [chartUmid, chartTemp, chartReles].forEach(c => {
-                            if (c && c !== chart) {
-                                const activeElements = c.data.datasets.map((_, i) => ({ datasetIndex: i, index: dataIndex }));
-                                c.setActiveElements(activeElements);
-                                c.tooltip.setActiveElements(activeElements, e);
-                                c.update('none');
-                            }
+                        if (dataIndex === lastHoverIdx) return; // Evita repintar se o ponteiro ainda está no mesmo minuto
+                        lastHoverIdx = dataIndex;
+                        if (hoverRaf) cancelAnimationFrame(hoverRaf);
+                        hoverRaf = requestAnimationFrame(() => {
+                            [chartUmid, chartTemp, chartReles].forEach(c => {
+                                if (c && c !== chart) {
+                                    const activeElements = c.data.datasets.map((_, i) => ({ datasetIndex: i, index: dataIndex }));
+                                    c.setActiveElements(activeElements);
+                                    c.tooltip.setActiveElements(activeElements, e);
+                                    c.render(); // render() é muito mais leve que update('none')
+                                }
+                            });
                         });
                     } else {
-                        [chartUmid, chartTemp, chartReles].forEach(c => {
-                            if (c && c !== chart) {
-                                c.setActiveElements([]);
-                                c.tooltip.setActiveElements([], e);
-                                c.update('none');
-                            }
+                        if (lastHoverIdx === -1) return;
+                        lastHoverIdx = -1;
+                        if (hoverRaf) cancelAnimationFrame(hoverRaf);
+                        hoverRaf = requestAnimationFrame(() => {
+                            [chartUmid, chartTemp, chartReles].forEach(c => {
+                                if (c && c !== chart) {
+                                    c.setActiveElements([]);
+                                    c.tooltip.setActiveElements([], e);
+                                    c.render();
+                                }
+                            });
                         });
                     }
                 },
                 plugins: {
                     legend: { display: false },
+                    decimation: { enabled: true, algorithm: 'lttb' },
                     tooltip: { 
                         backgroundColor: 'rgba(15, 23, 42, 0.95)', 
                         borderColor: '#334155', 
@@ -968,21 +1027,21 @@
             chartUmid = new Chart(document.getElementById('canvasUmid').getContext('2d'), {
                 type: 'line',
                 data: { datasets: [
-                    { label: 'Umid Int (%)', data: [], borderColor: '#00c8ff', backgroundColor: 'rgba(0,200,255,0.07)', borderWidth: 2.5, pointRadius: 0, tension: 0.4, fill: true },
-                    { label: 'Umid Ext (%)', data: [], borderColor: '#c084fc', backgroundColor: 'rgba(192,132,252,0.05)', borderWidth: 2, pointRadius: 0, tension: 0.4, fill: false }
+                    { label: 'Umid Int (%)', data: [], borderColor: '#00c8ff', backgroundColor: 'rgba(0,200,255,0.07)', borderWidth: 2.5, pointRadius: 0, tension: 0.25, fill: true },
+                    { label: 'Umid Ext (%)', data: [], borderColor: '#c084fc', backgroundColor: 'rgba(192,132,252,0.05)', borderWidth: 2, pointRadius: 0, tension: 0.25, fill: false }
                 ]},
                 options: baseOptions({ min: 50, max: 105, grid: { color: 'rgba(255,255,255,0.04)' }, ticks: { color: '#00c8ff', font: { size: 10 }, callback: v => v + '%' } }),
-                plugins: [crosshairPlugin]
+                plugins: [crosshairPlugin, agoraLinePlugin]
             });
 
             chartTemp = new Chart(document.getElementById('canvasTemp').getContext('2d'), {
                 type: 'line',
                 data: { datasets: [
-                    { label: 'Temp Int (°C)', data: [], borderColor: '#00ffaa', backgroundColor: 'rgba(0,255,170,0.07)', borderWidth: 2.5, pointRadius: 0, tension: 0.4, fill: true },
+                    { label: 'Temp Int (°C)', data: [], borderColor: '#00ffaa', backgroundColor: 'rgba(0,255,170,0.07)', borderWidth: 2.5, pointRadius: 0, tension: 0.25, fill: true },
                     { label: 'Temp Ext (°C)', data: [], borderColor: '#ff4d6d', backgroundColor: 'rgba(255,77,109,0.05)', borderWidth: 2.5, pointRadius: 0, tension: 0.4, fill: false }
                 ]},
                 options: baseOptions({ grid: { color: 'rgba(255,255,255,0.04)' }, ticks: { color: '#00ffaa', font: { size: 10 }, callback: v => v.toFixed(0) + '°C' } }),
-                plugins: [crosshairPlugin]
+                plugins: [crosshairPlugin, agoraLinePlugin]
             });
 
             let relesOpts = baseOptions({
@@ -1021,13 +1080,17 @@
                     { label: 'Exaustor', data: [], backgroundColor: (ctx) => (ctx.raw && ctx.raw.ghost) ? 'rgba(51, 34, 35, 1)' : 'rgba(255, 100, 0, 0.9)', borderColor: '#ff6400', borderWidth: 0, barPercentage: 1.05, categoryPercentage: 1.0, grouped: false }
                 ]},
                 options: relesOpts,
-                plugins: [crosshairPlugin]
+                plugins: [crosshairPlugin, agoraLinePlugin]
             });
             
-            // Corrige o tooltip dos relés nas trilhas para indicar ON ou OFF
+            // Corrige o tooltip dos relés nas trilhas para indicar ON ou OFF e Previsão
             chartReles.options.plugins.tooltip.callbacks = {
                 label: ctx => {
                     const isLigado = ctx.raw && ctx.raw.y !== null && Array.isArray(ctx.raw.y);
+                    const isGhost = ctx.raw && ctx.raw.ghost;
+                    if (isGhost) {
+                        return ` ${ctx.dataset.label}: ${isLigado ? '🔮 Previsão (ON)' : '⚪ Previsão (OFF)'}`;
+                    }
                     return ` ${ctx.dataset.label}: ${isLigado ? '🟢 ON' : '⚪ OFF'}`;
                 }
             };
@@ -1147,8 +1210,10 @@
                     window.fwPlaca = fwData.placa || '0';
                     window.fwNuvem = fwData.nuvem || '0';
                     window.fwError = fwData.error || '0';
-                    if (fwData.gitHash) {
-                        document.getElementById('txtGitHash').textContent = `Versão: 1.3.2`;
+                    if (fwData.gitHash && fwData.gitHash !== 'Desconhecido') {
+                        document.getElementById('txtGitHash').textContent = `Versão: 1.3.3 (${fwData.gitHash})`;
+                    } else {
+                        document.getElementById('txtGitHash').textContent = `Versão: 1.3.3`;
                     }
                 }
 
@@ -1241,21 +1306,31 @@
                 // Processa o cérebro / protocolo da Sistema
                 atualizarStatusProtocolos(ultimo);
 
+                // OTIMIZAÇÃO ZERO-LAG: Cache inteligente de dados
+                // Se o último registro não mudou e o limite é o mesmo, evita reprocessar e repintar os gráficos
+                const chaveDados = `${ultimo.id || ultimo.timestamp}_${data.length}_${limit}`;
+                if (window.ultimoCacheGrafico === chaveDados) {
+                    return;
+                }
+                window.ultimoCacheGrafico = chaveDados;
+
                 // Calcula tempo total ativo de cada relé respeitando o filtro ativo (24h ou 7 Dias)
                 calcularTempoReles(data);
 
                 // Preparar séries para o gráfico combinado Chart.js
-                // Garante estritamente 1 registro único por minuto nos gráficos:
-                const porMinuto = new Map();
+                // Se for 7 dias (limit > 1440), agrupa a cada 5 minutos para performance máxima sem perda de fidelidade
+                const porIntervalo = new Map();
+                const passoMin = (limit > 1440) ? 5 : 1;
+                const passoMs = passoMin * 60000;
+
                 data.forEach(d => {
                     const ts = d.unix_ts ? d.unix_ts * 1000 : new Date(d.timestamp.replace(' ', 'T')).getTime();
-                    // Arredonda para o início exato do minuto
-                    const minutoChave = Math.floor(ts / 60000) * 60000;
-                    if (!porMinuto.has(minutoChave)) {
-                        porMinuto.set(minutoChave, { ...d, unix_ts_min: minutoChave });
+                    const blocoChave = Math.floor(ts / passoMs) * passoMs;
+                    if (!porIntervalo.has(blocoChave)) {
+                        porIntervalo.set(blocoChave, { ...d, unix_ts_min: blocoChave });
                     }
                 });
-                const amostras = Array.from(porMinuto.values());
+                const amostras = Array.from(porIntervalo.values());
 
                 const dTempInt = [], dTempExt = [], dHumInt = [], dHumExt = [];
                 const dLuz = [], dUmid = [], dVento = [], dExaust = [];
@@ -1302,9 +1377,10 @@
                 
                 const cfgProj = cfgKey ? configClima[cfgKey] : null;
                 
-                // Pega exatamente o timestamp do último ponto traçado no gráfico
+                // Pega exatamente o timestamp do último ponto traçado no gráfico (momento atual real)
                 const maxTs = dExaust.length > 0 ? dExaust[dExaust.length - 1].x : Date.now();
-                const tStart = maxTs + 60000; // Começa 1 minuto depois do último dado
+                window.tsUltimoDadoReal = maxTs;
+                const tStart = maxTs + passoMs; // Começa no próximo intervalo após o último dado
                 const tEnd = tStart + (3 * 3600 * 1000); // 3 horas pra frente
                 
                 // Sincroniza a fase da projeção com a realidade usando os últimos dados históricos!
@@ -1326,7 +1402,7 @@
                 // Verifica se a luz real no último ponto histórico estava acesa:
                 const lastRealLuzOn = dLuz.length > 0 && dLuz[dLuz.length - 1].y !== null;
                 
-                for (let t = tStart; t <= tEnd; t += 60000) {
+                for (let t = tStart; t <= tEnd; t += passoMs) {
                     let dObj = new Date(t);
                     let hLocal = dObj.getHours();
                     let hGMT3 = (dObj.getUTCHours() - 3 + 24) % 24;
@@ -1396,13 +1472,14 @@
                     chartReles.data.datasets[1].data = dUmid;
                     chartReles.data.datasets[2].data = dVento;
                     chartReles.data.datasets[3].data = dExaust;
-                    chartTemp.update('none');
-                    chartUmid.update('none');
-                    chartReles.update('none');
 
-                    // Na primeira carga ou se o usuário não interagiu manualmente no zoom, foca nas últimas 3h
+                    // Atualização atômica única (evita render duplo desnecessário)
                     if (!zoomManualUsuario) {
                         aplicarZoom3Horas();
+                    } else {
+                        chartTemp.update('none');
+                        chartUmid.update('none');
+                        chartReles.update('none');
                     }
                 }
 

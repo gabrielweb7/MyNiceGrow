@@ -172,7 +172,15 @@ O painel é uma **SPA (Single Page Application)** ultra leve construída em Vani
   - Desenha as próximas **3 horas no futuro** usando a fase real do último pulso registrado na história.
   - A iluminação projeta continuamente considerando o fuso GMT-3.
   - O umidificador projeta acoplado ao ventilador quando a regra `vU = 1` estiver ativada.
-* **Sincronia de Pan & Zoom:** Eixos X perfeitamente alinhados entre os 3 gráficos (Umidade, Temperatura e Relés), permitindo arrastar ou aplicar zoom dinâmico sem perder a correlação dos dados.
+* **Centralização do Tempo Real (`AGORA 📍`):**
+  - O momento presente fica posicionado exatamente no centro do gráfico (50% da largura), integrando 3 horas de histórico real à esquerda e 3 horas de projeção preditiva à direita.
+  - Linha vertical tracejada com tag `AGORA 📍` demarca a fronteira entre dados medidos e previsão.
+* **Motor de Renderização de Alta Performance (Zero-Lag v1.3.3):**
+  - **Cache inteligente de telemetria:** Se não houver novos registros do ESP32, pula recálculos e evita re-renderizações dos canvases, mantendo a CPU em repouso.
+  - **Debounce de hover (`requestAnimationFrame`):** Sincronização entre gráficos sem travamentos ou repaints repetidos.
+  - **Aceleração `normalized: true`:** Chart.js não gasta ciclos ordenando dados cronológicos que já vêm ordenados.
+  - **Downsampling adaptativo (7 Dias):** Agrupamento a cada 5 minutos no modo semanal (reduz de 10.080 para ~2.000 pontos) mantendo fluidez total em telas mobile.
+* **Sincronia de Pan & Zoom:** Eixos X perfeitamente alinhados entre os 3 gráficos (Umidade, Temperatura e Relés), com alternância rápida entre foco centralizado e visão geral de 24 horas.
 * **Horímetro de Manutenção:** Acumula os segundos reais de acionamento de cada relé gravados na Flash NVS para estimativa de desgaste da lâmpada, coolers e membrana ultrassônica.
 
 ---
