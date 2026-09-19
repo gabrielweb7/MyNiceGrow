@@ -188,6 +188,11 @@ O painel é uma **SPA (Single Page Application)** ultra leve construída em Vani
   - **Persistência de Estado (F5-Proof):** O modo configurado é sincronizado continuamente entre ESP32, Nuvem e Dashboard (`modo_luz.txt` / NVS), garantindo que a seleção não seja perdida ao recarregar a página ou alternar de dispositivo.
   - **Comutação Imediata:** Resposta rápida em comandos manuais com bypass do dwell time automático de 15s, preservando integralmente o corte térmico biológico absoluto em 34°C.
   - **Gerenciador de Chave Admin:** Configuração visual da senha no modal do sistema com persistência local segura.
+* **Resfriamento Evaporativo Puro & Limpeza de Parâmetros (v1.4.0):**
+  - **Defesa Térmica em Estufa Selada:** Ao atingir a temperatura máxima (`tempMax`), o exaustor permanece 100% desligado para impedir a entrada de ar quente e seco da sala. O combate ao calor é feito exclusivamente por circulação interna e névoa fina até 98%, derrubando a temperatura por absorção de calor latente sem desidratar os frutos.
+  - **Eliminação de Inputs Zumbis:** Remoção dos campos de exaustor de emergência do modal, simplificando a interface para focar exclusivamente no FAE e na circulação interna.
+  - **Toggle Switch Moderno:** O controle "Injetar Névoa na Brisa" agora segue o design dos demais cards de entrada com switch interativo compacto.
+  - **Sincronia Fiel do Painel IA:** As notificações refletem com precisão quando o sistema está em alívio térmico evaporativo, FAE ou brisa preventiva de $CO_2$.
 * **Horímetro de Manutenção:** Acumula os segundos reais de acionamento de cada relé gravados na Flash NVS para estimativa de desgaste da lâmpada, coolers e membrana ultrassônica.
 
 ---

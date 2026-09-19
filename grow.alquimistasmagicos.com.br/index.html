@@ -340,7 +340,7 @@
         <!-- FOOTER -->
         <footer class="text-center text-[10px] text-slate-500 py-4 space-y-1">
             <div>Grow do Txai — IoT Cloud System — Dados atualizados a cada 60 segundos</div>
-            <div id="txtGitHash" class="text-emerald-400 font-bold tracking-widest text-xs drop-shadow-[0_0_8px_rgba(52,211,153,0.7)]">Versão: 1.3.5</div>
+            <div id="txtGitHash" class="text-emerald-400 font-bold tracking-widest text-xs drop-shadow-[0_0_8px_rgba(52,211,153,0.7)]">Versão: 1.4.0</div>
         </footer>
     </main>
 
@@ -415,7 +415,7 @@
                         </div>
                     </div>
 
-                    <!-- Exaustor Normal -->
+                    <!-- Renovação de Ar (FAE) -->
                     <div class="grid grid-cols-1 sm:grid-cols-2 gap-2 mb-3">
                         <div class="bg-slate-800/60 p-2.5 rounded-lg border border-slate-700/60">
                             <label class="text-[10px] text-slate-400 block mb-1 font-medium">Exaustor LIGADO (min)</label>
@@ -427,20 +427,8 @@
                         </div>
                     </div>
 
-                    <!-- Exaustor Emergência -->
-                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-2 mb-3">
-                        <div class="bg-orange-950/20 p-2.5 rounded-lg border border-orange-700/40">
-                            <label class="text-[10px] text-orange-400 block mb-1 font-bold">Exaust. EMERGÊNCIA LIG. (min)</label>
-                            <input type="number" id="cfgEo" class="w-full bg-slate-800 text-slate-200 text-xs sm:text-sm font-bold border border-orange-700/50 rounded p-2 text-center outline-none focus:border-orange-500">
-                        </div>
-                        <div class="bg-orange-950/20 p-2.5 rounded-lg border border-orange-700/40">
-                            <label class="text-[10px] text-orange-400 block mb-1 font-bold">Exaust. EMERGÊNCIA DESL. (min)</label>
-                            <input type="number" id="cfgEf" class="w-full bg-slate-800 text-slate-200 text-xs sm:text-sm font-bold border border-orange-700/50 rounded p-2 text-center outline-none focus:border-orange-500">
-                        </div>
-                    </div>
-
-                    <!-- Ventilador Interno -->
-                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-2 mb-3">
+                    <!-- Circulação Interna (Brisa) -->
+                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-2 mb-2.5">
                         <div class="bg-slate-800/60 p-2.5 rounded-lg border border-slate-700/60">
                             <label class="text-[10px] text-slate-400 block mb-1 font-medium">Ventilador Int. LIGADO (min)</label>
                             <input type="number" id="cfgVo" class="w-full bg-slate-800 text-slate-200 text-xs sm:text-sm font-bold border border-slate-700 rounded p-2 text-center outline-none focus:border-amber-500">
@@ -451,13 +439,18 @@
                         </div>
                     </div>
 
-                    <!-- Névoa na Brisa -->
-                    <div class="mb-3 bg-slate-800/80 p-3 rounded-lg border border-slate-700/60 flex items-center justify-between gap-3">
-                        <div class="pr-2">
-                            <span class="text-xs font-bold text-emerald-400 flex items-center gap-1.5">🌫️ Injetar Névoa na Brisa</span>
-                            <span class="text-[10px] text-slate-400 block leading-tight mt-0.5">Liga o umidificador junto gerando vapor vivo de umidade, mesmo que marque 100%</span>
+                    <!-- Injetar Névoa na Brisa (Compacto, alinhado aos inputs acima) -->
+                    <div class="bg-slate-800/60 p-2.5 rounded-lg border border-slate-700/60 flex items-center justify-between gap-3 mb-3 cursor-pointer hover:bg-slate-800/80 transition-all" onclick="const cb = document.getElementById('cfgVu'); cb.checked = !cb.checked;">
+                        <div>
+                            <label class="text-[10px] text-slate-300 font-medium block cursor-pointer flex items-center gap-1.5">
+                                <span>🌫️</span> Injetar Névoa na Brisa
+                            </label>
+                            <span class="text-[9px] text-slate-400 block mt-0.5 leading-tight">Liga o umidificador durante a circulação para vapor vivo</span>
                         </div>
-                        <input type="checkbox" id="cfgVu" class="w-5 h-5 accent-emerald-500 rounded cursor-pointer shrink-0">
+                        <label class="relative inline-flex items-center cursor-pointer shrink-0" onclick="event.stopPropagation()">
+                            <input type="checkbox" id="cfgVu" class="sr-only peer">
+                            <div class="w-9 h-5 bg-slate-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-emerald-500 shadow-inner"></div>
+                        </label>
                     </div>
 
                     <button onclick="salvarFormClima()" id="btnSalvarClima" class="w-full bg-amber-600 hover:bg-amber-500 text-white font-bold text-xs sm:text-sm py-2.5 sm:py-3 rounded-lg transition-all shadow-[0_0_15px_rgba(217,119,6,0.2)] active:scale-[0.99]">
@@ -891,8 +884,6 @@
                 document.getElementById('cfgUx').value = cfg.uX;
                 document.getElementById('cfgFo').value = cfg.fO;
                 document.getElementById('cfgFf').value = cfg.fF;
-                document.getElementById('cfgEo').value = cfg.eO !== undefined ? cfg.eO : 2;
-                document.getElementById('cfgEf').value = cfg.eF !== undefined ? cfg.eF : 8;
                 document.getElementById('cfgVo').value = cfg.vO !== undefined ? cfg.vO : 1;
                 document.getElementById('cfgVf').value = cfg.vF !== undefined ? cfg.vF : 2;
                 document.getElementById('cfgVu').checked = cfg.vU !== undefined ? (cfg.vU == 1) : true;
@@ -907,8 +898,6 @@
             configClima[f].uX = parseFloatSafe(document.getElementById('cfgUx').value);
             configClima[f].fO = parseInt(document.getElementById('cfgFo').value) || 0;
             configClima[f].fF = parseInt(document.getElementById('cfgFf').value) || 0;
-            configClima[f].eO = parseInt(document.getElementById('cfgEo').value) || 2;
-            configClima[f].eF = parseInt(document.getElementById('cfgEf').value) || 8;
             configClima[f].vO = parseInt(document.getElementById('cfgVo').value) || 0;
             configClima[f].vF = parseInt(document.getElementById('cfgVf').value) || 0;
             configClima[f].vU = document.getElementById('cfgVu').checked ? 1 : 0;
@@ -1669,34 +1658,52 @@
                 status = "🚨 Proteção Anti-Queima (Falta D'água)"; desc = "O motor foi desarmado pois a umidade não subiu. Reabasteça o reservatório e resete no painel."; cor = "text-rose-500 animate-pulse";
             } else if (tI >= 33.0 && rLuz === 0) {
                 status = "🔥 Corte Térmico da Luz"; desc = "Temperatura extremamente crítica! A luz foi forçada a apagar para não gerar mais calor."; cor = "text-rose-500";
-            } else if (quente && arFrio && rExaust === 1 && rVento === 1) {
-                status = "❄️ Injeção de Ar Frio"; desc = "A estufa esquentou. O sistema está sugando o ar fresco da sala para resfriar as paredes."; cor = "text-blue-400";
-            } else if (quente && !arFrio && rUmid === 1 && rExaust === 0) {
-                status = "💧 Defesa de Evaporação"; desc = "Estufa e sala quentes! Umidificador acionado para tentar esfriar o ambiente através da evaporação da água."; cor = "text-cyan-400";
-            } else if (rExaust === 1 && rVento === 1 && !quente) {
-                status = "💨 Troca de Ar (FAE)"; desc = "Expulsando o gás carbônico (CO2) pesado e trazendo oxigênio fresco conforme o ciclo programado."; cor = "text-teal-400";
-            } else if (rVento === 1 && rExaust === 0) {
+            } else if (quente) {
+                // DEFESA TÉRMICA (ESTUFA SELADA)
                 if (rUmid === 1) {
-                    status = "🌀 Brisa com Névoa em Execução";
-                    desc = "Ciclo programado de circulação interna soprando com injeção de névoa viva para oxigenar e hidratar os frutos.";
-                    cor = "text-cyan-300";
+                    status = "💧 Resfriamento por Evaporação"; 
+                    desc = `Temperatura acima da meta (${tI.toFixed(1)}°C / Máx: ${tempMax}°C). Névoa fria e circulação interna ativadas em estufa selada para absorver calor.`; 
+                    cor = "text-cyan-400";
+                } else if (rVento === 1 && rExaust === 0) {
+                    status = "🛡️ Defesa Térmica Passiva (Estufa Selada)"; 
+                    desc = "Estufa selada contra o ar quente da sala. Brisa interna circulando para evaporar o orvalho das paredes e refrigerar."; 
+                    cor = "text-amber-400";
+                } else if (rExaust === 1) {
+                    status = "⚠️ Alívio Térmico (Exaustão)"; 
+                    desc = "Exaustor acionado para renovar e aliviar o calor acumulado."; 
+                    cor = "text-orange-400";
                 } else {
-                    status = "🌀 Brisa Preventiva em Execução";
-                    desc = "Ciclo programado de circulação interna para quebrar bolsões de CO2 pesado acumulados no fundo.";
-                    cor = "text-indigo-400";
+                    status = "🌡️ Alerta de Calor"; 
+                    desc = `Temperatura interna (${tI.toFixed(1)}°C) acima do limite ideal (${tempMax}°C). Sistema atuando no controle térmico.`; 
+                    cor = "text-orange-400";
                 }
-            } else if (rUmid === 1 && rExaust === 0) {
-                if (uI < umidMin) {
-                    status = "💦 Recuperando Umidade Alvo";
-                    desc = `A umidade (${uI.toFixed(1)}%) está abaixo da meta mínima (${umidMin}%). Umidificador ligado para recuperar.`;
-                    cor = "text-blue-300";
-                } else {
-                    status = "💧 Estabilização de Umidade";
-                    desc = `Umidade já em ${uI.toFixed(1)}% (dentro da meta de ${umidMin}% a ${umidMax}%). Finalizando ciclo de saturação de névoa.`;
-                    cor = "text-blue-300";
+            } else {
+                // CLIMA NORMAL (não quente)
+                if (rExaust === 1 && rVento === 1) {
+                    status = "💨 Troca de Ar (FAE)"; 
+                    desc = "Expulsando o gás carbônico (CO2) pesado e trazendo oxigênio fresco conforme o ciclo programado."; 
+                    cor = "text-teal-400";
+                } else if (rVento === 1 && rExaust === 0) {
+                    if (rUmid === 1) {
+                        status = "🌀 Brisa com Névoa em Execução";
+                        desc = "Ciclo programado de circulação interna soprando com injeção de névoa viva para oxigenar e hidratar os frutos.";
+                        cor = "text-cyan-300";
+                    } else {
+                        status = "🌀 Brisa Preventiva em Execução";
+                        desc = "Ciclo programado de circulação interna para quebrar bolsões de CO2 pesado acumulados no fundo.";
+                        cor = "text-indigo-400";
+                    }
+                } else if (rUmid === 1 && rExaust === 0) {
+                    if (uI < umidMin) {
+                        status = "💦 Recuperando Umidade Alvo";
+                        desc = `A umidade (${uI.toFixed(1)}%) está abaixo da meta mínima (${umidMin}%). Umidificador ligado para recuperar.`;
+                        cor = "text-blue-300";
+                    } else {
+                        status = "💧 Estabilização de Umidade";
+                        desc = `Umidade já em ${uI.toFixed(1)}% (dentro da meta de ${umidMin}% a ${umidMax}%). Finalizando ciclo de saturação de névoa.`;
+                        cor = "text-blue-300";
+                    }
                 }
-            } else if (quente && !arFrio && rUmid === 0 && rExaust === 0) {
-                 status = "⚠️ Calor Intratável"; desc = "Está quente, mas a sala também está. Evaporação bloqueada para não molhar os cogumelos em excesso."; cor = "text-orange-400";
             }
 
             // Indicador dinâmico no card de Brisa Interna

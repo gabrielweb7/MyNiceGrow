@@ -629,34 +629,18 @@ void executarMotor(unsigned long agora) {
   if (modoLuz == LUZ_AUTO) releLuz = false;
 
   if (quente) {
-    // PRIORIDADE MÁXIMA: EMERGÊNCIA TÉRMICA!
-    // Suspende o FAE normal e zera seu contador para evitar sobreposição de exaustão.
+    // PRIORIDADE MÁXIMA: DEFESA TÉRMICA POR RESFRIAMENTO EVAPORATIVO!
+    // Não liga o exaustor para não puxar ar quente e seco da sala nem expulsar a umidade.
+    // Suspende o FAE normal enquanto a temperatura estiver alta.
     faeLigado = false;
     ultimoCicloFAE = agora;
 
-    bool trocaEmergencial = false;
-    unsigned long cicloEmerg = pf.emergOnMs + pf.emergOffMs;
-    if (cicloEmerg > 0) {
-      trocaEmergencial = ((agora % cicloEmerg) < pf.emergOnMs);
-    }
+    releExaustExt = false; // Estufa selada contra o calor da sala
+    releVentoInt = true;   // Circula névoa ativamente para evaporar e resfriar
 
-    if (trocaEmergencial) {
-      releExaustExt = true;
-      releVentoInt = true;
-      // Repõe umidade rapidamente para criar névoa fria junto com a exaustão
-      if (humInt < pf.umidMax && !alertaFaltaAgua) {
-         defesaEvap = true;
-      }
-    } else {
-      releExaustExt = false;
-      // Na pausa da emergência, liga apenas a brisa interna para resfriar por contato
-      releVentoInt = true; 
-      
-      // Ciclo de descanso de evaporação (5 min ON / 5 min OFF)
-      bool cicloDescanso = ((agora / 60000) % 10) >= 5; 
-      if (humInt < 98.0 && !alertaFaltaAgua && !cicloDescanso) { 
-        defesaEvap = true; 
-      } 
+    // Injeta névoa fria até 98% de umidade para resfriar por absorção de calor latente
+    if (humInt < 98.0 && !alertaFaltaAgua) {
+      defesaEvap = true;
     }
   } else {
     // Clima normal: Renovação de Ar Programada (FAE) roda exclusivamente aqui!
@@ -718,11 +702,19 @@ void executarMotor(unsigned long agora) {
 
   if (releUmidific) {
     if (inicioUmidificacao == 0) inicioUmidificacao = agora;
+
+    // Se a umidade já estiver alta (> 88%), o umidificador está trabalhando em defesa térmica ou
+    // saturação de névoa (e o galão obviamente tem água). Resetamos o timer de falta d'água para
+    // evitar alarme falso de "Sem Água" durante resfriamento prolongado.
+    if (humInt >= 88.0 && (quente || humInt >= pf.umidMin)) {
+      inicioUmidificacao = agora;
+      tempoUmidAcumuladoMs = 0;
+    }
+
     unsigned long decorrido = (agora - inicioUmidificacao) + tempoUmidAcumuladoMs;
     
     if (decorrido >= TIMEOUT_UMID_MS) {
-      // Se não atingiu o alvo dentro dos 15 minutos, a mangueira obstruiu ou a água acabou.
-      // Foi removido o bypass de "Falso Positivo" a pedido do usuário, agora o alerta é estrito!
+      // Se não atingiu o alvo dentro dos 15 minutos e continua seco, a mangueira obstruiu ou a água acabou.
       alertaFaltaAgua = true; 
       releUmidific = false;
       tempoUmidAcumuladoMs = 0;
