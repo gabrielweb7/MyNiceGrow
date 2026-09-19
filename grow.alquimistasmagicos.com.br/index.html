@@ -151,7 +151,7 @@
         <section class="fade-in glass rounded-xl p-4 md:p-5 border border-slate-700/30">
             <h2 class="text-xs font-bold text-slate-400 uppercase tracking-wider mb-3">⚡ Status dos Relés (Tempo Real)</h2>
             <div class="grid grid-cols-2 md:grid-cols-4 gap-3">
-                <div id="releLuz" onclick="mudarLuz()" class="rele-off rounded-lg p-3 text-center transition-all duration-500 cursor-pointer hover:bg-slate-700 border border-transparent" title="Clique para alternar (AUTO / ON / OFF)">
+                <div id="releLuz" class="rele-off rounded-lg p-3 text-center transition-all duration-500">
                     <div class="text-2xl mb-1">💡</div>
                     <p class="text-xs font-bold">Luz</p>
                     <p class="text-[10px] text-slate-400 mt-0.5" id="releLuzStatus">OFF</p>
@@ -340,112 +340,145 @@
         <!-- FOOTER -->
         <footer class="text-center text-[10px] text-slate-500 py-4 space-y-1">
             <div>Grow do Txai — IoT Cloud System — Dados atualizados a cada 60 segundos</div>
-            <div id="txtGitHash" class="text-emerald-400 font-bold tracking-widest text-xs drop-shadow-[0_0_8px_rgba(52,211,153,0.7)]">Versão: 1.3.4</div>
+            <div id="txtGitHash" class="text-emerald-400 font-bold tracking-widest text-xs drop-shadow-[0_0_8px_rgba(52,211,153,0.7)]">Versão: 1.3.5</div>
         </footer>
     </main>
 
-    <!-- Modal Configurações -->
-    <div id="modalConfig" class="fixed inset-0 bg-black/80 backdrop-blur-sm z-[100] hidden flex items-center justify-center p-4">
-        <div class="bg-slate-900 border border-slate-700 rounded-xl w-full max-w-lg overflow-hidden shadow-2xl">
-            <div class="px-5 py-4 border-b border-slate-800 flex justify-between items-center">
-                <h2 class="text-sm font-bold text-slate-200 uppercase tracking-wider">⚙️ Configurações do Sistema</h2>
-                <button onclick="fecharConfig()" class="text-slate-400 hover:text-white text-xl leading-none">&times;</button>
+    <!-- Modal Configurações Responsivo -->
+    <div id="modalConfig" onclick="if(event.target === this) fecharConfig()" class="fixed inset-0 bg-black/80 backdrop-blur-sm z-[100] hidden flex items-center justify-center p-3 sm:p-4">
+        <div class="bg-slate-900 border border-slate-700/80 rounded-2xl w-full max-w-lg max-h-[92vh] sm:max-h-[88vh] flex flex-col overflow-hidden shadow-2xl">
+            <!-- Header Fixo -->
+            <div class="px-4 py-3 sm:px-5 sm:py-4 border-b border-slate-800 flex justify-between items-center bg-slate-900/95 backdrop-blur shrink-0">
+                <h2 class="text-xs sm:text-sm font-bold text-slate-200 uppercase tracking-wider flex items-center gap-2">
+                    <span>⚙️</span> Configurações do Sistema
+                </h2>
+                <button onclick="fecharConfig()" class="w-8 h-8 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-white flex items-center justify-center text-xl transition-all" aria-label="Fechar">&times;</button>
             </div>
-            <div class="p-5">
-                <div class="flex justify-between items-center mb-2">
-                    <h3 class="text-emerald-400 font-bold text-xs uppercase">Sincronização de Firmware (OTA)</h3>
-                    <div id="otaStatusBadge"></div>
-                </div>
-                <p class="text-[10px] text-slate-400 mb-4">O sistema compara a data do arquivo <span class="text-slate-300 font-mono">.bin</span> rodando na placa com a do servidor.</p>
-                
-                <div class="grid grid-cols-2 gap-4 mb-4">
-                    <div class="bg-slate-800 p-3 rounded-lg border border-slate-700">
-                        <span class="text-[10px] text-slate-500 uppercase block mb-1">Instalada na Estufa</span>
-                        <div id="uiFwPlaca" class="text-xs font-bold text-slate-200">--</div>
-                    </div>
-                    <div class="bg-slate-800 p-3 rounded-lg border border-slate-700">
-                        <span class="text-[10px] text-slate-500 uppercase block mb-1">Disponível na Nuvem</span>
-                        <div id="uiFwNuvem" class="text-xs font-bold text-slate-200">--</div>
-                    </div>
-                </div>
 
-                <button onclick="enviarOTA()" id="btnEnviarOta" class="w-full bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs py-3 rounded-lg transition-all shadow-[0_0_15px_rgba(16,185,129,0.2)] flex items-center justify-center gap-2">
-                    <span>Instalar Versão da Nuvem na Placa</span>
-                </button>
+            <!-- Corpo com Scroll Suave -->
+            <div class="p-4 sm:p-5 overflow-y-auto space-y-5">
+                <!-- Seção OTA -->
+                <div>
+                    <div class="flex flex-wrap justify-between items-center gap-1.5 mb-1.5">
+                        <h3 class="text-emerald-400 font-bold text-xs uppercase flex items-center gap-1.5">
+                            <span>🚀</span> Sincronização de Firmware (OTA)
+                        </h3>
+                        <div id="otaStatusBadge"></div>
+                    </div>
+                    <p class="text-[10px] sm:text-xs text-slate-400 mb-3 leading-relaxed">O sistema compara a data do arquivo <span class="text-slate-300 font-mono bg-slate-800 px-1 py-0.5 rounded">.bin</span> rodando na placa com a do servidor.</p>
+                    
+                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-2.5 mb-3">
+                        <div class="bg-slate-800/90 p-3 rounded-lg border border-slate-700/70">
+                            <span class="text-[10px] text-slate-400 uppercase tracking-wider font-semibold block mb-1">Instalada na Estufa</span>
+                            <div id="uiFwPlaca" class="text-xs sm:text-sm font-bold text-slate-200">--</div>
+                        </div>
+                        <div class="bg-slate-800/90 p-3 rounded-lg border border-slate-700/70">
+                            <span class="text-[10px] text-slate-400 uppercase tracking-wider font-semibold block mb-1">Disponível na Nuvem</span>
+                            <div id="uiFwNuvem" class="text-xs sm:text-sm font-bold text-slate-200">--</div>
+                        </div>
+                    </div>
 
-                <hr class="border-slate-800 my-5">
-                <h3 class="text-amber-400 font-bold text-xs uppercase mb-3">🌡️ Ajuste de Clima por Fase</h3>
-                <div class="mb-3">
-                    <label class="text-[10px] text-slate-500 uppercase block mb-1">Selecione a Fase</label>
-                    <select id="selConfigFase" class="w-full bg-slate-800 text-slate-200 text-xs border border-slate-700 rounded-lg p-2 outline-none focus:border-amber-500" onchange="carregarFormClima()">
-                        <option value="1">🍄 Pinagem</option>
-                        <option value="2">🍄 Frutificação</option>
-                        <option value="3">🍄 Segundo Flush</option>
-                    </select>
-                </div>
-                <div class="grid grid-cols-3 gap-2 mb-3">
-                    <div>
-                        <label class="text-[10px] text-slate-500 block mb-1">Temp Max (°C)</label>
-                        <input type="number" step="0.1" id="cfgTx" class="w-full bg-slate-800 text-slate-200 text-xs border border-slate-700 rounded p-2 text-center outline-none">
-                    </div>
-                    <div>
-                        <label class="text-[10px] text-slate-500 block mb-1">Umid Min (%)</label>
-                        <input type="number" step="0.1" id="cfgUn" class="w-full bg-slate-800 text-slate-200 text-xs border border-slate-700 rounded p-2 text-center outline-none">
-                    </div>
-                    <div>
-                        <label class="text-[10px] text-slate-500 block mb-1">Umid Max (%)</label>
-                        <input type="number" step="0.1" id="cfgUx" class="w-full bg-slate-800 text-slate-200 text-xs border border-slate-700 rounded p-2 text-center outline-none">
-                    </div>
-                </div>
-                <div class="grid grid-cols-2 gap-2 mb-3">
-                    <div>
-                        <label class="text-[10px] text-slate-500 block mb-1">Exaustor LIGADO (min)</label>
-                        <input type="number" id="cfgFo" class="w-full bg-slate-800 text-slate-200 text-xs border border-slate-700 rounded p-2 text-center outline-none">
-                    </div>
-                    <div>
-                        <label class="text-[10px] text-slate-500 block mb-1">Exaustor DESLIG. (min)</label>
-                        <input type="number" id="cfgFf" class="w-full bg-slate-800 text-slate-200 text-xs border border-slate-700 rounded p-2 text-center outline-none">
-                    </div>
-                </div>
-                <div class="grid grid-cols-2 gap-2 mb-3">
-                    <div>
-                        <label class="text-[10px] text-orange-400 block mb-1 font-bold">Exaust. EMERGÊNCIA LIGADO (min)</label>
-                        <input type="number" id="cfgEo" class="w-full bg-slate-800 text-slate-200 text-xs border border-orange-700/50 rounded p-2 text-center outline-none">
-                    </div>
-                    <div>
-                        <label class="text-[10px] text-orange-400 block mb-1 font-bold">Exaust. EMERGÊNCIA DESLIG. (min)</label>
-                        <input type="number" id="cfgEf" class="w-full bg-slate-800 text-slate-200 text-xs border border-orange-700/50 rounded p-2 text-center outline-none">
-                    </div>
-                </div>
-                <div class="grid grid-cols-2 gap-2 mb-3">
-                    <div>
-                        <label class="text-[10px] text-slate-500 block mb-1">Ventilador Int. LIGADO (min)</label>
-                        <input type="number" id="cfgVo" class="w-full bg-slate-800 text-slate-200 text-xs border border-slate-700 rounded p-2 text-center outline-none">
-                    </div>
-                    <div>
-                        <label class="text-[10px] text-slate-500 block mb-1">Ventilador Int. DESLIG. (min)</label>
-                        <input type="number" id="cfgVf" class="w-full bg-slate-800 text-slate-200 text-xs border border-slate-700 rounded p-2 text-center outline-none">
-                    </div>
-                </div>
-                <div class="mb-4 bg-slate-800/80 p-2.5 rounded-lg border border-slate-700/60 flex items-center justify-between gap-3">
-                    <div>
-                        <span class="text-xs font-bold text-emerald-400 block flex items-center gap-1.5">🌫️ Injetar Névoa na Brisa</span>
-                        <span class="text-[10px] text-slate-400 block leading-tight mt-0.5">Liga o umidificador junto gerando vapor vivo de umidade, mesmo que marque 100%</span>
-                    </div>
-                    <input type="checkbox" id="cfgVu" class="w-5 h-5 accent-emerald-500 rounded cursor-pointer">
-                </div>
-                <button onclick="salvarFormClima()" id="btnSalvarClima" class="w-full bg-amber-600 hover:bg-amber-500 text-white font-bold text-xs py-2 rounded-lg transition-all shadow-[0_0_15px_rgba(217,119,6,0.2)]">
-                    Salvar e Enviar para Placa
-                </button>
-
-                <hr class="border-slate-800 my-5">
-                <h3 class="text-slate-300 font-bold text-xs uppercase mb-2">🔑 Chave de Acesso Admin</h3>
-                <p class="text-[10px] text-slate-400 mb-2">Senha para autorizar comandos de fase, iluminação forçada e updates.</p>
-                <div class="flex gap-2">
-                    <input type="password" id="inputAdminPass" placeholder="Digite a chave admin..." class="flex-1 bg-slate-800 text-slate-200 text-xs border border-slate-700 rounded p-2 outline-none focus:border-emerald-500">
-                    <button onclick="salvarChaveAdmin()" class="bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold px-3 py-2 rounded transition-all">
-                        Salvar
+                    <button onclick="enviarOTA()" id="btnEnviarOta" class="w-full bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs sm:text-sm py-2.5 sm:py-3 rounded-lg transition-all shadow-[0_0_15px_rgba(16,185,129,0.2)] flex items-center justify-center gap-2 active:scale-[0.99]">
+                        <span>Instalar Versão da Nuvem na Placa</span>
                     </button>
+                </div>
+
+                <hr class="border-slate-800/80">
+
+                <!-- Seção Clima por Fase -->
+                <div>
+                    <h3 class="text-amber-400 font-bold text-xs uppercase mb-3 flex items-center gap-1.5">
+                        <span>🌡️</span> Ajuste de Clima por Fase
+                    </h3>
+                    <div class="mb-3">
+                        <label class="text-[10px] sm:text-xs text-slate-400 uppercase tracking-wider font-semibold block mb-1">Selecione a Fase</label>
+                        <select id="selConfigFase" class="w-full bg-slate-800 text-slate-200 text-xs sm:text-sm border border-slate-700 rounded-lg p-2.5 outline-none focus:border-amber-500" onchange="carregarFormClima()">
+                            <option value="1">🍄 Pinagem</option>
+                            <option value="2">🍄 Frutificação</option>
+                            <option value="3">🍄 Segundo Flush</option>
+                        </select>
+                    </div>
+
+                    <!-- Metas de Temp e Umidade (3 colunas responsivas) -->
+                    <div class="grid grid-cols-3 gap-2 mb-3">
+                        <div class="bg-slate-800/60 p-2 rounded-lg border border-slate-700/60">
+                            <label class="text-[9px] sm:text-[10px] text-slate-400 block mb-1 font-medium truncate">Temp Max (°C)</label>
+                            <input type="number" step="0.1" id="cfgTx" class="w-full bg-slate-800 text-slate-200 text-xs sm:text-sm font-bold border border-slate-700 rounded p-1.5 sm:p-2 text-center outline-none focus:border-amber-500">
+                        </div>
+                        <div class="bg-slate-800/60 p-2 rounded-lg border border-slate-700/60">
+                            <label class="text-[9px] sm:text-[10px] text-slate-400 block mb-1 font-medium truncate">Umid Min (%)</label>
+                            <input type="number" step="0.1" id="cfgUn" class="w-full bg-slate-800 text-slate-200 text-xs sm:text-sm font-bold border border-slate-700 rounded p-1.5 sm:p-2 text-center outline-none focus:border-amber-500">
+                        </div>
+                        <div class="bg-slate-800/60 p-2 rounded-lg border border-slate-700/60">
+                            <label class="text-[9px] sm:text-[10px] text-slate-400 block mb-1 font-medium truncate">Umid Max (%)</label>
+                            <input type="number" step="0.1" id="cfgUx" class="w-full bg-slate-800 text-slate-200 text-xs sm:text-sm font-bold border border-slate-700 rounded p-1.5 sm:p-2 text-center outline-none focus:border-amber-500">
+                        </div>
+                    </div>
+
+                    <!-- Exaustor Normal -->
+                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-2 mb-3">
+                        <div class="bg-slate-800/60 p-2.5 rounded-lg border border-slate-700/60">
+                            <label class="text-[10px] text-slate-400 block mb-1 font-medium">Exaustor LIGADO (min)</label>
+                            <input type="number" id="cfgFo" class="w-full bg-slate-800 text-slate-200 text-xs sm:text-sm font-bold border border-slate-700 rounded p-2 text-center outline-none focus:border-amber-500">
+                        </div>
+                        <div class="bg-slate-800/60 p-2.5 rounded-lg border border-slate-700/60">
+                            <label class="text-[10px] text-slate-400 block mb-1 font-medium">Exaustor DESLIG. (min)</label>
+                            <input type="number" id="cfgFf" class="w-full bg-slate-800 text-slate-200 text-xs sm:text-sm font-bold border border-slate-700 rounded p-2 text-center outline-none focus:border-amber-500">
+                        </div>
+                    </div>
+
+                    <!-- Exaustor Emergência -->
+                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-2 mb-3">
+                        <div class="bg-orange-950/20 p-2.5 rounded-lg border border-orange-700/40">
+                            <label class="text-[10px] text-orange-400 block mb-1 font-bold">Exaust. EMERGÊNCIA LIG. (min)</label>
+                            <input type="number" id="cfgEo" class="w-full bg-slate-800 text-slate-200 text-xs sm:text-sm font-bold border border-orange-700/50 rounded p-2 text-center outline-none focus:border-orange-500">
+                        </div>
+                        <div class="bg-orange-950/20 p-2.5 rounded-lg border border-orange-700/40">
+                            <label class="text-[10px] text-orange-400 block mb-1 font-bold">Exaust. EMERGÊNCIA DESL. (min)</label>
+                            <input type="number" id="cfgEf" class="w-full bg-slate-800 text-slate-200 text-xs sm:text-sm font-bold border border-orange-700/50 rounded p-2 text-center outline-none focus:border-orange-500">
+                        </div>
+                    </div>
+
+                    <!-- Ventilador Interno -->
+                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-2 mb-3">
+                        <div class="bg-slate-800/60 p-2.5 rounded-lg border border-slate-700/60">
+                            <label class="text-[10px] text-slate-400 block mb-1 font-medium">Ventilador Int. LIGADO (min)</label>
+                            <input type="number" id="cfgVo" class="w-full bg-slate-800 text-slate-200 text-xs sm:text-sm font-bold border border-slate-700 rounded p-2 text-center outline-none focus:border-amber-500">
+                        </div>
+                        <div class="bg-slate-800/60 p-2.5 rounded-lg border border-slate-700/60">
+                            <label class="text-[10px] text-slate-400 block mb-1 font-medium">Ventilador Int. DESLIG. (min)</label>
+                            <input type="number" id="cfgVf" class="w-full bg-slate-800 text-slate-200 text-xs sm:text-sm font-bold border border-slate-700 rounded p-2 text-center outline-none focus:border-amber-500">
+                        </div>
+                    </div>
+
+                    <!-- Névoa na Brisa -->
+                    <div class="mb-3 bg-slate-800/80 p-3 rounded-lg border border-slate-700/60 flex items-center justify-between gap-3">
+                        <div class="pr-2">
+                            <span class="text-xs font-bold text-emerald-400 flex items-center gap-1.5">🌫️ Injetar Névoa na Brisa</span>
+                            <span class="text-[10px] text-slate-400 block leading-tight mt-0.5">Liga o umidificador junto gerando vapor vivo de umidade, mesmo que marque 100%</span>
+                        </div>
+                        <input type="checkbox" id="cfgVu" class="w-5 h-5 accent-emerald-500 rounded cursor-pointer shrink-0">
+                    </div>
+
+                    <button onclick="salvarFormClima()" id="btnSalvarClima" class="w-full bg-amber-600 hover:bg-amber-500 text-white font-bold text-xs sm:text-sm py-2.5 sm:py-3 rounded-lg transition-all shadow-[0_0_15px_rgba(217,119,6,0.2)] active:scale-[0.99]">
+                        Salvar e Enviar para Placa
+                    </button>
+                </div>
+
+                <hr class="border-slate-800/80">
+
+                <!-- Seção Chave Admin -->
+                <div>
+                    <h3 class="text-slate-300 font-bold text-xs uppercase mb-1.5 flex items-center gap-1.5">
+                        <span>🔑</span> Chave de Acesso Admin
+                    </h3>
+                    <p class="text-[10px] sm:text-xs text-slate-400 mb-2.5 leading-relaxed">Senha para autorizar comandos de fase, iluminação forçada e updates.</p>
+                    <div class="flex flex-col sm:flex-row gap-2">
+                        <input type="password" id="inputAdminPass" placeholder="Digite a chave admin..." class="flex-1 bg-slate-800 text-slate-200 text-xs sm:text-sm border border-slate-700 rounded-lg p-2.5 outline-none focus:border-emerald-500">
+                        <button onclick="salvarChaveAdmin()" class="bg-emerald-600 hover:bg-emerald-500 text-white text-xs sm:text-sm font-bold px-4 py-2.5 rounded-lg transition-all shrink-0 active:scale-[0.99]">
+                            Salvar Chave
+                        </button>
+                    </div>
                 </div>
             </div>
         </div>
@@ -623,15 +656,15 @@
                 st.innerHTML = '🚨 SEM ÁGUA<br><span class="text-[8px] font-normal">CLIQUE P/ RESETAR</span>';
                 st.className = 'text-[10px] text-white mt-0.5 font-bold tracking-wider leading-tight';
                 return;
-            } else if (id === 'releUmid') {
-                // Se não for alerta, removemos o onclick especial
+            } else if (id === 'releUmid' || isLuz) {
+                // Remove qualquer onclick residual
                 el.onclick = null;
             }
 
             const isOn = (estadoRele === 1 || estadoRele === true || estadoRele === '1');
 
             if (isOn) {
-                el.className = (isLuz ? 'cursor-pointer hover:bg-emerald-500 ' : '') + 'bg-emerald-600 rounded-lg p-3 text-center transition-all duration-500 shadow-[0_0_15px_rgba(16,185,129,0.4)] border border-emerald-400/50';
+                el.className = 'bg-emerald-600 rounded-lg p-3 text-center transition-all duration-500 shadow-[0_0_15px_rgba(16,185,129,0.4)] border border-emerald-400/50';
                 if (isLuz) {
                     st.textContent = (luzState === 0) ? 'AUTO (ON)' : (luzState === 1 ? 'FORÇADA (ON)' : 'ON');
                 } else {
@@ -639,7 +672,7 @@
                 }
                 st.className = 'text-[10px] text-emerald-100 mt-0.5 font-bold tracking-wider';
             } else {
-                el.className = (isLuz ? 'cursor-pointer hover:bg-slate-700 ' : '') + 'bg-slate-800 rounded-lg p-3 text-center transition-all duration-500 border border-transparent opacity-80';
+                el.className = 'bg-slate-800 rounded-lg p-3 text-center transition-all duration-500 border border-transparent opacity-80';
                 if (isLuz) {
                     st.textContent = (luzState === 0) ? 'AUTO (OFF)' : (luzState === 2 ? 'FORÇADA (OFF)' : 'OFF');
                 } else {
