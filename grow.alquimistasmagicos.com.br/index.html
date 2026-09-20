@@ -1122,7 +1122,18 @@
                 scales: {
                     x: {
                         type: 'time', time: { tooltipFormat: 'dd/MM HH:mm', displayFormats: { hour: 'HH:mm', minute: 'HH:mm', day: 'dd/MM' } },
-                        grid: { color: 'rgba(255,255,255,0.04)' }, ticks: { color: '#475569', maxTicksLimit: 10, font: { size: 10 } }
+                        grid: { color: 'rgba(255,255,255,0.04)' }, 
+                        ticks: { 
+                            color: (ctx) => {
+                                if (ctx.tick && ctx.tick.value) {
+                                    const d = new Date(ctx.tick.value);
+                                    if (d.getMinutes() === 0) return '#00ffaa';
+                                }
+                                return '#475569';
+                            },
+                            maxTicksLimit: 10, 
+                            font: { size: 10 } 
+                        }
                     },
                     y: yScale
                 }
