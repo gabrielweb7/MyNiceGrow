@@ -1121,7 +1121,33 @@
                 },
                 scales: {
                     x: {
-                        type: 'time', time: { tooltipFormat: 'dd/MM HH:mm', displayFormats: { hour: 'HH:mm', minute: 'HH:mm', day: 'dd/MM' } },
+                        type: 'time', 
+                        time: { tooltipFormat: 'dd/MM HH:mm', displayFormats: { hour: 'HH:mm', minute: 'HH:mm', day: 'dd/MM' } },
+                        afterBuildTicks: (scale) => {
+                            const min = scale.min;
+                            const max = scale.max;
+                            const rangeMs = max - min;
+                            let stepMs = 5 * 60000; // default 5m
+                            
+                            if (rangeMs > 5 * 24 * 3600 * 1000) stepMs = 24 * 3600 * 1000; // > 5 dias = 24h
+                            else if (rangeMs > 2 * 24 * 3600 * 1000) stepMs = 12 * 3600 * 1000; // > 2 dias = 12h
+                            else if (rangeMs > 12 * 3600 * 1000) stepMs = 2 * 3600 * 1000; // > 12h = 2h
+                            else if (rangeMs > 6 * 3600 * 1000) stepMs = 60 * 60000; // > 6h = 1h
+                            else if (rangeMs > 2 * 3600 * 1000) stepMs = 15 * 60000; // > 2h = 15m
+                            else if (rangeMs > 3600 * 1000) stepMs = 10 * 60000; // > 1h = 10m
+                            
+                            // Ajusta o primeiro tick para múltiplo exato do stepMs (alinhado a hora inteira/zero)
+                            // A divisão usando o timezone offset garante alinhamento com a hora local
+                            const tzOffsetMs = new Date().getTimezoneOffset() * 60000;
+                            const minAdjusted = min - tzOffsetMs;
+                            let firstTick = Math.ceil(minAdjusted / stepMs) * stepMs + tzOffsetMs;
+                            
+                            const newTicks = [];
+                            for (let t = firstTick; t <= max; t += stepMs) {
+                                newTicks.push({ value: t });
+                            }
+                            scale.ticks = newTicks;
+                        },
                         grid: { color: 'rgba(255,255,255,0.04)' }, 
                         ticks: { 
                             color: (ctx) => {
@@ -1131,7 +1157,7 @@
                                 }
                                 return '#475569';
                             },
-                            maxTicksLimit: 10, 
+                            maxTicksLimit: 12, 
                             font: { size: 10 } 
                         }
                     },
