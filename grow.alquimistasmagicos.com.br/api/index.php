@@ -1,4 +1,5 @@
 <?php
+ob_start("ob_gzhandler"); // Compressão GZIP ativa: reduz o payload do painel em 90%!
 header('Content-Type: application/json');
 header('Access-Control-Allow-Origin: *');
 header('Access-Control-Expose-Headers: X-Fw-Placa, X-Fw-Nuvem');
