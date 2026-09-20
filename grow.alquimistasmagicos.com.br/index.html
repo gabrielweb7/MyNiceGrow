@@ -1115,6 +1115,9 @@
                         padding: 12 
                     },
                     zoom: {
+                        limits: {
+                            x: { minRange: 15 * 60000 } // Limita zoom in a 15 minutos (evita ver as quebras de passo do chartjs)
+                        },
                         pan: { enabled: true, mode: 'x', threshold: 10, onPan: ({chart}) => syncZoom(chart) },
                         zoom: { wheel: { enabled: true, speed: 0.1 }, pinch: { enabled: true }, mode: 'x', onZoom: ({chart}) => syncZoom(chart) }
                     }
@@ -1638,6 +1641,18 @@
                     chartReles.data.datasets[1].data = dUmid;
                     chartReles.data.datasets[2].data = dVento;
                     chartReles.data.datasets[3].data = dExaust;
+
+                    // Atualiza limites de zoom/pan para impedir que o usuário se perca no vazio
+                    const tsPrimeiro = data[0].unix_ts ? (data[0].unix_ts * 1000) : new Date(data[0].timestamp.replace(' ', 'T')).getTime();
+                    const minAbsoluto = tsPrimeiro - 3600000; // 1h de respiro antes do primeiro dado
+                    const maxAbsoluto = tEnd + 3600000;       // 1h de respiro depois da projeção futura
+                    
+                    [chartTemp, chartUmid, chartReles].forEach(c => {
+                        if (c.options.plugins.zoom.limits) {
+                            c.options.plugins.zoom.limits.x.min = minAbsoluto;
+                            c.options.plugins.zoom.limits.x.max = maxAbsoluto;
+                        }
+                    });
 
                     // Atualização atômica única (evita render duplo desnecessário)
                     if (!zoomManualUsuario) {
