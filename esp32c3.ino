@@ -93,7 +93,7 @@ struct PerfilClimatico {
   float tempMax, umidMin, umidMax;
   unsigned long faeOnMs, faeOffMs;
   unsigned long ventoOnMs, ventoOffMs;
-  unsigned long emergOnMs, emergOffMs;
+  unsigned long exaustOnMs, exaustOffMs;
   bool ventoComUmid;
 };
 
@@ -400,8 +400,8 @@ void enviarNuvem(unsigned long agora) {
                      unsigned long eF = cfg[key].containsKey("eF") ? cfg[key]["eF"].as<unsigned long>() : 8;
                      perfis[i].ventoOnMs = vO * 60000UL;
                      perfis[i].ventoOffMs = vF * 60000UL;
-                     perfis[i].emergOnMs = eO * 60000UL;
-                     perfis[i].emergOffMs = eF * 60000UL;
+                     perfis[i].exaustOnMs = eO * 60000UL;
+                     perfis[i].exaustOffMs = eF * 60000UL;
                      perfis[i].ventoComUmid = cfg[key].containsKey("vU") ? (cfg[key]["vU"].as<int>() == 1) : true;
                      configAlterada = true;
                   }
@@ -621,6 +621,14 @@ void executarMotor(unsigned long agora) {
 
   // --- CONTROLE TÉRMICO E FAE ---
   bool quente = (tempInt >= pf.tempMax);
+  
+  // PROTECAO ANTI-ABORTO DO FAE:
+  // Se o FAE iniciou, a temperatura vai subir um pouco porque o umidificador é desligado.
+  // Ignoramos a trava 'quente' temporariamente para garantir que o ciclo de renovacao termine!
+  if (faeLigado) {
+    quente = false;
+  }
+  
   bool defesaEvap = false;
   
   // RESET EXPLICITO: Todos os reles partem de OFF e sao ligados explicitamente pela logica abaixo.
@@ -669,6 +677,7 @@ void executarMotor(unsigned long agora) {
       }
     }
   }
+
   // -----------------------------------------------------
 
   if (!alertaFaltaAgua) {
