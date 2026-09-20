@@ -4,7 +4,7 @@
 //  Autor: Gabriel + Antigravity AI
 // ============================================================
 
-#define FW_VERSION 405
+#define FW_VERSION 406
 
 #include <Arduino.h>
 #include <ArduinoJson.h>
@@ -619,8 +619,14 @@ void executarMotor(unsigned long agora) {
     }
   }
 
-  // --- CONTROLE TÉRMICO E FAE ---
-  bool quente = (tempInt >= pf.tempMax);
+  // --- CONTROLE TÉRMICO E FAE (Com Histerese de 1.5°C contra o Efeito Yo-Yo) ---
+  static bool modoQuenteTravado = false;
+  if (tempInt >= pf.tempMax) {
+    modoQuenteTravado = true;
+  } else if (tempInt < (pf.tempMax - 1.5)) {
+    modoQuenteTravado = false;
+  }
+  bool quente = modoQuenteTravado;
   
   // PROTECAO ANTI-ABORTO DO FAE:
   // Se o FAE iniciou, a temperatura vai subir um pouco porque o umidificador é desligado.
