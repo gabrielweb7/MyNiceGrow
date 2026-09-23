@@ -4,7 +4,7 @@
 //  Autor: Gabriel + Antigravity AI
 // ============================================================
 
-#define FW_VERSION 406
+#define FW_VERSION 407
 
 #include <Arduino.h>
 #include <ArduinoJson.h>
@@ -18,44 +18,44 @@
 #include <ESPmDNS.h>
 #include <ArduinoOTA.h>
 #include <WiFiClientSecure.h>
-#include <HTTPClient.h> // Nuvem
-#include <HTTPUpdate.h> // Atualização Remota via Web (OTA)
+#include <HTTPClient.h>  // Nuvem
+#include <HTTPUpdate.h>  // Atualização Remota via Web (OTA)
 #include <Update.h>
-#include <LittleFS.h>   // Datalogger Offline
+#include <LittleFS.h>  // Datalogger Offline
 #include <time.h>
-#include <Preferences.h> // Memória Anti-Apagão
+#include <Preferences.h>  // Memória Anti-Apagão
 
 // ============================================================
 //  CONFIGURAÇÕES DO USUÁRIO
 // ============================================================
 
 // --- Relógio ---
-const char* NTP_SERVER     = "pool.ntp.org";
-const long  GMT_OFFSET_SEC = -10800;
-const int   DAYLIGHT_OFF   = 0;
+const char* NTP_SERVER = "pool.ntp.org";
+const long GMT_OFFSET_SEC = -10800;
+const int DAYLIGHT_OFF = 0;
 
 // --- Ciclo de Luz ---
-const int LUZ_HORA_LIGA    = 20;
+const int LUZ_HORA_LIGA = 20;
 const int LUZ_HORA_DESLIGA = 8;
 
 // --- Temperaturas ---
-const float TEMP_MINIMA    = 18.0; // Limite de alerta (estufa não passa frio, sem injeção forçada de ar da sala)
-const float TEMP_ALVO_MAX  = 29.0;
-const float TEMP_CRITICA   = 32.0; // Aumentado para evitar spam no calor de MS
-const float TEMP_CORTE_LUZ = 34.0; // Desliga luz por segurança térmica extrema
+const float TEMP_MINIMA = 18.0;  // Limite de alerta (estufa não passa frio, sem injeção forçada de ar da sala)
+const float TEMP_ALVO_MAX = 29.0;
+const float TEMP_CRITICA = 32.0;    // Aumentado para evitar spam no calor de MS
+const float TEMP_CORTE_LUZ = 34.0;  // Desliga luz por segurança térmica extrema
 
 // --- Umidade ---
 const float UMIDADE_MINIMA = 88.0;
 const float UMIDADE_MAXIMA = 95.0;
 
 // --- FAE ---
-const unsigned long FAE_ON_MS  = 2UL * 60 * 1000;
+const unsigned long FAE_ON_MS = 2UL * 60 * 1000;
 const unsigned long FAE_OFF_MS = 58UL * 60 * 1000;
 
 // --- Nuvem (HostGator) ---
 const char* CLOUD_URL = "https://grow.alquimistasmagicos.com.br/api/index.php";
 const char* CLOUD_KEY = "GrowIA_V4_SuperSecreta!";
-const unsigned long INTERVALO_NUVEM = 10UL * 1000; // 10 segundos (Máxima responsividade)
+const unsigned long INTERVALO_NUVEM = 10UL * 1000;  // 10 segundos (Máxima responsividade)
 
 // --- Segurança ---
 const unsigned long TIMEOUT_UMID_MS = 15UL * 60 * 1000;
@@ -63,7 +63,7 @@ const uint8_t LED_BRILHO = 20;
 
 
 // --- Progressão Automática (dias, 0 = manual) ---
-const int DIAS_PINANDO     = 0;
+const int DIAS_PINANDO = 0;
 const int DIAS_FRUTIFICACAO = 0;
 const int DIAS_SEGUNDO_FLUSH = 0;
 
@@ -71,7 +71,7 @@ const int DIAS_SEGUNDO_FLUSH = 0;
 //  PINOS
 // ============================================================
 #ifndef RGB_BUILTIN
-  #define RGB_BUILTIN 8
+#define RGB_BUILTIN 8
 #endif
 #define PIN_SDA 4
 #define PIN_SCL 5
@@ -85,9 +85,17 @@ const int DIAS_SEGUNDO_FLUSH = 0;
 // ============================================================
 //  ENUMS E STRUCTS
 // ============================================================
-enum FaseCultivo { FASE_STANDBY, FASE_PINANDO, FASE_FRUTIFICACAO, FASE_SEGUNDO_FLUSH, FASE_SECAGEM };
-enum ModoLuz     { LUZ_AUTO, LUZ_FORCADA_ON, LUZ_FORCADA_OFF };
-enum StatusSis   { SIS_OK, SIS_SEM_WIFI, SIS_ERRO_SENSOR };
+enum FaseCultivo { FASE_STANDBY,
+                   FASE_PINANDO,
+                   FASE_FRUTIFICACAO,
+                   FASE_SEGUNDO_FLUSH,
+                   FASE_SECAGEM };
+enum ModoLuz { LUZ_AUTO,
+               LUZ_FORCADA_ON,
+               LUZ_FORCADA_OFF };
+enum StatusSis { SIS_OK,
+                 SIS_SEM_WIFI,
+                 SIS_ERRO_SENSOR };
 
 struct PerfilClimatico {
   float tempMax, umidMin, umidMax;
@@ -107,32 +115,34 @@ WebServer server(80);
 Preferences prefs;
 
 FaseCultivo faseAtual = FASE_STANDBY;
-ModoLuz     modoLuz   = LUZ_AUTO;
-StatusSis   statusSis = SIS_SEM_WIFI;
+ModoLuz modoLuz = LUZ_AUTO;
+StatusSis statusSis = SIS_SEM_WIFI;
 
 float tempInt = -99.0, humInt = -99.0, tempExt = -99.0, humExt = -99.0;
-bool  sensorIntOk = false, sensorExtOk = false;
+bool sensorIntOk = false, sensorExtOk = false;
 
 #define FILTRO_N 5
 float bufTempInt[FILTRO_N], bufHumInt[FILTRO_N], bufTempExt[FILTRO_N], bufHumExt[FILTRO_N];
-int   idxFiltroInt = 0, idxFiltroExt = 0; 
-bool  filtroIntPreenchido = false, filtroExtPreenchido = false;
+int idxFiltroInt = 0, idxFiltroExt = 0;
+bool filtroIntPreenchido = false, filtroExtPreenchido = false;
 
 float tempIntMin = 999, tempIntMax = -999, humIntMin = 999, humIntMax = -999;
-char  horaMinTemp[6]="--:--", horaMaxTemp[6]="--:--", horaMinHum[6]="--:--", horaMaxHum[6]="--:--";
-int   ultimoDia = -1;
+char horaMinTemp[6] = "--:--", horaMaxTemp[6] = "--:--", horaMinHum[6] = "--:--", horaMaxHum[6] = "--:--";
+int ultimoDia = -1;
 
 bool releLuz = false, releUmidific = false, releVentoInt = false, releExaustExt = false;
 bool lastReleLuz = false, lastReleUmidific = false, lastReleVento = false, lastReleExaust = false;
 
 unsigned long ultimaLeitura = 0, ultimoCicloFAE = 0, inicioUmidificacao = 0, ultimoEnvioNuvem = 0;
-#define PIN_BOOT 9 // Botão BOOT da placa ESP32-C3
+#define PIN_BOOT 9  // Botão BOOT da placa ESP32-C3
 
 unsigned long ultimoLogSerial = 0;
 bool faeLigado = false, alertaFaltaAgua = false;
 
-bool horaValida = false; int horaAtual = -1;
-time_t inicioFaseTempo = 0; unsigned long bootTime = 0;
+bool horaValida = false;
+int horaAtual = -1;
+time_t inicioFaseTempo = 0;
+unsigned long bootTime = 0;
 uint32_t fwAtual = 0;
 uint32_t tempoUmidAcumuladoMs = 0;
 unsigned long ultimoSaveUmidAcum = 0;
@@ -140,9 +150,9 @@ unsigned long ultimoSaveUmidAcum = 0;
 // Cão de Guarda (Watchdog por FreeRTOS - 100% seguro contra falhas de bibliotecas)
 TaskHandle_t wdtTask;
 volatile unsigned long ultimoSuspiro = 0;
-void watchdogTask(void *pvParameters) {
-  for(;;) {
-    if (millis() - ultimoSuspiro > 25000) { // Se o loop ficar 25 segundos congelado
+void watchdogTask(void* pvParameters) {
+  for (;;) {
+    if (millis() - ultimoSuspiro > 25000) {  // Se o loop ficar 25 segundos congelado
       Serial.println("?? [WATCHDOG] O Sistema travou completamente! Forcando reinicio de seguranca...");
       ESP.restart();
     }
@@ -153,7 +163,7 @@ void watchdogTask(void *pvParameters) {
 // ---------------------------------------------------------
 // DECLARACAO DAS ESTRUTURAS
 // ---------------------------------------------------------
-const unsigned long MIN_DWELL_RELE_MS = 15000; // Minimo 15s entre ligar/desligar
+const unsigned long MIN_DWELL_RELE_MS = 15000;  // Minimo 15s entre ligar/desligar
 unsigned long lastSwitchLuz = 0, lastSwitchUmid = 0, lastSwitchVento = 0, lastSwitchExaust = 0;
 
 // --- Horímetro de Manutenção Preventiva (Segundos de Uso NVS) ---
@@ -166,7 +176,7 @@ unsigned long tempoInicioSaturacaoUmid = 0;
 //  FUNÇÕES AUXILIARES
 // ============================================================
 const char* nomeFase(int f) {
-  switch(f) {
+  switch (f) {
     case 0: return "Standby";
     case 1: return "Pinagem";
     case 2: return "Frutificacao";
@@ -176,14 +186,16 @@ const char* nomeFase(int f) {
   }
 }
 const char* nomeModoLuz() {
-  if(modoLuz==LUZ_AUTO) return "AUTO"; if(modoLuz==LUZ_FORCADA_ON) return "ON"; return "OFF";
+  if (modoLuz == LUZ_AUTO) return "AUTO";
+  if (modoLuz == LUZ_FORCADA_ON) return "ON";
+  return "OFF";
 }
 PerfilClimatico perfis[5] = {
-  {TEMP_ALVO_MAX, 97.0, 99.9, 1UL*60000, FAE_OFF_MS, 1UL*60000, 2UL*60000, 2UL*60000, 8UL*60000, false}, // 0: Standby (padrão)
-  {28.0, 97.0, 99.9, 1UL*60000, 40UL*60000, 1UL*60000, 2UL*60000, 2UL*60000, 8UL*60000, true},          // 1: Pinagem (1m ON / 2m OFF + névoa)
-  {29.0, 92.0, 94.0, 2UL*60000, 25UL*60000, 1UL*60000, 2UL*60000, 2UL*60000, 8UL*60000, true},          // 2: Frutificacao (1m ON / 2m OFF + névoa)
-  {28.0, 97.0, 99.9, 1UL*60000, 40UL*60000, 1UL*60000, 2UL*60000, 2UL*60000, 8UL*60000, true},          // 3: Segundo Flush (1m ON / 2m OFF + névoa)
-  {TEMP_ALVO_MAX, 97.0, 99.9, 1UL*60000, FAE_OFF_MS, 1UL*60000, 2UL*60000, 2UL*60000, 8UL*60000, false}  // 4: Secagem
+  { TEMP_ALVO_MAX, 97.0, 99.9, 1UL * 60000, FAE_OFF_MS, 1UL * 60000, 2UL * 60000, 2UL * 60000, 8UL * 60000, false },  // 0: Standby (padrão)
+  { 28.0, 97.0, 99.9, 1UL * 60000, 40UL * 60000, 1UL * 60000, 2UL * 60000, 2UL * 60000, 8UL * 60000, true },          // 1: Pinagem (1m ON / 2m OFF + névoa)
+  { 29.0, 92.0, 94.0, 2UL * 60000, 25UL * 60000, 1UL * 60000, 2UL * 60000, 2UL * 60000, 8UL * 60000, true },          // 2: Frutificacao (1m ON / 2m OFF + névoa)
+  { 28.0, 97.0, 99.9, 1UL * 60000, 40UL * 60000, 1UL * 60000, 2UL * 60000, 2UL * 60000, 8UL * 60000, true },          // 3: Segundo Flush (1m ON / 2m OFF + névoa)
+  { TEMP_ALVO_MAX, 97.0, 99.9, 1UL * 60000, FAE_OFF_MS, 1UL * 60000, 2UL * 60000, 2UL * 60000, 8UL * 60000, false }   // 4: Secagem
 };
 
 void salvarPerfisNVS() {
@@ -210,19 +222,28 @@ PerfilClimatico obterPerfil(FaseCultivo f) {
   return perfis[0];
 }
 String formatUptime(unsigned long ms) {
-  unsigned long s = ms / 1000; int d = s / 86400; s %= 86400; int h = s / 3600; s %= 3600; int m = s / 60;
-  char buf[20]; snprintf(buf, 20, "%dd %02dh %02dm", d, h, m); return String(buf);
+  unsigned long s = ms / 1000;
+  int d = s / 86400;
+  s %= 86400;
+  int h = s / 3600;
+  s %= 3600;
+  int m = s / 60;
+  char buf[20];
+  snprintf(buf, 20, "%dd %02dh %02dm", d, h, m);
+  return String(buf);
 }
 void setNovaFase(FaseCultivo nova) {
   if (faseAtual == nova) return;
-  faseAtual = nova; time_t agora; time(&agora);
+  faseAtual = nova;
+  time_t agora;
+  time(&agora);
   inicioFaseTempo = (agora > 1600000000) ? agora : 0;
   prefs.begin("grow", false);
   prefs.putInt("fase", (int)faseAtual);
   prefs.putUInt("inicio", (uint32_t)inicioFaseTempo);
   prefs.end();
   Serial.printf("[FSM] Fase -> %s\n", nomeFase((int)faseAtual));
-  ultimoEnvioNuvem = 0; // Força re-envio p/ atualizar o Dashboard imediatamente
+  ultimoEnvioNuvem = 0;  // Força re-envio p/ atualizar o Dashboard imediatamente
 }
 
 // ============================================================
@@ -234,14 +255,14 @@ void setNovaFase(FaseCultivo nova) {
 // ---------------------------------------------------------
 void salvarOffline(String jsonPayload) {
   File f = LittleFS.open("/offline.log", "r");
-  if (f && f.size() > 80000) { 
+  if (f && f.size() > 80000) {
     f.close();
     LittleFS.remove("/offline.log");
     Serial.println("[LITTLEFS] Overflow! Log apagado p/ seguranca.");
   } else if (f) {
     f.close();
   }
-  
+
   f = LittleFS.open("/offline.log", "a");
   if (f) {
     f.println(jsonPayload);
@@ -254,12 +275,13 @@ void salvarOffline(String jsonPayload) {
 // COMUNICAÇÃO COM A NUVEM
 // ---------------------------------------------------------
 void enviarNuvem(unsigned long agora) {
-  if (tempInt <= -90.0) return; // Aguarda 1ª leitura válida dos sensores antes de enviar
+  if (tempInt <= -90.0) return;  // Aguarda 1ª leitura válida dos sensores antes de enviar
   if (agora - ultimoEnvioNuvem < INTERVALO_NUVEM && ultimoEnvioNuvem != 0) return;
   ultimoEnvioNuvem = agora;
 
-  time_t ts; time(&ts);
-  if (ts < 1600000000) ts = 0; // NTP não sincronizou
+  time_t ts;
+  time(&ts);
+  if (ts < 1600000000) ts = 0;  // NTP não sincronizou
 
   // Monta JSON da leitura
   String json = "{";
@@ -268,11 +290,11 @@ void enviarNuvem(unsigned long agora) {
   json += "\"uI\":" + String(humInt, 1) + ",";
   json += "\"tE\":" + String(tempExt, 1) + ",";
   json += "\"uE\":" + String(humExt, 1) + ",";
-  json += "\"rLuz\":" + String(lastReleLuz?1:0) + ",";
+  json += "\"rLuz\":" + String(lastReleLuz ? 1 : 0) + ",";
   json += "\"modoLuz\":" + String((int)modoLuz) + ",";
-  json += "\"rUmid\":" + String(alertaFaltaAgua ? 2 : (lastReleUmidific?1:0)) + ",";
-  json += "\"rVento\":" + String(lastReleVento?1:0) + ",";
-  json += "\"rExaust\":" + String(lastReleExaust?1:0) + ",";
+  json += "\"rUmid\":" + String(alertaFaltaAgua ? 2 : (lastReleUmidific ? 1 : 0)) + ",";
+  json += "\"rVento\":" + String(lastReleVento ? 1 : 0) + ",";
+  json += "\"rExaust\":" + String(lastReleExaust ? 1 : 0) + ",";
   String faseStr = nomeFase((int)faseAtual);
   if (!sensorIntOk) faseStr = "ALERTA: SHT30 OFFLINE";
 
@@ -281,7 +303,7 @@ void enviarNuvem(unsigned long agora) {
   json += "\"hUmid\":" + String(segUmidTotal / 3600.0, 1) + ",";
   json += "\"hVento\":" + String(segVentoTotal / 3600.0, 1) + ",";
   json += "\"hExaust\":" + String(segExaustTotal / 3600.0, 1) + ",";
-  
+
   prefs.begin("grow", true);
   json += "\"otaError\":" + String(prefs.getBool("ota_falhou", false) ? 1 : 0) + ",";
   prefs.end();
@@ -294,36 +316,41 @@ void enviarNuvem(unsigned long agora) {
     salvarOffline(json);
     return;
   }
-  
+
   // 1. TENTA ENVIAR DADOS ATRASADOS (OFFLINE BACKLOG EM LOTES SEGUROS DE ATÉ 50 REGISTROS)
   if (LittleFS.exists("/offline.log")) {
     File f = LittleFS.open("/offline.log", "r");
     if (f) {
-      String bulk = "["; bool first = true;
+      String bulk = "[";
+      bool first = true;
       int count = 0;
       while (f.available() && count < 50) {
-        String linha = f.readStringUntil('\n'); linha.trim();
+        String linha = f.readStringUntil('\n');
+        linha.trim();
         if (linha.length() > 5) {
           if (!first) bulk += ",";
-          bulk += linha; first = false;
+          bulk += linha;
+          first = false;
           count++;
         }
       }
       bulk += "]";
-      
+
       // Se houver mais linhas acumuladas, guarda temporariamente o restante
       File tmp = LittleFS.open("/offline.tmp", "w");
       while (f.available()) {
-        String resto = f.readStringUntil('\n'); resto.trim();
+        String resto = f.readStringUntil('\n');
+        resto.trim();
         if (resto.length() > 5 && tmp) tmp.println(resto);
       }
       if (tmp) tmp.close();
       f.close();
 
-      WiFiClientSecure clientBulk; clientBulk.setInsecure();
+      WiFiClientSecure clientBulk;
+      clientBulk.setInsecure();
       HTTPClient httpBulk;
       if (httpBulk.begin(clientBulk, CLOUD_URL)) {
-        httpBulk.setTimeout(5000); // <-- Adicionado: Timeout explícito p/ upload em lote
+        httpBulk.setTimeout(5000);  // <-- Adicionado: Timeout explícito p/ upload em lote
         httpBulk.addHeader("Content-Type", "application/json");
         httpBulk.addHeader("X-Api-Key", CLOUD_KEY);
         int code = httpBulk.POST(bulk);
@@ -355,139 +382,151 @@ void enviarNuvem(unsigned long agora) {
   client.setInsecure();
   HTTPClient http;
   if (http.begin(client, CLOUD_URL)) {
-    http.setTimeout(5000); // Tenta por max 5s, depois desiste pra não travar a placa
+    http.setTimeout(5000);  // Tenta por max 5s, depois desiste pra não travar a placa
     http.addHeader("Content-Type", "application/json");
     http.addHeader("X-Api-Key", CLOUD_KEY);
     int code = http.POST(json);
     if (code == 200) {
       prefs.begin("grow", false);
       if (prefs.getBool("ota_test", false)) {
-          prefs.putBool("ota_test", false);
-          prefs.putInt("ota_boot_fails", 0);
-          prefs.putBool("ota_falhou", false);
-          uint32_t tentativa = prefs.getUInt("ota_tentativa", 0);
-          if (tentativa > 0) {
-              prefs.putUInt("fw_ver", tentativa);
-              fwAtual = tentativa;
-          }
-          Serial.println("✅ [ANTI-BRICK] Firmware novo VALIDADO com sucesso! Data consolidada.");
+        prefs.putBool("ota_test", false);
+        prefs.putInt("ota_boot_fails", 0);
+        prefs.putBool("ota_falhou", false);
+        uint32_t tentativa = prefs.getUInt("ota_tentativa", 0);
+        if (tentativa > 0) {
+          prefs.putUInt("fw_ver", tentativa);
+          fwAtual = tentativa;
+        }
+        Serial.println("✅ [ANTI-BRICK] Firmware novo VALIDADO com sucesso! Data consolidada.");
       }
       prefs.end();
       String response = http.getString();
       DynamicJsonDocument docRes(2048);
       if (!deserializeJson(docRes, response)) {
-         if (docRes.containsKey("config_clima")) {
-            uint32_t versaoNuvem = docRes.containsKey("cfg_ver") ? (uint32_t)docRes["cfg_ver"] : 0;
-            prefs.begin("grow", true);
-            uint32_t versaoLocal = prefs.getUInt("cfg_ver", 0);
-            prefs.end();
+        if (docRes.containsKey("config_clima")) {
+          uint32_t versaoNuvem = docRes.containsKey("cfg_ver") ? (uint32_t)docRes["cfg_ver"] : 0;
+          prefs.begin("grow", true);
+          uint32_t versaoLocal = prefs.getUInt("cfg_ver", 0);
+          prefs.end();
 
-            // Se for a primeira inicialização ou se a versão do banco no MySQL mudou:
-            if (versaoNuvem == 0 || versaoNuvem != versaoLocal) {
-               JsonObject cfg = docRes["config_clima"];
-               bool configAlterada = false;
-               for (int i = 1; i <= 3; i++) {
-                  String key = String(i);
-                  if (cfg.containsKey(key)) {
-                     perfis[i].tempMax = cfg[key]["tX"].as<float>();
-                     perfis[i].umidMin = cfg[key]["uN"].as<float>();
-                     perfis[i].umidMax = cfg[key]["uX"].as<float>();
-                     perfis[i].faeOnMs = cfg[key]["fO"].as<unsigned long>() * 60000UL;
-                     perfis[i].faeOffMs = cfg[key]["fF"].as<unsigned long>() * 60000UL;
-                     unsigned long vO = cfg[key].containsKey("vO") ? cfg[key]["vO"].as<unsigned long>() : 1;
-                     unsigned long vF = cfg[key].containsKey("vF") ? cfg[key]["vF"].as<unsigned long>() : 2;
-                     unsigned long eO = cfg[key].containsKey("eO") ? cfg[key]["eO"].as<unsigned long>() : 2;
-                     unsigned long eF = cfg[key].containsKey("eF") ? cfg[key]["eF"].as<unsigned long>() : 8;
-                     perfis[i].ventoOnMs = vO * 60000UL;
-                     perfis[i].ventoOffMs = vF * 60000UL;
-                     perfis[i].exaustOnMs = eO * 60000UL;
-                     perfis[i].exaustOffMs = eF * 60000UL;
-                     perfis[i].ventoComUmid = cfg[key].containsKey("vU") ? (cfg[key]["vU"].as<int>() == 1) : true;
-                     configAlterada = true;
-                  }
-               }
-               if (configAlterada) {
-                  salvarPerfisNVS();
-                  if (versaoNuvem > 0) {
-                     prefs.begin("grow", false);
-                     prefs.putUInt("cfg_ver", versaoNuvem);
-                     prefs.end();
-                  }
-                  Serial.printf("✅ [SYNC NUVEM] Perfis climáticos atualizados com o Banco de Dados! Versão: %u\n", versaoNuvem);
-               }
+          // Se for a primeira inicialização ou se a versão do banco no MySQL mudou:
+          if (versaoNuvem == 0 || versaoNuvem != versaoLocal) {
+            JsonObject cfg = docRes["config_clima"];
+            bool configAlterada = false;
+            for (int i = 1; i <= 3; i++) {
+              String key = String(i);
+              if (cfg.containsKey(key)) {
+                perfis[i].tempMax = cfg[key]["tX"].as<float>();
+                perfis[i].umidMin = cfg[key]["uN"].as<float>();
+                perfis[i].umidMax = cfg[key]["uX"].as<float>();
+                perfis[i].faeOnMs = cfg[key]["fO"].as<unsigned long>() * 60000UL;
+                perfis[i].faeOffMs = cfg[key]["fF"].as<unsigned long>() * 60000UL;
+                unsigned long vO = cfg[key].containsKey("vO") ? cfg[key]["vO"].as<unsigned long>() : 1;
+                unsigned long vF = cfg[key].containsKey("vF") ? cfg[key]["vF"].as<unsigned long>() : 2;
+                unsigned long eO = cfg[key].containsKey("eO") ? cfg[key]["eO"].as<unsigned long>() : 2;
+                unsigned long eF = cfg[key].containsKey("eF") ? cfg[key]["eF"].as<unsigned long>() : 8;
+                perfis[i].ventoOnMs = vO * 60000UL;
+                perfis[i].ventoOffMs = vF * 60000UL;
+                perfis[i].exaustOnMs = eO * 60000UL;
+                perfis[i].exaustOffMs = eF * 60000UL;
+                perfis[i].ventoComUmid = cfg[key].containsKey("vU") ? (cfg[key]["vU"].as<int>() == 1) : true;
+                configAlterada = true;
+              }
             }
-         }
-         
-         if (docRes.containsKey("comando_fase")) {
-            int fc = docRes["comando_fase"];
-            if (fc != (int)faseAtual) {
-               Serial.printf("📥 COMANDO NUVEM: Alterar fase para %s\n", nomeFase(fc));
-               setNovaFase((FaseCultivo)fc);
+            if (configAlterada) {
+              salvarPerfisNVS();
+              if (versaoNuvem > 0) {
+                prefs.begin("grow", false);
+                prefs.putUInt("cfg_ver", versaoNuvem);
+                prefs.end();
+              }
+              Serial.printf("✅ [SYNC NUVEM] Perfis climáticos atualizados com o Banco de Dados! Versão: %u\n", versaoNuvem);
             }
-         }
-         if (docRes.containsKey("comando_luz")) {
-            int cl = docRes["comando_luz"];
-            bool luzMudou = false;
-            if (cl == 0 && modoLuz != LUZ_AUTO) { modoLuz = LUZ_AUTO; Serial.println("📥 COMANDO NUVEM: Luz mudou para modo AUTO"); luzMudou = true; }
-            else if (cl == 1 && modoLuz != LUZ_FORCADA_ON) { modoLuz = LUZ_FORCADA_ON; Serial.println("📥 COMANDO NUVEM: Luz mudou para FORCADA LIGADA"); luzMudou = true; }
-            else if (cl == 2 && modoLuz != LUZ_FORCADA_OFF) { modoLuz = LUZ_FORCADA_OFF; Serial.println("📥 COMANDO NUVEM: Luz mudou para FORCADA DESLIGADA"); luzMudou = true; }
-            if (luzMudou) {
-               prefs.begin("grow", false); prefs.putInt("modoLuz", (int)modoLuz); prefs.end();
-               if (sensorIntOk) {
-                  executarMotor(agora);
-                  aplicarSeguranca();
-               } else {
-                  if (modoLuz == LUZ_FORCADA_ON) releLuz = true;
-                  if (modoLuz == LUZ_FORCADA_OFF) releLuz = false;
-               }
-               aplicarReles();
-               ultimoEnvioNuvem = 0; // Dispara atualização imediata com relés já comutados
-            }
-         }
-         if (docRes.containsKey("comando_reset_agua")) {
-            Serial.println("📥 COMANDO NUVEM: Reset de Alerta de Agua recebido!!");
-            alertaFaltaAgua = false;
-            inicioUmidificacao = 0;
-            tempoUmidAcumuladoMs = 0;
+          }
+        }
+
+        if (docRes.containsKey("comando_fase")) {
+          int fc = docRes["comando_fase"];
+          if (fc != (int)faseAtual) {
+            Serial.printf("📥 COMANDO NUVEM: Alterar fase para %s\n", nomeFase(fc));
+            setNovaFase((FaseCultivo)fc);
+          }
+        }
+        if (docRes.containsKey("comando_luz")) {
+          int cl = docRes["comando_luz"];
+          bool luzMudou = false;
+          if (cl == 0 && modoLuz != LUZ_AUTO) {
+            modoLuz = LUZ_AUTO;
+            Serial.println("📥 COMANDO NUVEM: Luz mudou para modo AUTO");
+            luzMudou = true;
+          } else if (cl == 1 && modoLuz != LUZ_FORCADA_ON) {
+            modoLuz = LUZ_FORCADA_ON;
+            Serial.println("📥 COMANDO NUVEM: Luz mudou para FORCADA LIGADA");
+            luzMudou = true;
+          } else if (cl == 2 && modoLuz != LUZ_FORCADA_OFF) {
+            modoLuz = LUZ_FORCADA_OFF;
+            Serial.println("📥 COMANDO NUVEM: Luz mudou para FORCADA DESLIGADA");
+            luzMudou = true;
+          }
+          if (luzMudou) {
             prefs.begin("grow", false);
-            prefs.putBool("sem_agua", false);
-            prefs.putUInt("umid_acum", 0);
+            prefs.putInt("modoLuz", (int)modoLuz);
             prefs.end();
-            ultimoEnvioNuvem = 0; // Atualiza a nuvem pra apagar o alerta
-         }
-         uint32_t vNuvem = docRes.containsKey("versao_nuvem") ? (uint32_t)docRes["versao_nuvem"] : 0;
-         if (docRes.containsKey("comando_ota") || (vNuvem > 0 && vNuvem > fwAtual)) {
-            Serial.printf("📥 OTA INICIANDO (Local: %u, Nuvem: %u)\n", fwAtual, vNuvem);
-            prefs.begin("grow", false); 
-            prefs.putBool("ota_test", true); 
-            prefs.putUInt("ota_tentativa", vNuvem);
-            prefs.putBool("ota_falhou", false);
-            prefs.putInt("ota_boot_fails", 0);
-            prefs.end();
-            
-            // SUSPENDE O CAO DE GUARDA: O download OTA pode demorar minutos.
-            // Sem isso, o Watchdog reinicia a placa no meio da gravacao do firmware!
-            vTaskSuspend(wdtTask);
-            
-            WiFiClientSecure otaClient; 
-            otaClient.setInsecure();
-            httpUpdate.rebootOnUpdate(false);
-            
-            String fwUrl = "https://grow.alquimistasmagicos.com.br/build/esp32.esp32.esp32c3/esp32c3.ino.bin";
-            t_httpUpdate_return ret = httpUpdate.update(otaClient, fwUrl);
-            
-            // REATIVA O CAO DE GUARDA (caso o OTA falhe e a placa continue rodando)
-            ultimoSuspiro = millis();
-            vTaskResume(wdtTask);
-            
-            if (ret == HTTP_UPDATE_OK) {
-               Serial.println("✅ OTA CONCLUIDO! Reiniciando em modo de teste (Anti-Brick)...");
-               delay(1000);
-               ESP.restart();
-            } else if (ret == HTTP_UPDATE_FAILED) {
-               Serial.printf("❌ Falha no OTA (%d): %s\n", httpUpdate.getLastError(), httpUpdate.getLastErrorString().c_str());
+            if (sensorIntOk) {
+              executarMotor(agora);
+              aplicarSeguranca();
+            } else {
+              if (modoLuz == LUZ_FORCADA_ON) releLuz = true;
+              if (modoLuz == LUZ_FORCADA_OFF) releLuz = false;
             }
-         }
+            aplicarReles();
+            ultimoEnvioNuvem = 0;  // Dispara atualização imediata com relés já comutados
+          }
+        }
+        if (docRes.containsKey("comando_reset_agua")) {
+          Serial.println("📥 COMANDO NUVEM: Reset de Alerta de Agua recebido!!");
+          alertaFaltaAgua = false;
+          inicioUmidificacao = 0;
+          tempoUmidAcumuladoMs = 0;
+          prefs.begin("grow", false);
+          prefs.putBool("sem_agua", false);
+          prefs.putUInt("umid_acum", 0);
+          prefs.end();
+          ultimoEnvioNuvem = 0;  // Atualiza a nuvem pra apagar o alerta
+        }
+        uint32_t vNuvem = docRes.containsKey("versao_nuvem") ? (uint32_t)docRes["versao_nuvem"] : 0;
+        if (docRes.containsKey("comando_ota") || (vNuvem > 0 && vNuvem > fwAtual)) {
+          Serial.printf("📥 OTA INICIANDO (Local: %u, Nuvem: %u)\n", fwAtual, vNuvem);
+          prefs.begin("grow", false);
+          prefs.putBool("ota_test", true);
+          prefs.putUInt("ota_tentativa", vNuvem);
+          prefs.putBool("ota_falhou", false);
+          prefs.putInt("ota_boot_fails", 0);
+          prefs.end();
+
+          // SUSPENDE O CAO DE GUARDA: O download OTA pode demorar minutos.
+          // Sem isso, o Watchdog reinicia a placa no meio da gravacao do firmware!
+          vTaskSuspend(wdtTask);
+
+          WiFiClientSecure otaClient;
+          otaClient.setInsecure();
+          httpUpdate.rebootOnUpdate(false);
+
+          String fwUrl = "https://grow.alquimistasmagicos.com.br/build/esp32.esp32.esp32c3/esp32c3.ino.bin";
+          t_httpUpdate_return ret = httpUpdate.update(otaClient, fwUrl);
+
+          // REATIVA O CAO DE GUARDA (caso o OTA falhe e a placa continue rodando)
+          ultimoSuspiro = millis();
+          vTaskResume(wdtTask);
+
+          if (ret == HTTP_UPDATE_OK) {
+            Serial.println("✅ OTA CONCLUIDO! Reiniciando em modo de teste (Anti-Brick)...");
+            delay(1000);
+            ESP.restart();
+          } else if (ret == HTTP_UPDATE_FAILED) {
+            Serial.printf("❌ Falha no OTA (%d): %s\n", httpUpdate.getLastError(), httpUpdate.getLastErrorString().c_str());
+          }
+        }
       }
       Serial.println("[NUVEM] Leitura enviada! O_O O_O O_O");
     } else {
@@ -502,40 +541,69 @@ void enviarNuvem(unsigned long agora) {
 //  MÓDULOS LOCAIS
 // ============================================================
 void atualizarMinMax() {
-  struct tm ti; 
+  struct tm ti;
   if (!getLocalTime(&ti, 0) || (ti.tm_year + 1900 < 2024)) return;
   if (ultimoDia != -1 && ultimoDia != ti.tm_mday) {
-    tempIntMin = tempInt; tempIntMax = tempInt; humIntMin = humInt; humIntMax = humInt;
+    tempIntMin = tempInt;
+    tempIntMax = tempInt;
+    humIntMin = humInt;
+    humIntMax = humInt;
   }
-  ultimoDia = ti.tm_mday; char hr[6]; snprintf(hr, 6, "%02d:%02d", ti.tm_hour, ti.tm_min);
-  if (tempInt < tempIntMin) { tempIntMin = tempInt; strncpy(horaMinTemp, hr, 6); }
-  if (tempInt > tempIntMax) { tempIntMax = tempInt; strncpy(horaMaxTemp, hr, 6); }
-  if (humInt < humIntMin) { humIntMin = humInt; strncpy(horaMinHum, hr, 6); }
-  if (humInt > humIntMax) { humIntMax = humInt; strncpy(horaMaxHum, hr, 6); }
+  ultimoDia = ti.tm_mday;
+  char hr[6];
+  snprintf(hr, 6, "%02d:%02d", ti.tm_hour, ti.tm_min);
+  if (tempInt < tempIntMin) {
+    tempIntMin = tempInt;
+    strncpy(horaMinTemp, hr, 6);
+  }
+  if (tempInt > tempIntMax) {
+    tempIntMax = tempInt;
+    strncpy(horaMaxTemp, hr, 6);
+  }
+  if (humInt < humIntMin) {
+    humIntMin = humInt;
+    strncpy(horaMinHum, hr, 6);
+  }
+  if (humInt > humIntMax) {
+    humIntMax = humInt;
+    strncpy(horaMaxHum, hr, 6);
+  }
 }
 
 void atualizarFiltroInt(float tI, float hI) {
-  bufTempInt[idxFiltroInt]=tI; bufHumInt[idxFiltroInt]=hI;
-  idxFiltroInt = (idxFiltroInt + 1) % FILTRO_N; 
+  bufTempInt[idxFiltroInt] = tI;
+  bufHumInt[idxFiltroInt] = hI;
+  idxFiltroInt = (idxFiltroInt + 1) % FILTRO_N;
   if (idxFiltroInt == 0) filtroIntPreenchido = true;
-  int n = filtroIntPreenchido ? FILTRO_N : (idxFiltroInt==0?1:idxFiltroInt);
-  float sT=0, sH=0; for(int i=0; i<n; i++){ sT+=bufTempInt[i]; sH+=bufHumInt[i]; }
-  tempInt=sT/n; humInt=sH/n;
+  int n = filtroIntPreenchido ? FILTRO_N : (idxFiltroInt == 0 ? 1 : idxFiltroInt);
+  float sT = 0, sH = 0;
+  for (int i = 0; i < n; i++) {
+    sT += bufTempInt[i];
+    sH += bufHumInt[i];
+  }
+  tempInt = sT / n;
+  humInt = sH / n;
 }
 
 void atualizarFiltroExt(float tE, float hE) {
-  bufTempExt[idxFiltroExt]=tE; bufHumExt[idxFiltroExt]=hE;
-  idxFiltroExt = (idxFiltroExt + 1) % FILTRO_N; 
+  bufTempExt[idxFiltroExt] = tE;
+  bufHumExt[idxFiltroExt] = hE;
+  idxFiltroExt = (idxFiltroExt + 1) % FILTRO_N;
   if (idxFiltroExt == 0) filtroExtPreenchido = true;
-  int n = filtroExtPreenchido ? FILTRO_N : (idxFiltroExt==0?1:idxFiltroExt);
-  float sT=0, sH=0; for(int i=0; i<n; i++){ sT+=bufTempExt[i]; sH+=bufHumExt[i]; }
-  tempExt=sT/n; humExt=sH/n;
+  int n = filtroExtPreenchido ? FILTRO_N : (idxFiltroExt == 0 ? 1 : idxFiltroExt);
+  float sT = 0, sH = 0;
+  for (int i = 0; i < n; i++) {
+    sT += bufTempExt[i];
+    sH += bufHumExt[i];
+  }
+  tempExt = sT / n;
+  humExt = sH / n;
 }
 
 void aplicarReles() {
   unsigned long agora = millis();
   bool alterou = false;
-  
+
   // TRAVA DE SEGURANÇA ABSOLUTA DA LUZ:
   // Se estiver em modo AUTO e o relógio confirmar que é horário diurno (entre 08h e 19h59),
   // NUNCA permite que releLuz seja true, garantindo zero picos mesmo sob qualquer ruído.
@@ -578,31 +646,40 @@ void aplicarReles() {
     alterou = true;
   }
 
-  // Se a placa tomou alguma decisão e ligou/desligou algo autonomamente, 
+  // Se a placa tomou alguma decisão e ligou/desligou algo autonomamente,
   // força a comunicação imediata com o banco de dados para o painel não ficar defasado
-  if (alterou) ultimoEnvioNuvem = 0; 
+  if (alterou) ultimoEnvioNuvem = 0;
 }
 
 void verificarProgressao() {
-  if (inicioFaseTempo == 0) return; time_t agora; time(&agora); if (agora < 1600000000) return;
+  if (inicioFaseTempo == 0) return;
+  time_t agora;
+  time(&agora);
+  if (agora < 1600000000) return;
   unsigned long dias = (agora - inicioFaseTempo) / 86400UL;
-  if (faseAtual==FASE_PINANDO && DIAS_PINANDO>0 && dias>=(unsigned long)DIAS_PINANDO) {
+  if (faseAtual == FASE_PINANDO && DIAS_PINANDO > 0 && dias >= (unsigned long)DIAS_PINANDO) {
     setNovaFase(FASE_FRUTIFICACAO);
-  } else if (faseAtual==FASE_FRUTIFICACAO && DIAS_FRUTIFICACAO>0 && dias>=(unsigned long)DIAS_FRUTIFICACAO) {
+  } else if (faseAtual == FASE_FRUTIFICACAO && DIAS_FRUTIFICACAO > 0 && dias >= (unsigned long)DIAS_FRUTIFICACAO) {
     setNovaFase(FASE_SEGUNDO_FLUSH);
-  } else if (faseAtual==FASE_SEGUNDO_FLUSH && DIAS_SEGUNDO_FLUSH>0 && dias>=(unsigned long)DIAS_SEGUNDO_FLUSH) {
+  } else if (faseAtual == FASE_SEGUNDO_FLUSH && DIAS_SEGUNDO_FLUSH > 0 && dias >= (unsigned long)DIAS_SEGUNDO_FLUSH) {
     setNovaFase(FASE_STANDBY);
   }
 }
 
 void executarMotor(unsigned long agora) {
   if (faseAtual == FASE_STANDBY) {
-    releUmidific = false; releVentoInt = false; releExaustExt = false;
-    if (modoLuz == LUZ_AUTO) releLuz = false; return;
+    releUmidific = false;
+    releVentoInt = false;
+    releExaustExt = false;
+    if (modoLuz == LUZ_AUTO) releLuz = false;
+    return;
   }
   if (faseAtual == FASE_SECAGEM) {
-    releUmidific = false; releVentoInt = true; releExaustExt = true;
-    if (modoLuz == LUZ_AUTO) releLuz = false; return;
+    releUmidific = false;
+    releVentoInt = true;
+    releExaustExt = true;
+    if (modoLuz == LUZ_AUTO) releLuz = false;
+    return;
   }
 
   PerfilClimatico pf = obterPerfil(faseAtual);
@@ -611,11 +688,18 @@ void executarMotor(unsigned long agora) {
   } else if (pf.faeOffMs == 0) {
     faeLigado = true;
   } else {
-    if (faeLigado) { 
-      if (agora - ultimoCicloFAE >= pf.faeOnMs) { faeLigado = false; ultimoCicloFAE = agora; Serial.println("🔄 PROCESSO FAE: Ciclo concluido (Ar Renovado)."); } 
-    }
-    else { 
-      if (agora - ultimoCicloFAE >= pf.faeOffMs) { faeLigado = true; ultimoCicloFAE = agora; Serial.println("🔄 PROCESSO FAE: Iniciando renovacao de ar..."); } 
+    if (faeLigado) {
+      if (agora - ultimoCicloFAE >= pf.faeOnMs) {
+        faeLigado = false;
+        ultimoCicloFAE = agora;
+        Serial.println("🔄 PROCESSO FAE: Ciclo concluido (Ar Renovado).");
+      }
+    } else {
+      if (agora - ultimoCicloFAE >= pf.faeOffMs) {
+        faeLigado = true;
+        ultimoCicloFAE = agora;
+        Serial.println("🔄 PROCESSO FAE: Iniciando renovacao de ar...");
+      }
     }
   }
 
@@ -627,57 +711,46 @@ void executarMotor(unsigned long agora) {
     modoQuenteTravado = false;
   }
   bool quente = modoQuenteTravado;
-  
-  // PROTECAO ANTI-ABORTO DO FAE:
-  // Se o FAE iniciou, a temperatura vai subir um pouco porque o umidificador é desligado.
-  // Ignoramos a trava 'quente' temporariamente para garantir que o ciclo de renovacao termine!
-  if (faeLigado) {
-    quente = false;
-  }
-  
+
   bool defesaEvap = false;
-  
+
   // RESET EXPLICITO: Todos os reles partem de OFF e sao ligados explicitamente pela logica abaixo.
-  // Sem isso, releLuz herdava valor residual do ciclo anterior causando picos fantasma no grafico.
-  releExaustExt = false; releVentoInt = false;
+  releExaustExt = false;
+  releVentoInt = false;
   if (modoLuz == LUZ_AUTO) releLuz = false;
 
-  if (quente) {
-    // PRIORIDADE MÁXIMA: DEFESA TÉRMICA POR RESFRIAMENTO EVAPORATIVO!
-    // Não liga o exaustor para não puxar ar quente e seco da sala nem expulsar a umidade.
-    // Suspende o FAE normal enquanto a temperatura estiver alta.
-    faeLigado = false;
-    ultimoCicloFAE = agora;
+  // A Renovação de Ar Programada (FAE) agora roda SEMPRE, independente do calor!
+  // O cogumelo precisa respirar mesmo em dias quentes.
+  if (faeLigado) {
+    releExaustExt = true;
+    releVentoInt = true;
+  }
 
-    releExaustExt = false; // Estufa selada contra o calor da sala
-    releVentoInt = true;   // Circula névoa ativamente para evaporar e resfriar
+  if (quente) {
+    // DEFESA TÉRMICA: Circula o ar interno para tentar resfriar
+    releVentoInt = true;    
 
     // Injeta névoa fria até 98% de umidade para resfriar por absorção de calor latente
+    // Nota: O FAE não é mais bloqueado. Se estiver na hora de trocar o ar, ele vai trocar.
     if (humInt < 98.0 && !alertaFaltaAgua) {
       defesaEvap = true;
-    }
-  } else {
-    // Clima normal: Renovação de Ar Programada (FAE) roda exclusivamente aqui!
-    if (faeLigado) { 
-      releExaustExt = true; 
-      releVentoInt = true; 
     }
   }
 
   // --- CIRCULACAO INTERNA DINAMICA & BRISA COM NEVOA ---
   // Gira o ar internamente para evitar bolsões de CO2 pesado e, se configurado, injeta névoa viva.
   bool brisaUmidificadora = false;
-  if (!releVentoInt) { 
+  if (!releVentoInt) {
     if (pf.ventoOnMs > 0) {
       if (pf.ventoOffMs == 0) {
-        releVentoInt = true; // 100% contínuo
+        releVentoInt = true;  // 100% contínuo
         if (pf.ventoComUmid) brisaUmidificadora = true;
       } else {
         unsigned long cicloVento = pf.ventoOnMs + pf.ventoOffMs;
         if (cicloVento > 0 && (agora % cicloVento) < pf.ventoOnMs) {
           releVentoInt = true;
           if (pf.ventoComUmid) {
-            brisaUmidificadora = true; // Injeta névoa fresca viva junto com a brisa independente do sensor!
+            brisaUmidificadora = true;  // Injeta névoa fresca viva junto com a brisa independente do sensor!
           }
         }
       }
@@ -686,14 +759,21 @@ void executarMotor(unsigned long agora) {
 
   // -----------------------------------------------------
 
+  // Variável de estado para a histerese da umidade
+  static bool umidificadorHisterese = false;
+  if (humInt < pf.umidMin) {
+    umidificadorHisterese = true;
+  } else if (humInt >= pf.umidMax || humInt >= 99.5) {
+    umidificadorHisterese = false;
+  }
+
   if (!alertaFaltaAgua) {
-    if (defesaEvap) releUmidific = true;
-    else if (brisaUmidificadora) releUmidific = true; // Injeta vapor de umidade junto com o ventilador preventivo
-    else if (humInt < pf.umidMin) {
-      if (!releUmidific) tempoInicioSaturacaoUmid = agora; // Inicia contagem do tempo mínimo
+    bool querLigarUmid = defesaEvap || brisaUmidificadora || umidificadorHisterese;
+
+    if (querLigarUmid) {
+      if (!releUmidific) tempoInicioSaturacaoUmid = agora;  // Inicia contagem do tempo mínimo
       releUmidific = true;
-    }
-    else if (humInt > pf.umidMax && !defesaEvap && !brisaUmidificadora) {
+    } else {
       // TEMPO MÍNIMO DE SATURAÇÃO VÍSUAL (2 Minutos)
       if (agora - tempoInicioSaturacaoUmid >= 120000UL || tempoInicioSaturacaoUmid == 0) {
         releUmidific = false;
@@ -705,14 +785,16 @@ void executarMotor(unsigned long agora) {
         }
       }
     }
-    
+
     // BLOQUEIO CONTRA DESPERDÍCIO (EXAUSTOR):
     // Nunca desperdiçar umidade jogando o ar pra fora
     if (releExaustExt) {
       releUmidific = false;
     }
-  } else { releUmidific = false; }
-  
+  } else {
+    releUmidific = false;
+  }
+
   if (releUmidific) releVentoInt = true;
 
   if (releUmidific) {
@@ -727,10 +809,10 @@ void executarMotor(unsigned long agora) {
     }
 
     unsigned long decorrido = (agora - inicioUmidificacao) + tempoUmidAcumuladoMs;
-    
+
     if (decorrido >= TIMEOUT_UMID_MS) {
       // Se não atingiu o alvo dentro dos 15 minutos e continua seco, a mangueira obstruiu ou a água acabou.
-      alertaFaltaAgua = true; 
+      alertaFaltaAgua = true;
       releUmidific = false;
       tempoUmidAcumuladoMs = 0;
       inicioUmidificacao = 0;
@@ -739,14 +821,14 @@ void executarMotor(unsigned long agora) {
       prefs.putUInt("umid_acum", 0);
       prefs.end();
       Serial.println("🚨 SEGURANCA: Falta de Agua / Mangueira obstruida detectada!");
-    } else if (agora - ultimoSaveUmidAcum >= 60000) { // Salva o tempo decorrido na memória a cada 1 minuto
+    } else if (agora - ultimoSaveUmidAcum >= 60000) {  // Salva o tempo decorrido na memória a cada 1 minuto
       ultimoSaveUmidAcum = agora;
       prefs.begin("grow", false);
       prefs.putUInt("umid_acum", (uint32_t)decorrido);
       prefs.end();
     }
-  } else { 
-    inicioUmidificacao = 0; 
+  } else {
+    inicioUmidificacao = 0;
   }
 
   if (modoLuz == LUZ_AUTO) {
@@ -766,27 +848,44 @@ void executarMotor(unsigned long agora) {
 void aplicarSeguranca() {
   if (modoLuz == LUZ_FORCADA_ON) releLuz = true;
   if (modoLuz == LUZ_FORCADA_OFF) releLuz = false;
-  if (tempInt >= TEMP_CORTE_LUZ) { releLuz = false; Serial.println("🔥 SEGURANCA: Corte Termico da LUZ ativado!"); }
+  if (tempInt >= TEMP_CORTE_LUZ) {
+    releLuz = false;
+    Serial.println("🔥 SEGURANCA: Corte Termico da LUZ ativado!");
+  }
   if (tempInt >= TEMP_CRITICA) { Serial.println("⚠️ SEGURANCA: Temperatura critica atingida!"); }
 }
 
 // (DASHBOARD WEB LOCAL OMITIDO AQUI PARA ECONOMIA DE MEMORIA - MAS CONTINUA FUNCIONANDO)
-void webRoot() { server.send(200, "text/plain", "Grow IA - Dashboard mudou-se para a Nuvem!"); }
+void webRoot() {
+  server.send(200, "text/plain", "Grow IA - Dashboard mudou-se para a Nuvem!");
+}
 void webApiCmd() {
   if (server.hasArg("f")) {
-    String v = server.arg("f"); FaseCultivo nova = faseAtual;
-    if(v=="0") nova=FASE_STANDBY; else if(v=="P") nova=FASE_PINANDO; else if(v=="F") nova=FASE_FRUTIFICACAO; else if(v=="S") nova=FASE_SEGUNDO_FLUSH; else if(v=="D") nova=FASE_SECAGEM;
+    String v = server.arg("f");
+    FaseCultivo nova = faseAtual;
+    if (v == "0") nova = FASE_STANDBY;
+    else if (v == "P") nova = FASE_PINANDO;
+    else if (v == "F") nova = FASE_FRUTIFICACAO;
+    else if (v == "S") nova = FASE_SEGUNDO_FLUSH;
+    else if (v == "D") nova = FASE_SECAGEM;
     setNovaFase(nova);
   }
-  if (server.hasArg("l")) { 
-    if(modoLuz==LUZ_AUTO) modoLuz=LUZ_FORCADA_ON; 
-    else if(modoLuz==LUZ_FORCADA_ON) modoLuz=LUZ_FORCADA_OFF; 
-    else modoLuz=LUZ_AUTO; 
-    prefs.begin("grow", false); prefs.putInt("modoLuz", (int)modoLuz); prefs.end();
+  if (server.hasArg("l")) {
+    if (modoLuz == LUZ_AUTO) modoLuz = LUZ_FORCADA_ON;
+    else if (modoLuz == LUZ_FORCADA_ON) modoLuz = LUZ_FORCADA_OFF;
+    else modoLuz = LUZ_AUTO;
+    prefs.begin("grow", false);
+    prefs.putInt("modoLuz", (int)modoLuz);
+    prefs.end();
   }
-  if (server.hasArg("r")) { 
-    alertaFaltaAgua = false; inicioUmidificacao = 0; tempoUmidAcumuladoMs = 0;
-    prefs.begin("grow", false); prefs.putBool("sem_agua", false); prefs.putUInt("umid_acum", 0); prefs.end();
+  if (server.hasArg("r")) {
+    alertaFaltaAgua = false;
+    inicioUmidificacao = 0;
+    tempoUmidAcumuladoMs = 0;
+    prefs.begin("grow", false);
+    prefs.putBool("sem_agua", false);
+    prefs.putUInt("umid_acum", 0);
+    prefs.end();
   }
   server.send(200, "text/plain", "OK");
 }
@@ -795,14 +894,20 @@ void webApiCmd() {
 //  SETUP
 // ============================================================
 void setup() {
-  Serial.begin(115200); delay(1500); bootTime = millis();
+  Serial.begin(115200);
+  delay(1500);
+  bootTime = millis();
   Serial.println("\n=== GROW IA v4.0 ===");
 
-  int pr[] = {PIN_RELE_LUZ, PIN_RELE_UMIDIFIC, PIN_RELE_VENTO_INT, PIN_RELE_EXAUST_EXT};
-  for (int i=0; i<4; i++) { pinMode(pr[i], OUTPUT); digitalWrite(pr[i], HIGH); }
+  int pr[] = { PIN_RELE_LUZ, PIN_RELE_UMIDIFIC, PIN_RELE_VENTO_INT, PIN_RELE_EXAUST_EXT };
+  for (int i = 0; i < 4; i++) {
+    pinMode(pr[i], OUTPUT);
+    digitalWrite(pr[i], HIGH);
+  }
 
-  if(!LittleFS.begin(true)) Serial.println("[ERRO] LittleFS"); else Serial.println("[OK] LittleFS (Datalogger)");
-  
+  if (!LittleFS.begin(true)) Serial.println("[ERRO] LittleFS");
+  else Serial.println("[OK] LittleFS (Datalogger)");
+
   carregarPerfisNVS();
 
   prefs.begin("grow", false);
@@ -812,33 +917,35 @@ void setup() {
   fwAtual = prefs.getUInt("fw_ver", 0);
   alertaFaltaAgua = prefs.getBool("sem_agua", false);
   tempoUmidAcumuladoMs = prefs.getUInt("umid_acum", 0);
-  
+
   // Carrega Horimetro
   segLuzTotal = prefs.getUInt("h_luz", 0);
   segUmidTotal = prefs.getUInt("h_umid", 0);
   segVentoTotal = prefs.getUInt("h_vento", 0);
   segExaustTotal = prefs.getUInt("h_exaust", 0);
-  
+
   prefs.end();
-  
+
   Wire.begin(PIN_SDA, PIN_SCL);
-  if (sht30.begin(0x44)) Serial.println("[OK] SHT30"); else statusSis = SIS_ERRO_SENSOR;
-  dht.begin(); Serial.println("[OK] DHT11");
+  if (sht30.begin(0x44)) Serial.println("[OK] SHT30");
+  else statusSis = SIS_ERRO_SENSOR;
+  dht.begin();
+  Serial.println("[OK] DHT11");
   // ANTI-BRICK AVANCADO (Deteccao de Bootloop)
   prefs.begin("grow", false);
   if (prefs.getBool("ota_test", false)) {
-      int fails = prefs.getInt("ota_boot_fails", 0) + 1;
-      prefs.putInt("ota_boot_fails", fails);
-      if (fails > 2) {
-          Serial.println("🚨 [ANTI-BRICK] Bootloop detectado! Revertendo para firmware antigo...");
-          prefs.putBool("ota_test", false);
-          prefs.putBool("ota_falhou", true);
-          prefs.putInt("ota_boot_fails", 0);
-          prefs.end();
-          if (Update.canRollBack()) Update.rollBack();
-          delay(500);
-          ESP.restart();
-      }
+    int fails = prefs.getInt("ota_boot_fails", 0) + 1;
+    prefs.putInt("ota_boot_fails", fails);
+    if (fails > 2) {
+      Serial.println("🚨 [ANTI-BRICK] Bootloop detectado! Revertendo para firmware antigo...");
+      prefs.putBool("ota_test", false);
+      prefs.putBool("ota_falhou", true);
+      prefs.putInt("ota_boot_fails", 0);
+      prefs.end();
+      if (Update.canRollBack()) Update.rollBack();
+      delay(500);
+      ESP.restart();
+    }
   }
   prefs.end();
 
@@ -847,10 +954,13 @@ void setup() {
 
   if (MDNS.begin("grow")) Serial.println("[OK] mDNS");
   configTime(GMT_OFFSET_SEC, DAYLIGHT_OFF, NTP_SERVER);
-  
-  ArduinoOTA.setHostname("grow"); ArduinoOTA.begin();
-  
-  server.on("/", webRoot); server.on("/api/cmd", webApiCmd); server.begin();
+
+  ArduinoOTA.setHostname("grow");
+  ArduinoOTA.begin();
+
+  server.on("/", webRoot);
+  server.on("/api/cmd", webApiCmd);
+  server.begin();
 
   // Inicializa proteção por hardware (Cão de Guarda e Botão Físico)
   pinMode(PIN_BOOT, INPUT_PULLUP);
@@ -863,25 +973,30 @@ void setup() {
 // ============================================================
 void loop() {
   unsigned long agora = millis();
-  ultimoSuspiro = agora; // Alimenta o cão de guarda
-  
+  ultimoSuspiro = agora;  // Alimenta o cão de guarda
+
   // Botão de Factory Reset (Segurar por 5 segundos limpa a memória inteira)
   static unsigned long tempoBotaoPressionado = 0;
   if (digitalRead(PIN_BOOT) == LOW) {
     if (tempoBotaoPressionado == 0) tempoBotaoPressionado = agora;
     else if (agora - tempoBotaoPressionado > 5000) {
       Serial.println("[RESET] Botao BOOT segurado por 5s! Formatando sistema...");
-      rgbLedWrite(RGB_BUILTIN, 255, 0, 0); delay(1000); // Vermelho forte
-      wm.resetSettings(); // Limpa as senhas de Wi-Fi
-      prefs.begin("grow", false); prefs.clear(); prefs.end();
-      prefs.begin("grow_perfis", false); prefs.clear(); prefs.end();
-      LittleFS.format(); // Formata memoria de logs
-      ESP.restart(); // Reinicia novinho em folha
+      rgbLedWrite(RGB_BUILTIN, 255, 0, 0);
+      delay(1000);         // Vermelho forte
+      wm.resetSettings();  // Limpa as senhas de Wi-Fi
+      prefs.begin("grow", false);
+      prefs.clear();
+      prefs.end();
+      prefs.begin("grow_perfis", false);
+      prefs.clear();
+      prefs.end();
+      LittleFS.format();  // Formata memoria de logs
+      ESP.restart();      // Reinicia novinho em folha
     }
   } else {
     tempoBotaoPressionado = 0;
   }
-  
+
   // Anti-Brick: Se após 5 minutos do boot de teste não validar a conexão, reverte
   static bool antiBrickVerificado = false;
   if (!antiBrickVerificado && agora > 300000UL) {
@@ -902,7 +1017,9 @@ void loop() {
     }
   }
 
-  wm.process(); server.handleClient(); ArduinoOTA.handle();
+  wm.process();
+  server.handleClient();
+  ArduinoOTA.handle();
 
   // Auto-Reconnect Passivo: Se ligou sem Wi-Fi (roteador desligado), tenta reconectar sozinho a cada 2 minutos
   static unsigned long ultimaTentativaWifi = 0;
@@ -915,7 +1032,7 @@ void loop() {
   if (agora - ultimaLeitura >= 2000) {
     ultimaLeitura = agora;
     float tI = sht30.readTemperature(), hI = sht30.readHumidity();
-    
+
     // Filtro de Sanidade Físico para SHT30 (Sensor Crítico Interno)
     bool shtFisicoOk = !isnan(tI) && !isnan(hI) && tI != 0.0 && hI != 0.0 && tI > -10.0 && tI < 60.0 && hI > 0.0 && hI <= 100.0;
     static int shtFalhasFisicas = 0;
@@ -929,7 +1046,7 @@ void loop() {
       atualizarMinMax();
     } else {
       shtFalhasFisicas++;
-      if (shtFalhasFisicas >= 6) { // 12s de falha contínua
+      if (shtFalhasFisicas >= 6) {  // 12s de falha contínua
         sensorIntOk = false;
         // Tentativa de recuperação do I2C (comum travar durante quedas/picos de Wi-Fi)
         if (shtFalhasFisicas % 6 == 0) {
@@ -946,7 +1063,7 @@ void loop() {
       ultimaLeituraDHT = agora;
       float tE = dht.readTemperature(), hE = dht.readHumidity();
       bool dhtFisicoOk = !isnan(tE) && !isnan(hE) && tE != 0.0 && hE != 0.0 && tE > -10.0 && tE < 60.0 && hE > 0.0 && hE <= 100.0;
-      
+
       static int dhtFalhasFisicas = 0;
       if (dhtFisicoOk) {
         // Anti-Spike: se o valor saltou absurdamente por ruído elétrico, preserva a leitura anterior
@@ -959,54 +1076,58 @@ void loop() {
         }
       } else {
         dhtFalhasFisicas++;
-        if (dhtFalhasFisicas >= 25) { // 75 segundos de falha contínua para assumir desconexão
+        if (dhtFalhasFisicas >= 25) {  // 75 segundos de falha contínua para assumir desconexão
           sensorExtOk = false;
         }
       }
     }
 
-    struct tm ti = {0}; 
+    struct tm ti = { 0 };
     if (getLocalTime(&ti, 25)) {
       if (ti.tm_year + 1900 >= 2024 && ti.tm_hour >= 0 && ti.tm_hour <= 23) {
         // Anti-Jitter: Se a hora já era válida, rejeita saltos bruscos impossíveis (mais de 1h) em ciclos de 2s
         if (!horaValida || horaAtual < 0 || abs(ti.tm_hour - horaAtual) <= 1 || (horaAtual == 23 && ti.tm_hour == 0) || (horaAtual == 0 && ti.tm_hour == 23)) {
-          horaValida = true; 
-          horaAtual = ti.tm_hour; 
+          horaValida = true;
+          horaAtual = ti.tm_hour;
         }
       } else {
-        horaValida = false; // RTC foi resetado para 1970 devido a Brownout Reset (Kickback)!
+        horaValida = false;  // RTC foi resetado para 1970 devido a Brownout Reset (Kickback)!
       }
     }
     if (horaValida && inicioFaseTempo == 0 && faseAtual != FASE_STANDBY) {
-      time_t stamp; time(&stamp);
-      if (stamp > 1600000000) { inicioFaseTempo = stamp; prefs.putUInt("inicio", (uint32_t)inicioFaseTempo); }
+      time_t stamp;
+      time(&stamp);
+      if (stamp > 1600000000) {
+        inicioFaseTempo = stamp;
+        prefs.putUInt("inicio", (uint32_t)inicioFaseTempo);
+      }
     }
 
     if (!sensorIntOk) statusSis = SIS_ERRO_SENSOR;
     else if (WiFi.status() != WL_CONNECTED) statusSis = SIS_SEM_WIFI;
     else statusSis = SIS_OK;
 
-    if (sensorIntOk) { 
-      executarMotor(agora); 
-      aplicarSeguranca(); 
+    if (sensorIntOk) {
+      executarMotor(agora);
+      aplicarSeguranca();
     } else {
       // FALHA CRÍTICA DO SENSOR SHT30:
-      releUmidific = false; // Não injeta água as cegas
-      releVentoInt = true;  // Mantém ventilação interna sempre
-      
+      releUmidific = false;  // Não injeta água as cegas
+      releVentoInt = true;   // Mantém ventilação interna sempre
+
       // Em modo cego, executa o FAE (Renovação de ar) baseado no tempo para os cogumelos não sufocarem
       if (faseAtual != FASE_STANDBY && faseAtual != FASE_SECAGEM) {
-          PerfilClimatico pf = obterPerfil(faseAtual);
-          if (pf.faeOnMs > 0 && pf.faeOffMs > 0) {
-              unsigned long cicloFAE = pf.faeOnMs + pf.faeOffMs;
-              releExaustExt = ((agora % cicloFAE) < pf.faeOnMs);
-          } else {
-              releExaustExt = false;
-          }
+        PerfilClimatico pf = obterPerfil(faseAtual);
+        if (pf.faeOnMs > 0 && pf.faeOffMs > 0) {
+          unsigned long cicloFAE = pf.faeOnMs + pf.faeOffMs;
+          releExaustExt = ((agora % cicloFAE) < pf.faeOnMs);
+        } else {
+          releExaustExt = false;
+        }
       } else {
-          releExaustExt = (faseAtual == FASE_SECAGEM);
+        releExaustExt = (faseAtual == FASE_SECAGEM);
       }
-      
+
       // Luz continua rodando independentemente do clima
       if (modoLuz == LUZ_AUTO) {
         static int confirmacoesNoiteOff = 0;
@@ -1019,8 +1140,9 @@ void loop() {
         }
       }
     }
-    
-    verificarProgressao(); aplicarReles();
+
+    verificarProgressao();
+    aplicarReles();
 
     // HORIMETRO: Acumula tempo de uso de cada componente a cada ciclo (aprox 2s)
     if (ultimoTickHorimetro == 0) ultimoTickHorimetro = agora;
@@ -1046,11 +1168,32 @@ void loop() {
 
     // LOG PERIÓDICO (A cada 10 segundos)
     if (agora - ultimoLogSerial >= 10000) {
-       ultimoLogSerial = agora;
-       Serial.printf("[STATUS] In: %.1fC %.1f%% | Ex: %.1fC %.1f%% | Fase: %s | Luz: %s (NTP:%s)\n", 
-                     tempInt, humInt, tempExt, humExt, nomeFase((int)faseAtual), nomeModoLuz(), horaValida?"OK":"FALLBACK-12/12");
-       Serial.printf("[HORAS USO] Luz: %.1fh | Umid: %.1fh | Vento: %.1fh | Exaust: %.1fh\n",
-                     segLuzTotal / 3600.0, segUmidTotal / 3600.0, segVentoTotal / 3600.0, segExaustTotal / 3600.0);
+      ultimoLogSerial = agora;
+      Serial.printf("[STATUS] In: %.1fC %.1f%% | Ex: %.1fC %.1f%% | Fase: %s | Luz: %s (NTP:%s)\n",
+                    tempInt, humInt, tempExt, humExt, nomeFase((int)faseAtual), nomeModoLuz(), horaValida ? "OK" : "FALLBACK-12/12");
+      Serial.printf("[HORAS USO] Luz: %.1fh | Umid: %.1fh | Vento: %.1fh | Exaust: %.1fh\n",
+                    segLuzTotal / 3600.0, segUmidTotal / 3600.0, segVentoTotal / 3600.0, segExaustTotal / 3600.0);
+      
+      // LOG DE EVENTOS DETALHADOS (Por que cada relé está ligado?)
+      PerfilClimatico pf = obterPerfil(faseAtual);
+      String evtUmid = "Desligado", evtVento = "Desligado", evtExaust = "Desligado";
+      if (releExaustExt) evtExaust = faeLigado ? "Renovação Ar (FAE)" : "Secagem/Outro";
+      
+      if (releVentoInt) {
+        if (faeLigado) evtVento = "Junto com FAE";
+        else if (tempInt >= pf.tempMax) evtVento = "Defesa Térmica";
+        else evtVento = "Brisa Interna Programada";
+      }
+      
+      if (releUmidific) {
+        if (tempInt >= pf.tempMax && humInt < 98.0) evtUmid = "Defesa Térmica (Evaporar)";
+        else if (evtVento == "Brisa Interna Programada") evtUmid = "Névoa na Brisa";
+        else if (humInt < pf.umidMax) evtUmid = "Histerese (Subindo até alvo)";
+        else evtUmid = "Tempo Min Saturação/Outro";
+      }
+      
+      Serial.printf("[EVENTOS ATUAIS] Umidificador: [%s] | Ventilador: [%s] | Exaustor: [%s]\n", 
+                    evtUmid.c_str(), evtVento.c_str(), evtExaust.c_str());
     }
 
     // ROTINA DE NUVEM
@@ -1064,28 +1207,21 @@ void loop() {
   if (agora - ultimoLed >= 50) {
     ultimoLed = agora;
     if (alertaFaltaAgua) {
-      rgbLedWrite(RGB_BUILTIN, (agora%250<125)?LED_BRILHO:0, 0, 0); // VERMELHO PISCANDO RÁPIDO (Emergência Água)
-    }
-    else if (statusSis == SIS_ERRO_SENSOR) {
-      rgbLedWrite(RGB_BUILTIN, LED_BRILHO, 0, 0); // VERMELHO FIXO (Sensor SHT30 Morto/Desconectado)
-    }
-    else if (statusSis == SIS_SEM_WIFI) {
-      rgbLedWrite(RGB_BUILTIN, (agora%1000<500)?LED_BRILHO:0, 0, (agora%1000<500)?LED_BRILHO:0); // MAGENTA/ROXO PISCANDO (Modo Offline/Sem Wi-Fi)
-    }
-    else if (faseAtual == FASE_STANDBY) {
-      rgbLedWrite(RGB_BUILTIN, (agora%4000<2000)?LED_BRILHO/2:0, (agora%4000<2000)?LED_BRILHO/2:0, (agora%4000<2000)?LED_BRILHO/2:0); // BRANCO SUAVE (Standby)
-    }
-    else if (releUmidific) {
-      rgbLedWrite(RGB_BUILTIN, 0, 0, LED_BRILHO); // AZUL FIXO (Injetando Névoa)
-    }
-    else if (releExaustExt) {
-      rgbLedWrite(RGB_BUILTIN, LED_BRILHO, LED_BRILHO/2, 0); // LARANJA FIXO (Trocando Ar / Exaustão)
-    }
-    else if (releVentoInt) {
-      rgbLedWrite(RGB_BUILTIN, 0, LED_BRILHO, LED_BRILHO); // CIANO FIXO (Apenas Brisa Interna)
-    }
-    else {
-      rgbLedWrite(RGB_BUILTIN, 0, (agora%2000<100)?LED_BRILHO:0, 0); // VERDE PISCANDO LENTO (Sistema Saudável e Idle)
+      rgbLedWrite(RGB_BUILTIN, (agora % 250 < 125) ? LED_BRILHO : 0, 0, 0);  // VERMELHO PISCANDO RÁPIDO (Emergência Água)
+    } else if (statusSis == SIS_ERRO_SENSOR) {
+      rgbLedWrite(RGB_BUILTIN, LED_BRILHO, 0, 0);  // VERMELHO FIXO (Sensor SHT30 Morto/Desconectado)
+    } else if (statusSis == SIS_SEM_WIFI) {
+      rgbLedWrite(RGB_BUILTIN, (agora % 1000 < 500) ? LED_BRILHO : 0, 0, (agora % 1000 < 500) ? LED_BRILHO : 0);  // MAGENTA/ROXO PISCANDO (Modo Offline/Sem Wi-Fi)
+    } else if (faseAtual == FASE_STANDBY) {
+      rgbLedWrite(RGB_BUILTIN, (agora % 4000 < 2000) ? LED_BRILHO / 2 : 0, (agora % 4000 < 2000) ? LED_BRILHO / 2 : 0, (agora % 4000 < 2000) ? LED_BRILHO / 2 : 0);  // BRANCO SUAVE (Standby)
+    } else if (releUmidific) {
+      rgbLedWrite(RGB_BUILTIN, 0, 0, LED_BRILHO);  // AZUL FIXO (Injetando Névoa)
+    } else if (releExaustExt) {
+      rgbLedWrite(RGB_BUILTIN, LED_BRILHO, LED_BRILHO / 2, 0);  // LARANJA FIXO (Trocando Ar / Exaustão)
+    } else if (releVentoInt) {
+      rgbLedWrite(RGB_BUILTIN, 0, LED_BRILHO, LED_BRILHO);  // CIANO FIXO (Apenas Brisa Interna)
+    } else {
+      rgbLedWrite(RGB_BUILTIN, 0, (agora % 2000 < 100) ? LED_BRILHO : 0, 0);  // VERDE PISCANDO LENTO (Sistema Saudável e Idle)
     }
   }
 }
