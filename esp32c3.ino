@@ -4,7 +4,7 @@
 //  Autor: Gabriel + Antigravity AI
 // ============================================================
 
-#define FW_VERSION 407
+#define FW_VERSION 408
 
 #include <Arduino.h>
 #include <ArduinoJson.h>
@@ -58,7 +58,7 @@ const char* CLOUD_KEY = "GrowIA_V4_SuperSecreta!";
 const unsigned long INTERVALO_NUVEM = 10UL * 1000;  // 10 segundos (Máxima responsividade)
 
 // --- Segurança ---
-const unsigned long TIMEOUT_UMID_MS = 15UL * 60 * 1000;
+const unsigned long TIMEOUT_UMID_MS = 30UL * 60 * 1000;
 const uint8_t LED_BRILHO = 20;
 
 
@@ -800,10 +800,9 @@ void executarMotor(unsigned long agora) {
   if (releUmidific) {
     if (inicioUmidificacao == 0) inicioUmidificacao = agora;
 
-    // Se a umidade já estiver alta (> 88%), o umidificador está trabalhando em defesa térmica ou
-    // saturação de névoa (e o galão obviamente tem água). Resetamos o timer de falta d'água para
-    // evitar alarme falso de "Sem Água" durante resfriamento prolongado.
-    if (humInt >= 88.0 && (quente || humInt >= pf.umidMin)) {
+    // Se a umidade já estiver alta (>= 90%), o umidificador está conseguindo produzir névoa
+    // e lutando contra a perda de ar do exaustor. Resetamos o timer para evitar alarme falso.
+    if (humInt >= 90.0 || humInt >= pf.umidMin) {
       inicioUmidificacao = agora;
       tempoUmidAcumuladoMs = 0;
     }
