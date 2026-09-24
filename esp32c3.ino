@@ -4,7 +4,7 @@
 //  Autor: Gabriel + Antigravity AI
 // ============================================================
 
-#define FW_VERSION 413
+#define FW_VERSION 414
 
 #include <Arduino.h>
 #include <ArduinoJson.h>
@@ -712,7 +712,8 @@ void executarMotor(unsigned long agora) {
   }
   bool quente = modoQuenteTravado;
 
-  bool defesaEvap = false;
+  // DEFESA TÉRMICA REMOVIDA (Conforme solicitado, não faremos resfriamento evaporativo)
+  // A variável 'quente' ainda pode ser usada pelo dashboard para alertas visuais, mas não aciona atuadores.
 
   // RESET EXPLICITO: Todos os reles partem de OFF e sao ligados explicitamente pela logica abaixo.
   releExaustExt = false;
@@ -724,15 +725,6 @@ void executarMotor(unsigned long agora) {
   if (faeLigado) {
     releExaustExt = true;
     releVentoInt = true;
-  }
-
-  if (quente) {
-    // DEFESA TÉRMICA ativada
-    // Injeta névoa fria até 98% de umidade para resfriar por absorção de calor latente
-    // Nota: O FAE não é mais bloqueado. Se estiver na hora de trocar o ar, ele vai trocar.
-    if (humInt < 98.0 && !alertaFaltaAgua) {
-      defesaEvap = true;
-    }
   }
 
   // --- CIRCULACAO INTERNA DINAMICA & BRISA COM NEVOA ---
@@ -766,7 +758,7 @@ void executarMotor(unsigned long agora) {
   }
 
   if (!alertaFaltaAgua) {
-    bool querLigarUmid = defesaEvap || umidificadorHisterese;
+    bool querLigarUmid = umidificadorHisterese;
     // Automação: Injetar Névoa na Brisa
     // Regra de Conflito: Só injeta vapor se não estivermos no limite MÁXIMO (evita poças d'água/alagamento)
     if (brisaUmidificadora && humInt < pf.umidMax && humInt < 99.5) {
