@@ -4,7 +4,7 @@
 //  Autor: Gabriel + Antigravity AI
 // ============================================================
 
-#define FW_VERSION 409
+#define FW_VERSION 410
 
 #include <Arduino.h>
 #include <ArduinoJson.h>
@@ -804,7 +804,12 @@ void executarMotor(unsigned long agora) {
     // e lutando contra a perda de ar do exaustor. Resetamos o timer para evitar alarme falso.
     if (humInt >= 80.0 || humInt >= pf.umidMin) {
       inicioUmidificacao = agora;
-      tempoUmidAcumuladoMs = 0;
+      if (tempoUmidAcumuladoMs > 0) {
+        tempoUmidAcumuladoMs = 0;
+        prefs.begin("grow", false);
+        prefs.putUInt("umid_acum", 0);
+        prefs.end();
+      }
     }
 
     unsigned long decorrido = (agora - inicioUmidificacao) + tempoUmidAcumuladoMs;
@@ -827,7 +832,13 @@ void executarMotor(unsigned long agora) {
       prefs.end();
     }
   } else {
-    inicioUmidificacao = 0;
+    if (inicioUmidificacao > 0) {
+      tempoUmidAcumuladoMs += (agora - inicioUmidificacao);
+      inicioUmidificacao = 0;
+      prefs.begin("grow", false);
+      prefs.putUInt("umid_acum", (uint32_t)tempoUmidAcumuladoMs);
+      prefs.end();
+    }
   }
 
   if (modoLuz == LUZ_AUTO) {
