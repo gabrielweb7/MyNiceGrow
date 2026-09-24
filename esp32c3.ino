@@ -4,7 +4,7 @@
 //  Autor: Gabriel + Antigravity AI
 // ============================================================
 
-#define FW_VERSION 415
+#define FW_VERSION 416
 
 #include <Arduino.h>
 #include <ArduinoJson.h>
@@ -792,49 +792,8 @@ void executarMotor(unsigned long agora) {
 
   if (releUmidific) releVentoInt = true;
 
-  if (releUmidific) {
-    if (inicioUmidificacao == 0) inicioUmidificacao = agora;
-
-    // Se a umidade já estiver minimamente alta (>= 60%), o umidificador está funcionando.
-    // Resetamos o timer para evitar alarme falso.
-    if (humInt >= 60.0 || humInt >= pf.umidMin) {
-      inicioUmidificacao = agora;
-      if (tempoUmidAcumuladoMs > 0) {
-        tempoUmidAcumuladoMs = 0;
-        prefs.begin("grow", false);
-        prefs.putUInt("umid_acum", 0);
-        prefs.end();
-      }
-    }
-
-    unsigned long decorrido = (agora - inicioUmidificacao) + tempoUmidAcumuladoMs;
-
-    if (decorrido >= TIMEOUT_UMID_MS) {
-      // Se não atingiu o alvo dentro dos 15 minutos e continua seco, a mangueira obstruiu ou a água acabou.
-      alertaFaltaAgua = true;
-      releUmidific = false;
-      tempoUmidAcumuladoMs = 0;
-      inicioUmidificacao = 0;
-      prefs.begin("grow", false);
-      prefs.putBool("sem_agua", true);
-      prefs.putUInt("umid_acum", 0);
-      prefs.end();
-      Serial.println("🚨 SEGURANCA: Falta de Agua / Mangueira obstruida detectada!");
-    } else if (agora - ultimoSaveUmidAcum >= 60000) {  // Salva o tempo decorrido na memória a cada 1 minuto
-      ultimoSaveUmidAcum = agora;
-      prefs.begin("grow", false);
-      prefs.putUInt("umid_acum", (uint32_t)decorrido);
-      prefs.end();
-    }
-  } else {
-    if (inicioUmidificacao > 0) {
-      tempoUmidAcumuladoMs += (agora - inicioUmidificacao);
-      inicioUmidificacao = 0;
-      prefs.begin("grow", false);
-      prefs.putUInt("umid_acum", (uint32_t)tempoUmidAcumuladoMs);
-      prefs.end();
-    }
-  }
+  // PROTEÇÃO ANTI-QUEIMA (FALTA D'ÁGUA) REMOVIDA A PEDIDO DO USUÁRIO.
+  // O sistema não vai mais contar o tempo de umidificação nem disparar alarme.
 
   if (modoLuz == LUZ_AUTO) {
     static int confirmacoesNoite = 0;
