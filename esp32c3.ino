@@ -4,7 +4,7 @@
 //  Autor: Gabriel + Antigravity AI
 // ============================================================
 
-#define FW_VERSION 416
+#define FW_VERSION 417
 
 #include <Arduino.h>
 #include <ArduinoJson.h>
@@ -720,11 +720,10 @@ void executarMotor(unsigned long agora) {
   releVentoInt = false;
   if (modoLuz == LUZ_AUTO) releLuz = false;
 
-  // A Renovação de Ar Programada (FAE) agora roda SEMPRE, independente do calor!
-  // O cogumelo precisa respirar mesmo em dias quentes.
+  // A Renovação de Ar Programada (FAE)
   if (faeLigado) {
     releExaustExt = true;
-    releVentoInt = true;
+    // Ventilador interno NÃO é mais forçado a ligar junto com o exaustor (pedido do usuário)
   }
 
   // --- CIRCULACAO INTERNA DINAMICA & BRISA COM NEVOA ---
