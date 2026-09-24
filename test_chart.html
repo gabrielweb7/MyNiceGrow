@@ -1,0 +1,30 @@
+<!DOCTYPE html><html><body><canvas id='c'></canvas><script src='https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js'></script><script src='https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns@3.0.0/dist/chartjs-adapter-date-fns.bundle.min.js'></script><script>
+setTimeout(() => {
+    new Chart(document.getElementById('c'), {
+        type: 'line',
+        data: { datasets: [{ data: [{x: 1700000000000, y: 1}, {x: 1700003600000, y: 2}] }] },
+        options: {
+            scales: {
+                x: {
+                    type: 'time',
+                    min: 1700000120000, max: 1700003000000,
+                    afterBuildTicks: (scale) => {
+                        console.log('Original ticks:', scale.ticks.map(t => new Date(t.value).toISOString()));
+                        const min = scale.min;
+                        const max = scale.max;
+                        const range = max - min;
+                        let stepMs = 5 * 60000;
+                        let firstTick = Math.ceil(min / stepMs) * stepMs;
+                        let newTicks = [];
+                        for (let t = firstTick; t <= max; t += stepMs) {
+                            newTicks.push({ value: t });
+                        }
+                        scale.ticks = newTicks;
+                        console.log('New ticks:', scale.ticks.map(t => new Date(t.value).toISOString()));
+                    }
+                }
+            }
+        }
+    });
+}, 100);
+</script></body></html>
