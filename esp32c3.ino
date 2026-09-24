@@ -4,7 +4,7 @@
 //  Autor: Gabriel + Antigravity AI
 // ============================================================
 
-#define FW_VERSION 410
+#define FW_VERSION 411
 
 #include <Arduino.h>
 #include <ArduinoJson.h>
@@ -727,9 +727,7 @@ void executarMotor(unsigned long agora) {
   }
 
   if (quente) {
-    // DEFESA TÉRMICA: Circula o ar interno para tentar resfriar
-    releVentoInt = true;    
-
+    // DEFESA TÉRMICA ativada
     // Injeta névoa fria até 98% de umidade para resfriar por absorção de calor latente
     // Nota: O FAE não é mais bloqueado. Se estiver na hora de trocar o ar, ele vai trocar.
     if (humInt < 98.0 && !alertaFaltaAgua) {
