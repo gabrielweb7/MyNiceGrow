@@ -85,6 +85,9 @@ if ($method === 'POST') {
         if (isset($row['fw'])) {
             file_put_contents(__DIR__ . '/fw_status.txt', $row['fw']);
         }
+        if (isset($row['vFirmware'])) {
+            file_put_contents(__DIR__ . '/vFirmware.txt', $row['vFirmware']);
+        }
         // Salva modo atual da luz se reportado
         if (isset($row['modoLuz'])) {
             file_put_contents(__DIR__ . '/modo_luz.txt', (string)(int)$row['modoLuz']);

@@ -308,7 +308,8 @@ void enviarNuvem(unsigned long agora) {
   json += "\"otaError\":" + String(prefs.getBool("ota_falhou", false) ? 1 : 0) + ",";
   prefs.end();
 
-  json += "\"fw\":" + String(fwAtual);
+  json += "\"fw\":" + String(fwAtual) + ",";
+  json += "\"vFirmware\":\"v" + String(FW_VERSION) + "\"";
   json += "}";
 
   if (WiFi.status() != WL_CONNECTED) {

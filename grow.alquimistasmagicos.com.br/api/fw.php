@@ -7,5 +7,6 @@ $fwError = file_exists(__DIR__ . "/fw_error.txt") ? "1" : "0";
 $gitHead = __DIR__ . '/../../.git/refs/heads/main';
 $gitHash = file_exists($gitHead) ? substr(trim(file_get_contents($gitHead)), 0, 7) : 'Desconhecido';
 $modoLuz = file_exists(__DIR__ . "/modo_luz.txt") ? (int)trim(file_get_contents(__DIR__ . "/modo_luz.txt")) : 0;
-echo json_encode(["placa" => trim($fwPlaca), "nuvem" => trim($fwNuvem), "error" => $fwError, "gitHash" => $gitHash, "modoLuz" => $modoLuz]);
+$vFirmware = file_exists(__DIR__ . "/vFirmware.txt") ? trim(file_get_contents(__DIR__ . "/vFirmware.txt")) : "";
+echo json_encode(["placa" => trim($fwPlaca), "nuvem" => trim($fwNuvem), "error" => $fwError, "gitHash" => $gitHash, "modoLuz" => $modoLuz, "vFirmware" => $vFirmware]);
 
