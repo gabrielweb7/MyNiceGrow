@@ -2,9 +2,10 @@
 //  GROW IA - Firmware Inteligente + Nuvem IoT
 //  Placa: ESP32-C3-MINI-1-N4
 //  Autor: Gabriel + Antigravity AI
+//  Versão Atual: v419
 // ============================================================
 
-#define FW_VERSION 418
+#define FW_VERSION 419
 
 #include <Arduino.h>
 #include <ArduinoJson.h>
@@ -879,7 +880,8 @@ void setup() {
   modoLuz = (ModoLuz)prefs.getInt("modoLuz", (int)LUZ_AUTO);
   inicioFaseTempo = prefs.getUInt("inicio", 0);
   fwAtual = prefs.getUInt("fw_ver", 0);
-  alertaFaltaAgua = prefs.getBool("sem_agua", false);
+  // alertaFaltaAgua = prefs.getBool("sem_agua", false); // REMOVIDO: ignorar fantasmas da memória antiga
+  alertaFaltaAgua = false; // Sempre falso
   tempoUmidAcumuladoMs = prefs.getUInt("umid_acum", 0);
 
   // Carrega Horimetro
