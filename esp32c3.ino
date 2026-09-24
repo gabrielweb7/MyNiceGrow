@@ -4,7 +4,7 @@
 //  Autor: Gabriel + Antigravity AI
 // ============================================================
 
-#define FW_VERSION 411
+#define FW_VERSION 412
 
 #include <Arduino.h>
 #include <ArduinoJson.h>
@@ -766,7 +766,12 @@ void executarMotor(unsigned long agora) {
   }
 
   if (!alertaFaltaAgua) {
-    bool querLigarUmid = defesaEvap || brisaUmidificadora || umidificadorHisterese;
+    bool querLigarUmid = defesaEvap || umidificadorHisterese;
+    // Automação: Injetar Névoa na Brisa
+    // Regra de Conflito: Só injeta vapor se não estivermos no limite MÁXIMO (evita poças d'água/alagamento)
+    if (brisaUmidificadora && humInt < pf.umidMax && humInt < 99.5) {
+      querLigarUmid = true;
+    }
 
     if (querLigarUmid) {
       if (!releUmidific) tempoInicioSaturacaoUmid = agora;  // Inicia contagem do tempo mínimo
