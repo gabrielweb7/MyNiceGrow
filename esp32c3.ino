@@ -4,7 +4,7 @@
 //  Autor: Gabriel + Antigravity AI
 // ============================================================
 
-#define FW_VERSION 412
+#define FW_VERSION 413
 
 #include <Arduino.h>
 #include <ArduinoJson.h>
@@ -803,9 +803,9 @@ void executarMotor(unsigned long agora) {
   if (releUmidific) {
     if (inicioUmidificacao == 0) inicioUmidificacao = agora;
 
-    // Se a umidade já estiver alta (>= 80%), o umidificador está conseguindo produzir névoa
-    // e lutando contra a perda de ar do exaustor. Resetamos o timer para evitar alarme falso.
-    if (humInt >= 80.0 || humInt >= pf.umidMin) {
+    // Se a umidade já estiver minimamente alta (>= 60%), o umidificador está funcionando.
+    // Resetamos o timer para evitar alarme falso.
+    if (humInt >= 60.0 || humInt >= pf.umidMin) {
       inicioUmidificacao = agora;
       if (tempoUmidAcumuladoMs > 0) {
         tempoUmidAcumuladoMs = 0;
