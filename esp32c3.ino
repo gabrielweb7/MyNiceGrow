@@ -4,7 +4,7 @@
 //  Autor: Gabriel + Antigravity AI
 // ============================================================
 
-#define FW_VERSION 417
+#define FW_VERSION 418
 
 #include <Arduino.h>
 #include <ArduinoJson.h>
