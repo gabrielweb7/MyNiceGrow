@@ -326,24 +326,37 @@ void enviarNuvem(unsigned long agora) {
       String bulk = "[";
       bool first = true;
       int count = 0;
+      char buf2[128];
       while (f.available() && count < 50) {
-        String linha = f.readStringUntil('\n');
-        linha.trim();
-        if (linha.length() > 5) {
-          if (!first) bulk += ",";
-          bulk += linha;
-          first = false;
-          count++;
+        int len = f.readBytesUntil('\n', buf2, sizeof(buf2) - 1);
+        if (len > 0) {
+          buf2[len] = '\0';
+          if (len > 0 && buf2[len-1] == '\r') buf2[len-1] = '\0';
+          if (strlen(buf2) > 5) {
+            if (!first) bulk += ",";
+            bulk += buf2;
+            first = false;
+            count++;
+          }
         }
       }
       bulk += "]";
 
       // Se houver mais linhas acumuladas, guarda temporariamente o restante
       File tmp = LittleFS.open("/offline.tmp", "w");
-      while (f.available()) {
-        String resto = f.readStringUntil('\n');
-        resto.trim();
-        if (resto.length() > 5 && tmp) tmp.println(resto);
+      if (tmp) {
+        char buffer[128];
+        while (f.available()) {
+          int len = f.readBytesUntil('\n', buffer, sizeof(buffer) - 1);
+          if (len > 0) {
+            buffer[len] = '\0';
+            // Trim /r se houver
+            if (len > 0 && buffer[len-1] == '\r') buffer[len-1] = '\0';
+            if (strlen(buffer) > 5) {
+              tmp.println(buffer);
+            }
+          }
+        }
       }
       if (tmp) tmp.close();
       f.close();

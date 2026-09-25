@@ -116,6 +116,14 @@ if ($method === 'POST') {
     }
     $stmt->close();
     
+    // AUTO-LIMPEZA DO BANCO DE DADOS (Anti-Crash de Disco HostGator)
+    // Executa a limpeza com 5% de chance em cada requisição para não pesar o servidor
+    if (rand(1, 100) <= 5) {
+        // Apaga dados mais antigos que 15 dias (15 * 24 * 60 * 60 = 1296000 segundos)
+        $limiteTempo = time() - 1296000;
+        $conn->query("DELETE FROM telemetria WHERE timestamp < $limiteTempo");
+    }
+    
     $resposta = ["status" => "ok", "inseridos" => $successCount];
     // Carrega configuração climática atual do banco de dados MySQL
     garantirTabelaConfig($conn);
