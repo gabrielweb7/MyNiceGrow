@@ -1567,26 +1567,11 @@
                 const tStart = maxTs + passoMs; // Começa no próximo intervalo após o último dado
                 const tEnd = tStart + (3 * 3600 * 1000); // 3 horas pra frente
                 
-                // Sincroniza a fase da projeção com a realidade usando os últimos dados históricos!
-                let lastExaustStart = maxTs;
-                for (let i = dExaust.length - 1; i >= 1; i--) {
-                    if (dExaust[i].y !== null && dExaust[i-1].y === null) {
-                        lastExaustStart = dExaust[i].x;
-                        break;
-                    }
-                }
-                let lastVentoStart = maxTs;
-                for (let i = dVento.length - 1; i >= 1; i--) {
-                    if (dVento[i].y !== null && dVento[i-1].y === null) {
-                        lastVentoStart = dVento[i].x;
-                        break;
-                    }
-                }
-
+                // Sincroniza a fase da projeção de luz com a realidade usando os últimos dados históricos!
                 // Verifica se a luz real no último ponto histórico estava acesa:
                 const lastRealLuzOn = dLuz.length > 0 && dLuz[dLuz.length - 1].y !== null;
                 
-                window.simUmidStart = null;
+
                 for (let t = tStart; t <= tEnd; t += passoMs) {
                     let dObj = new Date(t);
                     let hLocal = dObj.getHours();

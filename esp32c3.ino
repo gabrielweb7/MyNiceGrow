@@ -2,10 +2,10 @@
 //  GROW IA - Firmware Inteligente + Nuvem IoT
 //  Placa: ESP32-C3-MINI-1-N4
 //  Autor: Gabriel + Antigravity AI
-//  Versão Atual: v420
+//  Versão Atual: v422
 // ============================================================
 
-#define FW_VERSION 420
+#define FW_VERSION 422
 
 #include <Arduino.h>
 #include <ArduinoJson.h>
@@ -134,19 +134,17 @@ int ultimoDia = -1;
 bool releLuz = false, releUmidific = false, releVentoInt = false, releExaustExt = false;
 bool lastReleLuz = false, lastReleUmidific = false, lastReleVento = false, lastReleExaust = false;
 
-unsigned long ultimaLeitura = 0, ultimoCicloFAE = 0, inicioUmidificacao = 0, ultimoEnvioNuvem = 0;
+unsigned long ultimaLeitura = 0, ultimoEnvioNuvem = 0;
 #define PIN_BOOT 9  // Botão BOOT da placa ESP32-C3
 
 unsigned long ultimoLogSerial = 0;
-bool faeLigado = false, alertaFaltaAgua = false;
+bool faeLigado = false;
 
 bool horaValida = false;
 int horaAtual = -1;
 time_t inicioFaseTempo = 0;
 unsigned long bootTime = 0;
 uint32_t fwAtual = 0;
-uint32_t tempoUmidAcumuladoMs = 0;
-unsigned long ultimoSaveUmidAcum = 0;
 
 // Cão de Guarda (Watchdog por FreeRTOS - 100% seguro contra falhas de bibliotecas)
 TaskHandle_t wdtTask;
@@ -171,7 +169,7 @@ unsigned long lastSwitchLuz = 0, lastSwitchUmid = 0, lastSwitchVento = 0, lastSw
 uint32_t segLuzTotal = 0, segUmidTotal = 0, segVentoTotal = 0, segExaustTotal = 0;
 unsigned long ultimoTickHorimetro = 0;
 unsigned long ultimoSaveHorimetro = 0;
-unsigned long tempoInicioSaturacaoUmid = 0;
+
 
 // ============================================================
 //  FUNÇÕES AUXILIARES
@@ -293,7 +291,7 @@ void enviarNuvem(unsigned long agora) {
   json += "\"uE\":" + String(humExt, 1) + ",";
   json += "\"rLuz\":" + String(lastReleLuz ? 1 : 0) + ",";
   json += "\"modoLuz\":" + String((int)modoLuz) + ",";
-  json += "\"rUmid\":" + String(alertaFaltaAgua ? 2 : (lastReleUmidific ? 1 : 0)) + ",";
+  json += "\"rUmid\":" + String(lastReleUmidific ? 1 : 0) + ",";
   json += "\"rVento\":" + String(lastReleVento ? 1 : 0) + ",";
   json += "\"rExaust\":" + String(lastReleExaust ? 1 : 0) + ",";
   String faseStr = nomeFase((int)faseAtual);
@@ -498,17 +496,7 @@ void enviarNuvem(unsigned long agora) {
             ultimoEnvioNuvem = 0;  // Dispara atualização imediata com relés já comutados
           }
         }
-        if (docRes.containsKey("comando_reset_agua")) {
-          Serial.println("📥 COMANDO NUVEM: Reset de Alerta de Agua recebido!!");
-          alertaFaltaAgua = false;
-          inicioUmidificacao = 0;
-          tempoUmidAcumuladoMs = 0;
-          prefs.begin("grow", false);
-          prefs.putBool("sem_agua", false);
-          prefs.putUInt("umid_acum", 0);
-          prefs.end();
-          ultimoEnvioNuvem = 0;  // Atualiza a nuvem pra apagar o alerta
-        }
+
         uint32_t vNuvem = docRes.containsKey("versao_nuvem") ? (uint32_t)docRes["versao_nuvem"] : 0;
         if (docRes.containsKey("comando_ota") || (vNuvem > 0 && vNuvem > fwAtual)) {
           Serial.printf("📥 OTA INICIANDO (Local: %u, Nuvem: %u)\n", fwAtual, vNuvem);
@@ -627,7 +615,7 @@ void aplicarReles() {
   }
 
   bool corteLuzImediato = (tempInt >= TEMP_CORTE_LUZ || modoLuz == LUZ_FORCADA_OFF);
-  bool corteUmidImediato = alertaFaltaAgua;
+  bool corteUmidImediato = false;
 
   // Luz: Bypass do dwell time quando está DESLIGANDO (false), em corte de emergência ou comando manual forçado
   bool desligandoLuz = (!releLuz && lastReleLuz);
@@ -779,35 +767,23 @@ void executarMotor(unsigned long agora) {
     umidificadorHisterese = false;
   }
 
-  if (!alertaFaltaAgua) {
-    bool querLigarUmid = umidificadorHisterese;
-    // Automação: Injetar Névoa na Brisa
-    // Conforme solicitado, se a opção estiver ligada no painel, injeta névoa independente se a umidade já é 100%.
-    if (brisaUmidificadora) {
-      querLigarUmid = true;
-    }
-
-    if (querLigarUmid) {
-      if (!releUmidific) tempoInicioSaturacaoUmid = agora;  // Guarda tempo de inicio
-      releUmidific = true;
-    } else {
-      // Trava de saturação mínima de 2 minutos REMOVIDA a pedido do usuário.
-      // Agora o umidificador obedece fielmente os timers curtos (ex: 1 min).
-      releUmidific = false;
-      if (tempoUmidAcumuladoMs > 0) {
-        tempoUmidAcumuladoMs = 0;
-        prefs.begin("grow", false);
-        prefs.putUInt("umid_acum", 0);
-        prefs.end();
-      }
-    }
-
-    // BLOQUEIO CONTRA DESPERDÍCIO (EXAUSTOR):
-    // Nunca desperdiçar umidade jogando o ar pra fora
-    if (releExaustExt) {
-      releUmidific = false;
-    }
+  bool querLigarUmid = umidificadorHisterese;
+  // Automação: Injetar Névoa na Brisa
+  // Conforme solicitado, se a opção estiver ligada no painel, injeta névoa independente se a umidade já é 100%.
+  if (brisaUmidificadora) {
+    querLigarUmid = true;
+  }
+  if (querLigarUmid) {
+    releUmidific = true;
   } else {
+    // Trava de saturação mínima de 2 minutos REMOVIDA a pedido do usuário.
+    // Agora o umidificador obedece fielmente os timers curtos (ex: 1 min).
+    releUmidific = false;
+  }
+
+  // BLOQUEIO CONTRA DESPERDÍCIO (EXAUSTOR):
+  // Nunca desperdiçar umidade jogando o ar pra fora
+  if (releExaustExt) {
     releUmidific = false;
   }
 
@@ -863,15 +839,7 @@ void webApiCmd() {
     prefs.putInt("modoLuz", (int)modoLuz);
     prefs.end();
   }
-  if (server.hasArg("r")) {
-    alertaFaltaAgua = false;
-    inicioUmidificacao = 0;
-    tempoUmidAcumuladoMs = 0;
-    prefs.begin("grow", false);
-    prefs.putBool("sem_agua", false);
-    prefs.putUInt("umid_acum", 0);
-    prefs.end();
-  }
+
   server.send(200, "text/plain", "OK");
 }
 
@@ -900,9 +868,7 @@ void setup() {
   modoLuz = (ModoLuz)prefs.getInt("modoLuz", (int)LUZ_AUTO);
   inicioFaseTempo = prefs.getUInt("inicio", 0);
   fwAtual = prefs.getUInt("fw_ver", 0);
-  // alertaFaltaAgua = prefs.getBool("sem_agua", false); // REMOVIDO: ignorar fantasmas da memória antiga
-  alertaFaltaAgua = false; // Sempre falso
-  tempoUmidAcumuladoMs = prefs.getUInt("umid_acum", 0);
+
 
   // Carrega Horimetro
   segLuzTotal = prefs.getUInt("h_luz", 0);
