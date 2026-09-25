@@ -1586,6 +1586,7 @@
                 // Verifica se a luz real no último ponto histórico estava acesa:
                 const lastRealLuzOn = dLuz.length > 0 && dLuz[dLuz.length - 1].y !== null;
                 
+                window.simUmidStart = null;
                 for (let t = tStart; t <= tEnd; t += passoMs) {
                     let dObj = new Date(t);
                     let hLocal = dObj.getHours();
@@ -1633,6 +1634,21 @@
                     let isUmidOn = false;
                     if (cfgProj && cfgProj.vU == 1) {
                         isUmidOn = isVentoOn && !isExaustOn; // Exaustor corta o umidificador
+                        
+                        // TEMPO MÍNIMO DE SATURAÇÃO VÍSUAL (2 Minutos)
+                        // Simula a trava de 2 minutos do ESP32 no gráfico de previsão
+                        if (isUmidOn) {
+                            if (!window.simUmidStart) window.simUmidStart = t;
+                        } else {
+                            if (window.simUmidStart && (t - window.simUmidStart) < 120000) {
+                                isUmidOn = true; // Força a ficar ligado até bater 2 minutos
+                                if (!isExaustOn) isVentoOn = true; // Força o ventilador também
+                            } else {
+                                window.simUmidStart = null;
+                            }
+                        }
+                    } else {
+                        window.simUmidStart = null;
                     }
                     
                     dLuz.push({ x: t, y: isLuzOn ? [2.65, 3.35] : null, ghost: true });
