@@ -1079,6 +1079,11 @@
                     if (elements.length > 0) {
                         const dataIndex = elements[0].index;
                         if (dataIndex === lastHoverIdx) return; // Evita repintar se o ponteiro ainda está no mesmo minuto
+                        
+                        const now = Date.now();
+                        if (now - (window.lastHoverTime || 0) < 50) return; // ~20 FPS limit to drastically reduce mobile lag
+                        window.lastHoverTime = now;
+                        
                         lastHoverIdx = dataIndex;
                         if (hoverRaf) cancelAnimationFrame(hoverRaf);
                         hoverRaf = requestAnimationFrame(() => {
@@ -1114,10 +1119,14 @@
                         borderColor: '#334155', 
                         borderWidth: 1, 
                         titleColor: '#00ffaa', 
-                        titleFont: { size: 14, weight: 'bold', family: 'monospace' },
+                        titleFont: { size: 11, weight: 'bold', family: 'monospace' },
                         bodyColor: '#e2e8f0', 
-                        bodyFont: { size: 12 },
-                        padding: 12 
+                        bodyFont: { size: 10 },
+                        padding: 6,
+                        boxWidth: 8,
+                        boxHeight: 8,
+                        boxPadding: 4,
+                        usePointStyle: true
                     },
                     zoom: {
                         limits: {
@@ -1240,7 +1249,7 @@
                     const isLigado = ctx.raw && ctx.raw.y !== null && Array.isArray(ctx.raw.y);
                     const isGhost = ctx.raw && ctx.raw.ghost;
                     if (isGhost) {
-                        return ` ${ctx.dataset.label}: ${isLigado ? '🔮 Previsão (ON)' : '⚪ Previsão (OFF)'}`;
+                        return ` ${ctx.dataset.label}: ${isLigado ? '🔮 Prev(ON)' : '⚪ Prev(OFF)'}`;
                     }
                     return ` ${ctx.dataset.label}: ${isLigado ? '🟢 ON' : '⚪ OFF'}`;
                 }
