@@ -2,10 +2,10 @@
 //  GROW IA - Firmware Inteligente + Nuvem IoT
 //  Placa: ESP32-C3-MINI-1-N4
 //  Autor: Gabriel + Antigravity AI
-//  Versão Atual: v419
+//  Versão Atual: v420
 // ============================================================
 
-#define FW_VERSION 419
+#define FW_VERSION 420
 
 #include <Arduino.h>
 #include <ArduinoJson.h>
@@ -767,18 +767,17 @@ void executarMotor(unsigned long agora) {
     }
 
     if (querLigarUmid) {
-      if (!releUmidific) tempoInicioSaturacaoUmid = agora;  // Inicia contagem do tempo mínimo
+      if (!releUmidific) tempoInicioSaturacaoUmid = agora;  // Guarda tempo de inicio
       releUmidific = true;
     } else {
-      // TEMPO MÍNIMO DE SATURAÇÃO VÍSUAL (2 Minutos)
-      if (agora - tempoInicioSaturacaoUmid >= 120000UL || tempoInicioSaturacaoUmid == 0) {
-        releUmidific = false;
-        if (tempoUmidAcumuladoMs > 0) {
-          tempoUmidAcumuladoMs = 0;
-          prefs.begin("grow", false);
-          prefs.putUInt("umid_acum", 0);
-          prefs.end();
-        }
+      // Trava de saturação mínima de 2 minutos REMOVIDA a pedido do usuário.
+      // Agora o umidificador obedece fielmente os timers curtos (ex: 1 min).
+      releUmidific = false;
+      if (tempoUmidAcumuladoMs > 0) {
+        tempoUmidAcumuladoMs = 0;
+        prefs.begin("grow", false);
+        prefs.putUInt("umid_acum", 0);
+        prefs.end();
       }
     }
 
