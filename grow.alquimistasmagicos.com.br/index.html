@@ -1610,8 +1610,7 @@
                     let isExaustOn = false;
                     if (cfgProj && cfgProj.fO > 0) {
                         let cFAE = (cfgProj.fO + cfgProj.fF) * 60000;
-                        let offset = (t - lastExaustStart) % cFAE;
-                        if (offset < 0) offset += cFAE;
+                        let offset = t % cFAE;
                         if (offset < (cfgProj.fO * 60000)) isExaustOn = true;
                     }
                     
@@ -1622,8 +1621,7 @@
                             isVentoOn = true;
                         } else {
                             let cVento = (cfgProj.vO + cfgProj.vF) * 60000;
-                            let offsetVento = (t - lastVentoStart) % cVento;
-                            if (offsetVento < 0) offsetVento += cVento;
+                            let offsetVento = t % cVento;
                             if (offsetVento < (cfgProj.vO * 60000)) isVentoOn = true;
                         }
                     }

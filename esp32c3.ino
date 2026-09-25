@@ -703,19 +703,21 @@ void executarMotor(unsigned long agora) {
   } else if (pf.faeOffMs == 0) {
     faeLigado = true;
   } else {
-    if (faeLigado) {
-      if (agora - ultimoCicloFAE >= pf.faeOnMs) {
-        faeLigado = false;
-        ultimoCicloFAE = agora;
-        Serial.println("🔄 PROCESSO FAE: Ciclo concluido (Ar Renovado).");
-      }
-    } else {
-      if (agora - ultimoCicloFAE >= pf.faeOffMs) {
-        faeLigado = true;
-        ultimoCicloFAE = agora;
-        Serial.println("🔄 PROCESSO FAE: Iniciando renovacao de ar...");
-      }
+    unsigned long cicloFae = pf.faeOnMs + pf.faeOffMs;
+    unsigned long momentoFae = agora % cicloFae;
+    time_t tnow;
+    time(&tnow);
+    if (tnow > 1600000000) {
+      momentoFae = (tnow % (cicloFae / 1000)) * 1000;
     }
+    
+    bool novoFaeLigado = (momentoFae < pf.faeOnMs);
+    if (novoFaeLigado && !faeLigado) {
+      Serial.println("🔄 PROCESSO FAE: Iniciando renovacao de ar...");
+    } else if (!novoFaeLigado && faeLigado) {
+      Serial.println("🔄 PROCESSO FAE: Ciclo concluido (Ar Renovado).");
+    }
+    faeLigado = novoFaeLigado;
   }
 
   // --- CONTROLE TÉRMICO E FAE (Com Histerese de 1.5°C contra o Efeito Yo-Yo) ---
@@ -751,10 +753,16 @@ void executarMotor(unsigned long agora) {
         if (pf.ventoComUmid) brisaUmidificadora = true;
       } else {
         unsigned long cicloVento = pf.ventoOnMs + pf.ventoOffMs;
-        if (cicloVento > 0 && (agora % cicloVento) < pf.ventoOnMs) {
-          releVentoInt = true;
-          if (pf.ventoComUmid) {
-            brisaUmidificadora = true;  // Injeta névoa fresca viva junto com a brisa independente do sensor!
+        if (cicloVento > 0) {
+          unsigned long momentoVento = agora % cicloVento;
+          time_t tnow;
+          time(&tnow);
+          if (tnow > 1600000000) {
+            momentoVento = (tnow % (cicloVento / 1000)) * 1000;
+          }
+          if (momentoVento < pf.ventoOnMs) {
+            releVentoInt = true;
+            if (pf.ventoComUmid) brisaUmidificadora = true;
           }
         }
       }
