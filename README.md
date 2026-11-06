@@ -285,5 +285,5 @@ A atualização do firmware é **100% remota e autônoma**:
 
 ## 🧙‍♂️ Créditos & Licença
 
-Desenvolvido com carinho para o **Grow do Txai** por **Alquimistas Mágicos**.  
+Desenvolvido por **Gabriel da Luz** ([@gabrielweb7](https://github.com/gabrielweb7)) para o **Grow do Txai** por **Alquimistas Mágicos**.  
 Distribuído sob licença **MIT**. Sinta-se livre para usar, estudar e evoluir a automação micológica! 🍄✨
