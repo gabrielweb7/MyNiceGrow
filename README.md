@@ -1,6 +1,6 @@
-# 🍄 Grow do Txai — Sistema Inteligente de Automação IoT (v4.0 Oficial / Estável)
+# 🍄 Grow do Txai — Sistema Inteligente de Automação IoT (v1.5.0 / FW v424 Oficial)
 
-[![Release v4.0](https://img.shields.io/badge/Release-v4.0%20Oficial%20%2F%20Est%C3%A1vel-gold?style=for-the-badge&logo=target)](https://github.com/gabrielweb7/MyNiceGrow)
+[![Release v1.5.0](https://img.shields.io/badge/Release-v1.5.0%20(FW%20v424)-gold?style=for-the-badge&logo=target)](https://github.com/gabrielweb7/MyNiceGrow)
 [![ESP32-S3](https://img.shields.io/badge/Hardware-ESP32--S3%20Dual--Core%20(Dual%20USB--C)-brightgreen?style=for-the-badge&logo=espressif)](https://www.espressif.com/)
 [![Arduino / C++](https://img.shields.io/badge/Firmware-Arduino%20%2F%20C%2B%2B-blue?style=for-the-badge&logo=arduino)](https://www.arduino.cc/)
 [![FreeRTOS](https://img.shields.io/badge/RTOS-FreeRTOS%20Watchdog-red?style=for-the-badge&logo=freertos)](https://www.freertos.org/)

@@ -405,7 +405,7 @@
         <!-- FOOTER -->
         <footer class="text-center text-[10px] text-slate-500 py-4 space-y-1">
             <div>Grow do Txai — IoT Cloud System — Dados atualizados a cada 60 segundos</div>
-            <div id="txtGitHash" class="text-emerald-400 font-bold tracking-widest text-xs drop-shadow-[0_0_8px_rgba(52,211,153,0.7)]">Versão: 1.4.0</div>
+            <div id="txtGitHash" class="text-emerald-400 font-bold tracking-widest text-xs drop-shadow-[0_0_8px_rgba(52,211,153,0.7)]">Versão: 1.5.0</div>
         </footer>
     </main>
 
@@ -1431,9 +1431,9 @@
                         window.modoLuzNuvem = parseInt(fwData.modoLuz);
                     }
                     if (fwData.gitHash && fwData.gitHash !== 'Desconhecido') {
-                        document.getElementById('txtGitHash').textContent = `Versão: 1.4.0 (${fwData.gitHash})`;
+                        document.getElementById('txtGitHash').textContent = `Versão: 1.5.0 (${fwData.gitHash})`;
                     } else {
-                        document.getElementById('txtGitHash').textContent = `Versão: 1.4.0`;
+                        document.getElementById('txtGitHash').textContent = `Versão: 1.5.0`;
                     }
                 }
 
