@@ -1,0 +1,62 @@
+name: Deploy Automático para HostGator
+
+on:
+  push:
+    branches:
+      - main
+    tags:
+      - 'v*'
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    name: Deploy em Produção
+    runs-on: ubuntu-latest
+    steps:
+      - name: 📥 Checkout do Repositório
+        uses: actions/checkout@v4
+
+      - name: 🚀 Deploy via SSH (git pull na HostGator)
+        if: "${{ secrets.HOSTGATOR_HOST != '' && secrets.HOSTGATOR_USER != '' }}"
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.HOSTGATOR_HOST }}
+          username: ${{ secrets.HOSTGATOR_USER }}
+          password: ${{ secrets.HOSTGATOR_PASSWORD }}
+          key: ${{ secrets.HOSTGATOR_SSH_KEY }}
+          port: ${{ secrets.HOSTGATOR_PORT || 2222 }}
+          script: |
+            cd ${{ secrets.HOSTGATOR_PATH || '~/public_html' }}
+            git pull origin main
+            echo "✅ Git pull executado com sucesso no servidor HostGator!"
+
+      - name: 🌐 Deploy via Webhook do cPanel Git
+        if: "${{ secrets.CPANEL_WEBHOOK_URL != '' }}"
+        run: |
+          echo "Disparando Webhook do cPanel Git..."
+          curl -s -k -X GET "${{ secrets.CPANEL_WEBHOOK_URL }}"
+          echo "✅ Webhook do cPanel acionado com sucesso!"
+
+      - name: 📁 Deploy via FTP (Sincronização de Arquivos)
+        if: "${{ secrets.FTP_SERVER != '' && secrets.HOSTGATOR_HOST == '' && secrets.CPANEL_WEBHOOK_URL == '' }}"
+        uses: SamKirkland/FTP-Deploy-Action@v4.3.5
+        with:
+          server: ${{ secrets.FTP_SERVER }}
+          username: ${{ secrets.FTP_USERNAME }}
+          password: ${{ secrets.FTP_PASSWORD }}
+          server-dir: ${{ secrets.FTP_SERVER_DIR || 'public_html/' }}
+          exclude: |
+            **/.git*
+            **/.git*/**
+            **/config.php
+            **/esp32c3/**
+            **/.gitignore
+
+      - name: ℹ️ Instruções se nenhum segredo estiver configurado
+        if: "${{ secrets.HOSTGATOR_HOST == '' && secrets.CPANEL_WEBHOOK_URL == '' && secrets.FTP_SERVER == '' }}"
+        run: |
+          echo "⚠️ ATENÇÃO: Nenhum segredo de deploy configurado no GitHub Actions!"
+          echo "Para ativar a automação completa, cadastre nos Secrets do repositório:"
+          echo "Opção 1 (Mais fácil): CPANEL_WEBHOOK_URL (gerada no cPanel > Git Version Control)"
+          echo "Opção 2 (SSH Direto): HOSTGATOR_HOST, HOSTGATOR_USER, HOSTGATOR_PASSWORD e HOSTGATOR_PATH"
+          echo "Opção 3 (FTP): FTP_SERVER, FTP_USERNAME, FTP_PASSWORD e FTP_SERVER_DIR"
