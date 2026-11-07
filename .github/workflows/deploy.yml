@@ -60,3 +60,4 @@ jobs:
           echo "Opção 1 (Mais fácil): CPANEL_WEBHOOK_URL (gerada no cPanel > Git Version Control)"
           echo "Opção 2 (SSH Direto): HOSTGATOR_HOST, HOSTGATOR_USER, HOSTGATOR_PASSWORD e HOSTGATOR_PATH"
           echo "Opção 3 (FTP): FTP_SERVER, FTP_USERNAME, FTP_PASSWORD e FTP_SERVER_DIR"
+
