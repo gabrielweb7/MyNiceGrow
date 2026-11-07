@@ -1,7 +1,7 @@
 # 🍄 Grow do Txai — Sistema Inteligente de Automação IoT (v4.0 Oficial / Estável)
 
 [![Release v4.0](https://img.shields.io/badge/Release-v4.0%20Oficial%20%2F%20Est%C3%A1vel-gold?style=for-the-badge&logo=target)](https://github.com/gabrielweb7/MyNiceGrow)
-[![ESP32-C3](https://img.shields.io/badge/Hardware-ESP32--C3%20SuperMini%20(RISC--V)-brightgreen?style=for-the-badge&logo=espressif)](https://www.espressif.com/)
+[![ESP32-S3](https://img.shields.io/badge/Hardware-ESP32--S3%20Dual--Core%20(Dual%20USB--C)-brightgreen?style=for-the-badge&logo=espressif)](https://www.espressif.com/)
 [![Arduino / C++](https://img.shields.io/badge/Firmware-Arduino%20%2F%20C%2B%2B-blue?style=for-the-badge&logo=arduino)](https://www.arduino.cc/)
 [![FreeRTOS](https://img.shields.io/badge/RTOS-FreeRTOS%20Watchdog-red?style=for-the-badge&logo=freertos)](https://www.freertos.org/)
 [![PHP 8.x](https://img.shields.io/badge/Backend-PHP%208.x%20%2F%20REST-purple?style=for-the-badge&logo=php)](https://www.php.net/)
@@ -11,7 +11,7 @@
 
 Um ecossistema IoT autônomo, robusto e de nível profissional projetado especificamente para **micologia de precisão e controle ambiental de cultivo protegido** (especialmente fungos como *Psilocybe cubensis*, shimeji, cogumelos medicinais e comestíveis).
 
-O sistema integra o processador **ESP32-C3 (RISC-V 32-bit)**, leitura com sensor industrial de precisão **SHT30 via I2C**, atuadores de **4 canais com optoacoplamento**, memória não-volátil anti-apagão, datalogger offline, máquina de estados não-bloqueante, atualização remota **Auto-OTA** com rollback anti-brick e um **Dashboard Web SPA em tempo real com projeção futura (Ghost Chart)**.
+O sistema integra o processador de alta performance **ESP32-S3 Dual-Core (Xtensa 32-bit LX7 com Dual USB-C e LED RGB integrado)** (mantendo compatibilidade universal automática com ESP32-C3), leitura com sensor industrial de precisão **SHT30 via I2C**, sensor de referência externa **DHT11**, atuadores de **4 canais com optoacoplamento**, memória não-volátil anti-apagão (NVS Flash), datalogger offline em LittleFS, máquina de estados não-bloqueante, atualização remota **Auto-OTA** com rollback anti-brick e um **Dashboard Web SPA em tempo real com projeção futura (Ghost Chart)**.
 
 ---
 
@@ -41,16 +41,16 @@ O sistema integra o processador **ESP32-C3 (RISC-V 32-bit)**, leitura com sensor
 
 ## 🏛️ Visão Geral & Arquitetura do Sistema
 
-O ecossistema opera em uma **topologia híbrida e resiliente**: a placa ESP32-C3 tem **100% de autonomia local** (toma decisões a cada 2 segundos mesmo que fique sem internet por meses), enquanto a nuvem na HostGator gerencia persistência histórica, dashboard gráfico e entrega de comandos remotos.
+O ecossistema opera em uma **topologia híbrida e resiliente**: a placa ESP32-S3 (ou ESP32-C3) tem **100% de autonomia local** (toma decisões a cada 2 segundos mesmo que fique sem internet por meses), enquanto a nuvem na HostGator gerencia persistência histórica, dashboard gráfico e entrega de comandos remotos.
 
 ```
 ┌────────────────────────────────────────────────────────────────────────┐
-│                        ESP32-C3 SUPERMINI                              │
+│                   ESP32-S3 DUAL USB-C (XTENSA DUAL-CORE)               │
 │                                                                        │
 │   [ Sensor SHT30 (I2C) ] ──┐                                           │
 │   [ Sensor DHT11 (GPIO10)] ┼─► [ Loop Não-Bloqueante (millis) ]        │
-│   [ Botão Físico (GPIO9) ] │   [ NVS - Memória Flash Permanente ]      │
-│                            │   [ LittleFS Datalogger Offline ]         │
+│   [ LED RGB Integrado ]    │   [ NVS - Memória Flash Permanente ]      │
+│   [ Dual USB-C Native/UART]│   [ LittleFS Datalogger Offline (512B) ]  │
 │                            │   [ FreeRTOS Cão de Guarda (25s) ]        │
 │                            │                 │                         │
 │                            │                 ▼                         │
@@ -66,7 +66,7 @@ O ecossistema opera em uma **topologia híbrida e resiliente**: a placa ESP32-C3
 │                   NUVEM / BACKEND (HOSTGATOR CPANEL)                   │
 │                                                                        │
 │   [ API REST PHP 8.x ] ◄──► [ Banco MySQL (`telemetria`) ]             │
-│   [ Servidor de OTA ]  ◄──► [ Binário `esp32c3.ino.bin` ]              │
+│   [ Servidor de OTA ]  ◄──► [ Binário `build/.../esp32c3.ino.bin` ]    │
 └────────────────────────────┬───────────────────────────────────────────┘
                              │ JSON / Polling Dinâmico
                              ▼
@@ -84,37 +84,42 @@ O ecossistema opera em uma **topologia híbrida e resiliente**: a placa ESP32-C3
 
 ## 🔌 Diagrama de Conexões & Pinagem (Wiring & Pinout)
 
-### Tabela de Pinagem Oficial (ESP32-C3 SuperMini)
+### Tabela de Pinagem Oficial (ESP32-S3 Dual USB-C & ESP32-C3)
 
-| Componente | Função | Pino ESP32-C3 | Nível Lógico / Tensão | Protocolo |
-| :--- | :--- | :---: | :---: | :--- |
-| **SHT30 (Interno)** | Linha de Dados (SDA) | **GPIO 4** | 3.3V (Pull-up interno) | I2C (Endereço `0x44`) |
-| **SHT30 (Interno)** | Linha de Clock (SCL) | **GPIO 5** | 3.3V (Pull-up interno) | I2C |
-| **DHT11 (Ambiente/Sala)** | Leitura de Referência Externa | **GPIO 10** | 3.3V (Resistor 10k pull-up) | One-Wire Digital |
-| **Relé 1 (Luz)** | Iluminação do Cultivo (12/12) | **GPIO 0** | Nível Baixo Ativo (`LOW`=Liga) | Digital Output |
-| **Relé 2 (Umidificador)** | Névoa Ultrassônica | **GPIO 1** | Nível Baixo Ativo (`LOW`=Liga) | Digital Output |
-| **Relé 3 (Ventilador)** | Circulação Interna / Brisa | **GPIO 3** | Nível Baixo Ativo (`LOW`=Liga) | Digital Output |
-| **Relé 4 (Exaustor)** | Troca de Ar (FAE / Emergência) | **GPIO 6** | Nível Baixo Ativo (`LOW`=Liga) | Digital Output |
-| **Botão Físico (BOOT)** | Reset de Fábrica (Segurar 5s) | **GPIO 9** | Pull-up Interno (`LOW` pressionado) | Interrupção / Polling |
-| **LED RGB Integrado** | Sinalização de Status / Alertas | **GPIO 8** | WS2812 / RGB | Pulso Serial |
+| Componente | Função | Pino ESP32-S3 | Pino ESP32-C3 | Nível Lógico / Tensão | Protocolo |
+| :--- | :--- | :---: | :---: | :---: | :--- |
+| **SHT30 (Interno)** | Linha de Dados (SDA) | **GPIO 4** | **GPIO 4** | 3.3V (Pull-up interno) | I2C (Endereço `0x44`) |
+| **SHT30 (Interno)** | Linha de Clock (SCL) | **GPIO 5** | **GPIO 5** | 3.3V (Pull-up interno) | I2C |
+| **DHT11 (Ambiente/Sala)** | Leitura de Referência Externa | **GPIO 10** | **GPIO 10** | 3.3V (Resistor pull-up) | One-Wire Digital |
+| **Relé 1 (Luz)** | Iluminação do Cultivo (12/12) | **GPIO 0** | **GPIO 0** | Nível Baixo Ativo (`LOW`=Liga) | Digital Output *(Protegido)* |
+| **Relé 2 (Umidificador)** | Névoa Ultrassônica | **GPIO 1** | **GPIO 1** | Nível Baixo Ativo (`LOW`=Liga) | Digital Output |
+| **Relé 3 (Ventilador)** | Circulação Interna / Brisa | **GPIO 3** | **GPIO 3** | Nível Baixo Ativo (`LOW`=Liga) | Digital Output |
+| **Relé 4 (Exaustor)** | Troca de Ar (FAE / Emergência) | **GPIO 6** | **GPIO 6** | Nível Baixo Ativo (`LOW`=Liga) | Digital Output |
+| **Botão Físico (BOOT)** | Reset de Fábrica (Segurar 5s) | **GPIO 0** *(Auto-safe)* | **GPIO 9** | Pull-up Interno (`LOW` press.) | Interrupção / Polling |
+| **LED RGB Integrado** | Sinalização de Status / Alertas | **GPIO 48** | **GPIO 8** | WS2812 / RGB | Pulso Serial Integrado |
+
+> [!NOTE]
+> **Proteção Anti-Colisão GPIO 0 no ESP32-S3:** No ESP32-S3, o botão físico de boot compartilha o GPIO 0 com o Relé de Luz (Ch 1). O firmware possui proteção nativa (`HABILITAR_BOTAO_RESET 0` quando `PIN_BOOT == PIN_RELE_LUZ`), impedindo que o acionamento da iluminação dispare reset acidental de fábrica.
 
 ### Esquema Elétrico das Conexões
 
 ```
                     +-----------------------+
-                    |   ESP32-C3 SuperMini  |
-                    |                       |
+                    |  ESP32-S3 Dual USB-C  |
+                    |   (Xtensa Dual-Core)  |
    (3.3V) --------> | 3V3               GND | <-------- (GND Geral)
    (5V Ext) ------> | 5V                G0  | --------> IN1 (Relé Luz)
                     |                   G1  | --------> IN2 (Relé Umidificador)
    (SHT30 SDA) ---> | G4                G3  | --------> IN3 (Relé Ventilador)
    (SHT30 SCL) ---> | G5                G6  | --------> IN4 (Relé Exaustor)
-   (DHT11 Data) --> | G10               G9  | <-------- Botão BOOT Integrado
+   (DHT11 Data) --> | G10              RGB  | <-------- LED WS2812 (GPIO 48)
+                    | [USB-OTG]   [USB-UART]|
                     +-----------------------+
 
   ALIMENTAÇÃO & PROTEÇÃO:
-  • Fonte DC: 5V / 2A a 3A estabilizada com capacitor de desacoplamento de 1000uF.
-  • Módulo de Relés: Alimentado em 5V com jumper VCC-JDVCC separado se disponível para isolação óptica total.
+  • Portas USB-C: Utilize a porta USB-UART (ou Native com CDC On Boot) para gravação e monitor serial.
+  • Fonte DC: 5V / 2A a 3A estabilizada com capacitor de desacoplamento.
+  • Módulo de Relés: Alimentado em 5V com jumper VCC-JDVCC para isolação óptica total.
   • Relés acionados em nível lógico BAIXO (Active LOW): 
       - LOW  = Relé Atracado (Equipamento LIGADO)
       - HIGH = Relé Aberto    (Equipamento DESLIGADO)
@@ -193,6 +198,12 @@ O painel é uma **SPA (Single Page Application)** ultra leve construída em Vani
   - **Eliminação de Inputs Zumbis:** Remoção dos campos de exaustor de emergência do modal, simplificando a interface para focar exclusivamente no FAE e na circulação interna.
   - **Toggle Switch Moderno:** O controle "Injetar Névoa na Brisa" agora segue o design dos demais cards de entrada com switch interativo compacto.
   - **Sincronia Fiel do Painel IA:** As notificações refletem com precisão quando o sistema está em alívio térmico evaporativo, FAE ou brisa preventiva de $CO_2$.
+* **Inteligência Biológica, Timers e Auditoria Diária (v1.5.0):**
+  - **Medidor de VPD em Tempo Real (kPa):** Cálculo biológico contínuo do Déficit de Pressão de Vapor via Equação de Tetens, identificando zonas de estagnação (< 0.15 kPa), janela ouro de frutificação vigorosa (0.20 a 0.45 kPa) ou ressecamento prematuro.
+  - **Contagem Regressiva e Previsão Temporal:** Card de "Protocolos do Sistema" com cronômetro em tempo real do ciclo em execução e contadores regressivos para a próxima Troca de Ar (FAE) e próxima Brisa interna.
+  - **Resumo de Trabalho das Últimas 24h:** Estatísticas consolidadas de ciclos diários de FAE, pulsos de circulação/névoa e $\Delta T$ de oscilação térmica da câmara.
+  - **Exportação CSV Direta:** Botão para download instantâneo da telemetria ativa formatada para planilhas e relatórios de colheita.
+  - **Alertas Críticos Leves:** Alertas sonoros sintetizados via Web Audio API e notificações no navegador para falta d'água, picos térmicos críticos ($\ge 29.5^\circ\text{C}$) ou sensores offline.
 * **Horímetro de Manutenção:** Acumula os segundos reais de acionamento de cada relé gravados na Flash NVS para estimativa de desgaste da lâmpada, coolers e membrana ultrassônica.
 
 ---
@@ -235,9 +246,12 @@ A atualização do firmware é **100% remota e autônoma**:
 ## 🗂️ Estrutura de Arquivos do Repositório
 
 ```text
-├── esp32c3.ino                                    # Código-fonte oficial do Firmware C++ (ESP32-C3)
-├── build/esp32.esp32.esp32c3/                     # Diretório de binários compilados pelo Arduino
-│   └── esp32c3.ino.bin                            # Binário de produção servido para atualizações OTA
+├── esp32c3.ino                                    # Código-fonte oficial do Firmware C++ (ESP32-S3 / C3)
+├── build/                                         # Diretório de binários compilados pelo Arduino
+│   ├── esp32.esp32.esp32s3/                       # Build oficial do ESP32-S3 Dual-Core (Dual USB-C)
+│   │   └── esp32c3.ino.bin                        # Binário OTA para ESP32-S3
+│   └── esp32.esp32.esp32c3/                       # Build de compatibilidade para ESP32-C3
+│       └── esp32c3.ino.bin                        # Binário OTA para ESP32-C3
 ├── docs/img/                                      # Screenshots e diagramas do ecossistema
 │   ├── dashboard_preview.png                      # Visão do painel web SPA em tempo real
 │   └── timeline_relays.png                        # Swimlanes dos relés e projeção preditiva
@@ -254,20 +268,51 @@ A atualização do firmware é **100% remota e autônoma**:
 
 ---
 
-## 🛠️ Guia de Compilação & Exportação
+## 🛠️ Guia de Compilação & Configuração na Arduino IDE
 
-### Configurações na Arduino IDE:
-1. Adicione a URL de placas Espressif em **Preferências**:
-   `https://raw.githubusercontent.com/espressif/arduino-esp32/gh-pages/package_esp32_index.json`
-2. Selecione a placa: **`ESP32C3 Dev Module`**
-3. **Partition Scheme:** `Minimal SPIFFS (1.9MB APP with OTA/128KB SPIFFS)` *(Obrigatório para suportar OTA)*
-4. **Flash Size:** `4MB (32Mb)`
-5. **USB CDC On Boot:** `Enabled`
-6. **Upload Speed:** `921600`
+### 1. Configuração de Placas Espressif
+1. No menu **Arquivo > Preferências**, adicione na lista de URLs Adicionais de Placas:
+   ```text
+   https://raw.githubusercontent.com/espressif/arduino-esp32/gh-pages/package_esp32_index.json
+   ```
+2. Abra o **Gerenciador de Placas** (*Tools > Board > Boards Manager*) e instale o pacote **esp32** (pela Espressif Systems).
 
-### Como Atualizar o Binário:
-* No Windows, com o sketch `esp32c3.ino` aberto: pressione **`Ctrl + Alt + S`** (*Sketch -> Export Compiled Binary*).
-* O Arduino compila e gera o arquivo `build/esp32.esp32.esp32c3/esp32c3.ino.bin`.
+---
+
+### 2. Configurações da Placa para ESP32-S3 Dual USB-C:
+No menu **Ferramentas (Tools)** da Arduino IDE, selecione rigorosamente:
+
+* **Board (Placa):** **`ESP32S3 Dev Module`**
+* **Port (Porta):** Selecione a porta COM correspondente à conexão USB da placa (se usar o USB-UART ou USB Native)
+* **USB CDC On Boot:** **`Enabled`** *(CRÍTICO: ativa o envio de mensagens do Serial Monitor pela porta USB-C nativa)*
+* **Flash Size:** **`8MB (64Mb)`** ou **`16MB (128Mb)`** (ou `4MB` dependendo do lote do seu módulo S3)
+* **Partition Scheme:** **`8MB with spiffs (3MB APP/1.5MB SPIFFS)`** (ou `Minimal SPIFFS (1.9MB APP with OTA/128KB SPIFFS)` se seu chip for 4MB)
+* **CPU Frequency:** **`240MHz (WiFi)`**
+* **Flash Mode:** **`QIO 80MHz`**
+* **Upload Speed:** **`921600`**
+* **USB DFU On Boot:** **`Disabled`**
+* **USB Firmware MSC On Boot:** **`Disabled`**
+* **Core Debug Level:** **`None`** (ou `Info` para depuração inicial)
+* **Erase All Flash Before Sketch Upload:** **`Disabled`** *(para não apagar as configurações salvas em NVS)*
+
+---
+
+### 3. Bibliotecas Necessárias no Library Manager:
+Instale através de **Ferramentas > Gerenciar Bibliotecas** (*Ctrl + Shift + I*):
+* `Adafruit Unified Sensor` *(Obrigatório: dependência base de sensores Adafruit)*
+* `Adafruit SHT31 Library`
+* `DHT sensor library` (por Adafruit)
+* `ArduinoJson` (v6 ou v7)
+* `WiFiManager` (por tzapu)
+
+---
+
+### 4. Como Compilar e Exportar o Binário (OTA):
+* Com o sketch `esp32c3.ino` aberto, pressione **`Ctrl + Alt + S`** (*Sketch > Export Compiled Binary*).
+* A IDE compila e grava o arquivo binário na pasta do projeto:
+  - Para ESP32-S3: `build/esp32.esp32.esp32s3/esp32c3.ino.bin`
+* Copie o arquivo gerado para `grow.alquimistasmagicos.com.br/build/esp32.esp32.esp32s3/esp32c3.ino.bin`.
+* Ao fazer o commit e push para o repositório, o ESP32 baixará automaticamente a nova versão via Auto-OTA!
 
 ---
 

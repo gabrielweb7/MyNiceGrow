@@ -38,6 +38,7 @@
         .glass { background: rgba(15, 23, 42, 0.72); backdrop-filter: blur(14px); border: 1px solid rgba(255,255,255,0.07); }
         .glow-green { box-shadow: 0 0 20px rgba(16, 185, 129, 0.15); }
         .glow-blue { box-shadow: 0 0 20px rgba(59, 130, 246, 0.15); }
+        .glow-cyan { box-shadow: 0 0 20px rgba(6, 182, 212, 0.20); }
         .glow-red { box-shadow: 0 0 20px rgba(244, 63, 94, 0.15); }
         .glow-amber { box-shadow: 0 0 20px rgba(245, 158, 11, 0.15); }
         .pulse-dot { animation: pulse-dot 2s ease-in-out infinite; }
@@ -88,7 +89,13 @@
             <div class="flex items-center gap-2">
                 <button onclick="filtrar(1440, this)"  class="btn-filter px-3 py-1.5 rounded-lg text-xs font-bold bg-slate-800 hover:bg-slate-700 active">24h</button>
                 <button onclick="filtrar(10080, this)" class="btn-filter px-3 py-1.5 rounded-lg text-xs font-bold bg-slate-800 hover:bg-slate-700">7 Dias</button>
-                <button onclick="carregarDados(limitAtual)" class="ml-2 p-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 transition" title="Atualizar">
+                <button onclick="exportarCSV()" class="px-2.5 py-1.5 rounded-lg text-xs font-bold bg-slate-800 hover:bg-slate-700 border border-slate-700/60 text-slate-300 hover:text-white flex items-center gap-1.5 transition shadow-sm" title="Exportar dados do gráfico em formato CSV">
+                    <span>📥</span> <span class="hidden sm:inline">CSV</span>
+                </button>
+                <button id="btnNotificacoes" onclick="toggleNotificacoes()" class="px-2.5 py-1.5 rounded-lg text-xs font-bold bg-slate-800 hover:bg-slate-700 border border-slate-700/60 text-slate-400 hover:text-white flex items-center gap-1.5 transition shadow-sm" title="Alertas Sonoros e Notificações no Navegador">
+                    <span id="iconeNotif">🔔</span> <span id="txtNotif" class="hidden sm:inline">Alertas</span>
+                </button>
+                <button onclick="carregarDados(limitAtual)" class="ml-1 p-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 transition" title="Atualizar">
                     <svg class="w-4 h-4 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg>
                 </button>
             </div>
@@ -98,7 +105,7 @@
     <main class="max-w-7xl mx-auto px-4 md:px-8 py-6 space-y-6">
 
         <!-- CARDS PRINCIPAIS -->
-        <section class="grid grid-cols-2 lg:grid-cols-4 gap-3 md:gap-4 fade-in">
+        <section class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3 md:gap-4 fade-in">
             <!-- Temp Interna -->
             <div id="cardTi" class="stat-card glass rounded-xl p-4 md:p-5 glow-green border border-emerald-500/20 transition-all duration-500">
                 <div class="flex items-center justify-between mb-3">
@@ -117,6 +124,15 @@
                 <p class="text-2xl md:text-3xl font-extrabold text-blue-400 transition-colors duration-500" id="valUi">--</p>
                 <p class="text-[10px] text-slate-500 mt-1" id="minMaxHum">Min -- / Max --</p>
             </div>
+            <!-- VPD Biológico -->
+            <div id="cardVpd" class="stat-card glass rounded-xl p-4 md:p-5 glow-cyan border border-cyan-500/20 col-span-2 sm:col-span-1 transition-all duration-500">
+                <div class="flex items-center justify-between mb-3">
+                    <span class="text-[10px] md:text-xs font-semibold text-slate-400 uppercase tracking-wider">Déficit Vapor (VPD)</span>
+                    <span class="text-lg">🧬</span>
+                </div>
+                <p class="text-2xl md:text-3xl font-extrabold text-cyan-400 transition-colors duration-500" id="valVpd">-- kPa</p>
+                <p class="text-[10px] text-slate-400 mt-1 font-medium truncate" id="statusVpd">Calculando transpiração...</p>
+            </div>
             <!-- Temp Externa -->
             <div id="cardTe" class="stat-card glass rounded-xl p-4 md:p-5 glow-red border border-rose-500/20 transition-all duration-500">
                 <div class="flex items-center justify-between mb-3">
@@ -127,7 +143,7 @@
                 <p class="text-[10px] text-slate-500 mt-1" id="valUe">Umid: --</p>
             </div>
             <!-- Fase -->
-            <div class="stat-card glass rounded-xl p-4 md:p-5 glow-amber border border-amber-500/20">
+            <div class="stat-card glass rounded-xl p-4 md:p-5 glow-amber border border-amber-500/20 col-span-2 sm:col-span-1">
                 <div class="flex items-center justify-between mb-3">
                     <span class="text-[10px] md:text-xs font-semibold text-slate-400 uppercase tracking-wider">Fase Atual</span>
                     <span class="text-lg">🔬</span>
@@ -145,6 +161,22 @@
             <h2 class="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-2">Protocolos do Sistema</h2>
             <div id="iaStatus" class="font-bold text-base md:text-lg text-emerald-400 transition-colors">🔄 Analisando...</div>
             <div id="iaDesc" class="text-xs md:text-sm text-slate-300 mt-1 pr-12 leading-relaxed">Conectando ao núcleo do sistema para interpretar a ação atual.</div>
+
+            <!-- CONTADORES E PREVISÃO TEMPORAL -->
+            <div id="iaTimers" class="mt-3.5 pt-3 border-t border-slate-700/40 flex flex-wrap items-center gap-2 md:gap-3 text-xs">
+                <div class="flex items-center gap-1.5 bg-slate-800/80 px-2.5 py-1 rounded-md border border-slate-700/50">
+                    <span class="text-cyan-400">⏱️</span>
+                    <span id="iaTempoAcao" class="text-slate-300 font-medium">Sincronizando...</span>
+                </div>
+                <div class="flex items-center gap-1.5 bg-slate-800/80 px-2.5 py-1 rounded-md border border-slate-700/50">
+                    <span class="text-teal-400 font-bold">💨 Próximo FAE:</span>
+                    <span id="iaProximoFae" class="text-white font-bold">--</span>
+                </div>
+                <div class="flex items-center gap-1.5 bg-slate-800/80 px-2.5 py-1 rounded-md border border-slate-700/50">
+                    <span class="text-indigo-400 font-bold">🌀 Próxima Brisa:</span>
+                    <span id="iaProximaBrisa" class="text-white font-bold">--</span>
+                </div>
+            </div>
         </div>
 
         <!-- STATUS DOS RELÉS -->
@@ -264,6 +296,39 @@
                 </div>
             </div>
         </section>
+
+        <!-- RESUMO DIÁRIO DE ATIVIDADES (ÚLTIMAS 24H) -->
+        <section class="fade-in glass rounded-xl p-4 md:p-5 border border-slate-700/30">
+            <div class="flex items-center justify-between mb-3">
+                <h2 class="text-xs font-bold text-slate-400 uppercase tracking-wider flex items-center gap-1.5">
+                    <span>📊</span> Resumo de Trabalho das Últimas 24 Horas
+                </h2>
+                <span class="text-[10px] text-slate-500 font-medium" id="resumoPeriodoData">Cálculo contínuo</span>
+            </div>
+            <div class="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                <div class="bg-slate-800/70 p-3 rounded-lg border border-slate-700/40 text-center">
+                    <span class="text-[10px] font-semibold text-slate-400 block uppercase">Trocas de Ar (FAE)</span>
+                    <p class="text-xl md:text-2xl font-black text-teal-400 mt-0.5" id="cntFae24h">--</p>
+                    <span class="text-[9px] text-slate-400 block mt-0.5" id="tempoFae24h">--</span>
+                </div>
+                <div class="bg-slate-800/70 p-3 rounded-lg border border-slate-700/40 text-center">
+                    <span class="text-[10px] font-semibold text-slate-400 block uppercase">Ciclos de Brisa</span>
+                    <p class="text-xl md:text-2xl font-black text-indigo-400 mt-0.5" id="cntBrisa24h">--</p>
+                    <span class="text-[9px] text-slate-400 block mt-0.5" id="tempoBrisa24h">--</span>
+                </div>
+                <div class="bg-slate-800/70 p-3 rounded-lg border border-slate-700/40 text-center">
+                    <span class="text-[10px] font-semibold text-slate-400 block uppercase">Injeções de Névoa</span>
+                    <p class="text-xl md:text-2xl font-black text-cyan-400 mt-0.5" id="cntUmid24h">--</p>
+                    <span class="text-[9px] text-slate-400 block mt-0.5" id="tempoUmid24h">--</span>
+                </div>
+                <div class="bg-slate-800/70 p-3 rounded-lg border border-slate-700/40 text-center">
+                    <span class="text-[10px] font-semibold text-slate-400 block uppercase">Oscilação Térmica</span>
+                    <p class="text-xl md:text-2xl font-black text-amber-400 mt-0.5" id="deltaTemp24h">-- °C</p>
+                    <span class="text-[9px] text-slate-400 block mt-0.5" id="deltaTempFaixa">Estabilidade alta</span>
+                </div>
+            </div>
+        </section>
+
         <!-- GRÁFICOS (Chart.js) -->
         <section class="grid grid-cols-1 xl:grid-cols-2 gap-4 md:gap-6 fade-in mb-4">
             <div class="glass rounded-xl p-4 md:p-5 border border-slate-700/30 relative">
@@ -640,17 +705,8 @@
             const st = document.getElementById(statusId);
             const isLuz = (id === 'releLuz');
 
-            // Estado 2: Falta de Água / Alerta
-            if (estadoRele === 2) {
-                el.className = 'bg-rose-900/80 rounded-lg p-3 text-center transition-all duration-500 shadow-[0_0_15px_rgba(225,29,72,0.6)] border border-rose-500 cursor-pointer animate-pulse';
-                el.onclick = () => resetarAgua(); // Permite clicar para resetar
-                st.innerHTML = '🚨 SEM ÁGUA<br><span class="text-[8px] font-normal">CLIQUE P/ RESETAR</span>';
-                st.className = 'text-[10px] text-white mt-0.5 font-bold tracking-wider leading-tight';
-                return;
-            } else if (id === 'releUmid' || isLuz) {
-                // Remove qualquer onclick residual
-                el.onclick = null;
-            }
+            // Remove qualquer onclick residual
+            el.onclick = null;
 
             const isOn = (estadoRele === 1 || estadoRele === true || estadoRele === '1');
 
@@ -1419,6 +1475,8 @@
                 
                 // Aplica paleta dinâmica nos cards
                 atualizarCoresDinamicas(ti, ui, te);
+                atualizarVpdCard(ti, ui);
+                checarAlertasCriticos(ultimo, diffMinutos);
                 
                 let agoraTime = Date.now();
                 
@@ -1489,6 +1547,10 @@
 
                 // Processa o cérebro / protocolo da Sistema
                 atualizarStatusProtocolos(ultimo);
+                window.ultimoRegistroRecebido = ultimo;
+                window.dadosTelemetriaAtuais = data;
+                atualizarTimersProtocolo();
+                calcularResumoAtividades(data);
 
                 // OTIMIZAÇÃO ZERO-LAG: Cache inteligente de dados
                 // Se o último registro não mudou e o limite é o mesmo, evita reprocessar e repintar os gráficos
@@ -1574,7 +1636,8 @@
 
                 for (let t = tStart; t <= tEnd; t += passoMs) {
                     let dObj = new Date(t);
-                    let hLocal = dObj.getHours();
+                    // BUG CORRIGIDO: usar estritamente GMT-3 (fuso do cultivo) para evitar
+                    // projeção errada quando o painel é aberto de outro fuso horário.
                     let hGMT3 = (dObj.getUTCHours() - 3 + 24) % 24;
                     
                     // Luz: se já está acesa no dado real, mantém acesa a noite inteira sem buraco até as 8h da manhã
@@ -1585,9 +1648,11 @@
                         isLuzOn = false;
                     } else {
                         if (lastRealLuzOn) {
-                            isLuzOn = (hGMT3 >= 18 || hGMT3 < 8 || hLocal >= 18 || hLocal < 8);
+                            // Luz já estava ON: considera ciclo começando mais cedo (18h) para suavizar transição
+                            isLuzOn = (hGMT3 >= 18 || hGMT3 < 8);
                         } else {
-                            isLuzOn = (hGMT3 >= 20 || hGMT3 < 8 || hLocal >= 20 || hLocal < 8);
+                            // Ciclo padrão do firmware: liga às 20h, desliga às 8h (GMT-3)
+                            isLuzOn = (hGMT3 >= 20 || hGMT3 < 8);
                         }
                     }
                     
@@ -1702,8 +1767,6 @@
 
             if (faseLimpa === "Standby") {
                 status = "💤 Modo Standby"; desc = "Estufa inativa aguardando comandos."; cor = "text-slate-400";
-            } else if (rUmid === 2) {
-                status = "🚨 Proteção Anti-Queima (Falta D'água)"; desc = "O motor foi desarmado pois a umidade não subiu. Reabasteça o reservatório e resete no painel."; cor = "text-rose-500 animate-pulse";
             } else if (tI >= 33.0 && rLuz === 0) {
                 status = "🔥 Corte Térmico da Luz"; desc = "Temperatura extremamente crítica! A luz foi forçada a apagar para não gerar mais calor."; cor = "text-rose-500";
             } else if (quente) {
@@ -1727,7 +1790,9 @@
                 }
             } else {
                 // CLIMA NORMAL (não quente)
-                if (rExaust === 1 && rVento === 1) {
+                // BUG CORRIGIDO: firmware atual não força ventilador junto com FAE,
+                // então FAE é detectado apenas pelo exaustor ligado.
+                if (rExaust === 1) {
                     status = "💨 Troca de Ar (FAE)"; 
                     desc = "Expulsando o gás carbônico (CO2) pesado e trazendo oxigênio fresco conforme o ciclo programado."; 
                     cor = "text-teal-400";
@@ -1783,6 +1848,401 @@
             document.getElementById('iaStatus').textContent = status;
             document.getElementById('iaStatus').className = `font-bold text-base md:text-lg transition-colors ${cor}`;
             document.getElementById('iaDesc').textContent = desc;
+        }
+
+        // =======================================================
+        // 1. DÉFICIT DE PRESSÃO DE VAPOR (VPD BIOLÓGICO)
+        // =======================================================
+        // Fórmula de Tetens (padrão FAO/WMO):
+        // SVP (kPa) = 0.61078 * exp((17.27 * T) / (T + 237.3))
+        // VPD (kPa) = SVP * (1 - (RH / 100))
+        function calcularVpd(t, h) {
+            if (isNaN(t) || isNaN(h) || h <= 0) return null;
+            const svp = 0.61078 * Math.exp((17.27 * t) / (t + 237.3));
+            const vpd = svp * (1 - (h / 100));
+            return Math.max(0, vpd);
+        }
+
+        function atualizarVpdCard(ti, ui) {
+            const elVal = document.getElementById('valVpd');
+            const elStatus = document.getElementById('statusVpd');
+            const cardVpd = document.getElementById('cardVpd');
+            if (!elVal) return;
+
+            const vpd = calcularVpd(ti, ui);
+            if (vpd === null) {
+                elVal.textContent = '-- kPa';
+                if (elStatus) elStatus.textContent = 'Aguardando sensor...';
+                return;
+            }
+
+            elVal.textContent = vpd.toFixed(2) + ' kPa';
+
+            let glow = 'glow-green', border = 'border-emerald-500/20', txt = 'text-emerald-400', desc = '✨ Transpiração Ideal';
+            if (vpd < 0.15) {
+                glow = 'glow-blue'; border = 'border-blue-500/30'; txt = 'text-sky-300'; desc = '💧 Evaporação Lenta (Estagnação)';
+            } else if (vpd <= 0.45) {
+                glow = 'glow-green'; border = 'border-emerald-500/30'; txt = 'text-emerald-400'; desc = '✨ Transpiração Ideal (Vigor)';
+            } else if (vpd <= 0.60) {
+                glow = 'glow-amber'; border = 'border-amber-500/30'; txt = 'text-amber-400'; desc = '⚠️ Evaporação Alta';
+            } else {
+                glow = 'glow-red'; border = 'border-rose-500/40'; txt = 'text-rose-400'; desc = '🚨 Ar Seco (Risco Pinos)';
+            }
+
+            if (cardVpd) cardVpd.className = `stat-card glass rounded-xl p-4 md:p-5 ${glow} border ${border} col-span-2 sm:col-span-1 transition-all duration-500`;
+            elVal.className = `text-2xl md:text-3xl font-extrabold ${txt} transition-colors duration-500`;
+            if (elStatus) elStatus.textContent = desc;
+        }
+
+        // =======================================================
+        // 2. CONTADORES REGRESSIVOS E PREVISÃO DOS PROTOCOLOS
+        // =======================================================
+        function formatarMinSeg(segundos) {
+            if (segundos < 0) segundos = 0;
+            const m = Math.floor(segundos / 60);
+            const s = Math.floor(segundos % 60);
+            if (m === 0) return `${s}s`;
+            if (s === 0) return `${m}m`;
+            return `${m}m ${s}s`;
+        }
+
+        function atualizarTimersProtocolo() {
+            if (!window.ultimoRegistroRecebido) return;
+            const ultimo = window.ultimoRegistroRecebido;
+            const elAcao = document.getElementById('iaTempoAcao');
+            const elFae = document.getElementById('iaProximoFae');
+            const elBri = document.getElementById('iaProximaBrisa');
+            if (!elAcao || !elFae || !elBri) return;
+
+            let faseLimpa = (ultimo.fase || '--').replace(' (DHT OFFLINE)', '').replace('ALERTA: SHT30 OFFLINE', 'Standby');
+            if (faseLimpa === 'Standby' || faseLimpa === 'Secagem Total') {
+                elAcao.textContent = faseLimpa === 'Standby' ? 'Estufa em Standby' : 'Secagem Contínua Ativa';
+                elFae.textContent = 'Inativo';
+                elBri.textContent = 'Inativo';
+                return;
+            }
+
+            let cId = "1";
+            if (faseLimpa === "Pinagem") cId = "1";
+            else if (faseLimpa === "Frutificacao") cId = "2";
+            else if (faseLimpa === "Segundo Flush") cId = "3";
+
+            const cfg = (typeof configClima !== 'undefined' && configClima[cId]) ? configClima[cId] : { fO: 2, fF: 40, vO: 1, vF: 2 };
+            const faeOnSec = Math.max(1, (cfg.fO || 2) * 60);
+            const faeOffSec = Math.max(1, (cfg.fF || 30) * 60);
+            const cicloFaeSec = faeOnSec + faeOffSec;
+
+            const ventoOnSec = Math.max(1, (cfg.vO || 1) * 60);
+            const ventoOffSec = Math.max(1, (cfg.vF || 2) * 60);
+            const cicloVentoSec = ventoOnSec + ventoOffSec;
+
+            const agoraSeg = Math.floor(Date.now() / 1000);
+
+            // Sincronia com algoritmo FAE do ESP32 (agora % ciclo)
+            const momentoFae = cicloFaeSec > 0 ? (agoraSeg % cicloFaeSec) : 0;
+            const faeAtivo = momentoFae < faeOnSec;
+            if (faeAtivo) {
+                const restanteFae = faeOnSec - momentoFae;
+                elFae.innerHTML = `<span class="text-emerald-400 font-bold animate-pulse">● Ativo (~${formatarMinSeg(restanteFae)})</span>`;
+            } else {
+                const proxFae = cicloFaeSec - momentoFae;
+                elFae.textContent = `em ~${formatarMinSeg(proxFae)}`;
+            }
+
+            // Sincronia com algoritmo Brisa do ESP32 (agora % ciclo)
+            const momentoVento = cicloVentoSec > 0 ? (agoraSeg % cicloVentoSec) : 0;
+            const ventoAtivo = momentoVento < ventoOnSec;
+            if (ventoAtivo) {
+                const restanteVento = ventoOnSec - momentoVento;
+                elBri.innerHTML = `<span class="text-cyan-400 font-bold animate-pulse">● Soprando (~${formatarMinSeg(restanteVento)})</span>`;
+            } else {
+                const proxVento = cicloVentoSec - momentoVento;
+                elBri.textContent = `em ~${formatarMinSeg(proxVento)}`;
+            }
+
+            // Ação Geral Atual do Cabeçalho
+            const rExaust = parseInt(ultimo.rele_exaust);
+            const rVento = parseInt(ultimo.rele_vento);
+            const rUmid = parseInt(ultimo.rele_umid);
+
+            if (rExaust === 1) {
+                const rest = faeOnSec > momentoFae ? (faeOnSec - momentoFae) : 30;
+                elAcao.innerHTML = `<span class="text-teal-300 font-bold">Renovação de Ar</span> (~${formatarMinSeg(rest)})`;
+            } else if (rVento === 1) {
+                const rest = ventoOnSec > momentoVento ? (ventoOnSec - momentoVento) : 30;
+                const msg = (rUmid === 1) ? 'Brisa com Névoa' : 'Brisa Preventiva';
+                elAcao.innerHTML = `<span class="text-cyan-300 font-bold">${msg}</span> (~${formatarMinSeg(rest)})`;
+            } else if (rUmid === 1) {
+                elAcao.innerHTML = `<span class="text-blue-300 font-bold">Injeção de névoa viva</span>`;
+            } else {
+                elAcao.innerHTML = `<span class="text-emerald-400 font-medium">Repouso • Clima Equilibrado</span>`;
+            }
+        }
+
+        // =======================================================
+        // 3. RESUMO DE TRABALHO DAS ÚLTIMAS 24 HORAS
+        // =======================================================
+        function calcularResumoAtividades(data) {
+            if (!data || data.length === 0) return;
+            
+            const ultimoTs = data[data.length - 1].unix_ts || Math.floor(new Date(data[data.length - 1].timestamp.replace(' ', 'T')).getTime() / 1000);
+            const tsLimite24h = ultimoTs - (24 * 3600);
+            const dados24h = data.filter(d => {
+                const ts = d.unix_ts || Math.floor(new Date(d.timestamp.replace(' ', 'T')).getTime() / 1000);
+                return ts >= tsLimite24h;
+            });
+
+            if (dados24h.length === 0) return;
+
+            let cntFae = 0, cntBrisa = 0, cntUmid = 0;
+            let segFae = 0, segBrisa = 0, segUmid = 0;
+            let minT = Infinity, maxT = -Infinity;
+
+            for (let i = 0; i < dados24h.length; i++) {
+                const d = dados24h[i];
+                const t = parseFloat(d.temp_int);
+                if (!isNaN(t) && t > -40 && t < 60) {
+                    if (t < minT) minT = t;
+                    if (t > maxT) maxT = t;
+                }
+
+                const rEx = parseInt(d.rele_exaust) === 1;
+                const rVn = parseInt(d.rele_vento) === 1;
+                const rUm = parseInt(d.rele_umid) === 1;
+
+                let duracao = 60;
+                if (i < dados24h.length - 1) {
+                    const t1 = dados24h[i].unix_ts || Math.floor(new Date(dados24h[i].timestamp.replace(' ', 'T')).getTime() / 1000);
+                    const t2 = dados24h[i+1].unix_ts || Math.floor(new Date(dados24h[i+1].timestamp.replace(' ', 'T')).getTime() / 1000);
+                    const delta = t2 - t1;
+                    if (delta > 0 && delta <= 900) duracao = delta;
+                }
+
+                if (rEx) segFae += duracao;
+                if (rVn) segBrisa += duracao;
+                if (rUm) segUmid += duracao;
+
+                // Contagem por borda de subida
+                if (i > 0) {
+                    const antEx = parseInt(dados24h[i-1].rele_exaust) === 1;
+                    const antVn = parseInt(dados24h[i-1].rele_vento) === 1;
+                    const antUm = parseInt(dados24h[i-1].rele_umid) === 1;
+                    if (rEx && !antEx) cntFae++;
+                    if (rVn && !antVn) cntBrisa++;
+                    if (rUm && !antUm) cntUmid++;
+                }
+            }
+
+            const fmtMinutos = (seg) => {
+                const m = Math.round(seg / 60);
+                const h = Math.floor(m / 60);
+                const mr = m % 60;
+                return h > 0 ? `${h}h ${mr}m ativo` : `${mr} min ativo`;
+            };
+
+            const elFae = document.getElementById('cntFae24h');
+            const elFaeT = document.getElementById('tempoFae24h');
+            const elBri = document.getElementById('cntBrisa24h');
+            const elBriT = document.getElementById('tempoBrisa24h');
+            const elUmi = document.getElementById('cntUmid24h');
+            const elUmiT = document.getElementById('tempoUmid24h');
+            const elDelta = document.getElementById('deltaTemp24h');
+            const elDeltaF = document.getElementById('deltaTempFaixa');
+
+            if (elFae) elFae.textContent = `${cntFae} ciclos`;
+            if (elFaeT) elFaeT.textContent = fmtMinutos(segFae);
+            if (elBri) elBri.textContent = `${cntBrisa} ciclos`;
+            if (elBriT) elBriT.textContent = fmtMinutos(segBrisa);
+            if (elUmi) elUmi.textContent = `${cntUmid} ciclos`;
+            if (elUmiT) elUmiT.textContent = fmtMinutos(segUmid);
+
+            if (elDelta && minT !== Infinity && maxT !== -Infinity) {
+                const delta = maxT - minT;
+                elDelta.textContent = `Δ ${delta.toFixed(1)} °C`;
+                if (elDeltaF) {
+                    if (delta <= 2.5) {
+                        elDeltaF.textContent = `Estabilidade Alta (${minT.toFixed(1)}° a ${maxT.toFixed(1)}°)`;
+                        elDeltaF.className = "text-[9px] text-emerald-400 font-semibold block mt-0.5";
+                    } else if (delta <= 4.0) {
+                        elDeltaF.textContent = `Variação Moderada (${minT.toFixed(1)}° a ${maxT.toFixed(1)}°)`;
+                        elDeltaF.className = "text-[9px] text-amber-400 font-semibold block mt-0.5";
+                    } else {
+                        elDeltaF.textContent = `Oscilação Elevada (${minT.toFixed(1)}° a ${maxT.toFixed(1)}°)`;
+                        elDeltaF.className = "text-[9px] text-rose-400 font-semibold block mt-0.5";
+                    }
+                }
+            }
+        }
+
+        // =======================================================
+        // 4. EXPORTAÇÃO DE HISTÓRICO EM CSV
+        // =======================================================
+        function exportarCSV() {
+            const dados = window.dadosTelemetriaAtuais;
+            if (!dados || dados.length === 0) {
+                alert("Nenhum dado disponível no momento para exportar.");
+                return;
+            }
+            const cabecalho = ["Data/Hora", "Temp Interna (C)", "Umid Interna (%)", "VPD (kPa)", "Temp Externa (C)", "Umid Externa (%)", "Luz", "Umidificador", "Ventilador", "Exaustor", "Fase"];
+            const linhas = [cabecalho.join(";")];
+            dados.forEach(r => {
+                const ti = parseFloat(r.temp_int);
+                const ui = parseFloat(r.hum_int);
+                const vpd = calcularVpd(ti, ui);
+                const vpdStr = vpd !== null ? vpd.toFixed(2) : "";
+                const te = (r.temp_ext !== null && r.temp_ext !== undefined) ? parseFloat(r.temp_ext).toFixed(1) : "";
+                const ue = (r.hum_ext !== null && r.hum_ext !== undefined) ? parseFloat(r.hum_ext).toFixed(1) : "";
+                linhas.push([
+                    r.timestamp,
+                    !isNaN(ti) ? ti.toFixed(1) : "",
+                    !isNaN(ui) ? ui.toFixed(1) : "",
+                    vpdStr,
+                    te,
+                    ue,
+                    r.rele_luz,
+                    r.rele_umid,
+                    r.rele_vento,
+                    r.rele_exaust,
+                    `"${(r.fase || '').replace(/"/g, '""')}"`
+                ].join(";"));
+            });
+            const blob = new Blob(["\uFEFF" + linhas.join("\r\n")], { type: "text/csv;charset=utf-8;" });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement("a");
+            const dataHoraStr = new Date().toISOString().slice(0, 10);
+            a.href = url;
+            a.download = `grow_telemetria_${dataHoraStr}_${dados.length}pontos.csv`;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+        }
+
+        // =======================================================
+        // 5. ALERTAS CRÍTICOS LEVES (BIPE WEB AUDIO & NOTIFICAÇÕES)
+        // =======================================================
+        let notificacoesAtivas = localStorage.getItem('grow_alertas_notif') === 'true';
+        let ultimoDisparoAlerta = {
+            agua: 0,
+            tempCritica: 0,
+            sensorOffline: 0,
+            placaOffline: 0
+        };
+
+        function tocarBipeAlerta(tipo = 'alerta') {
+            try {
+                const AudioCtxClass = window.AudioContext || window.webkitAudioContext;
+                if (!AudioCtxClass) return;
+                const audioCtx = new AudioCtxClass();
+                if (audioCtx.state === 'suspended') audioCtx.resume();
+                const osc = audioCtx.createOscillator();
+                const gain = audioCtx.createGain();
+                osc.connect(gain);
+                gain.connect(audioCtx.destination);
+                
+                if (tipo === 'critico') {
+                    osc.type = "sawtooth";
+                    osc.frequency.setValueAtTime(880, audioCtx.currentTime);
+                    osc.frequency.setValueAtTime(440, audioCtx.currentTime + 0.15);
+                    osc.frequency.setValueAtTime(880, audioCtx.currentTime + 0.3);
+                    gain.gain.setValueAtTime(0.2, audioCtx.currentTime);
+                    gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.5);
+                    osc.start();
+                    osc.stop(audioCtx.currentTime + 0.55);
+                } else {
+                    osc.type = "sine";
+                    osc.frequency.setValueAtTime(659.25, audioCtx.currentTime);
+                    osc.frequency.setValueAtTime(880, audioCtx.currentTime + 0.12);
+                    gain.gain.setValueAtTime(0.15, audioCtx.currentTime);
+                    gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.35);
+                    osc.start();
+                    osc.stop(audioCtx.currentTime + 0.4);
+                }
+            } catch (e) {
+                console.warn("Áudio não disponível:", e);
+            }
+        }
+
+        function dispararAlerta(chave, titulo, corpo, tipo = 'alerta') {
+            const agora = Date.now();
+            if (agora - (ultimoDisparoAlerta[chave] || 0) < 15 * 60 * 1000) return;
+            ultimoDisparoAlerta[chave] = agora;
+
+            tocarBipeAlerta(tipo);
+
+            if (notificacoesAtivas && "Notification" in window && Notification.permission === "granted") {
+                try {
+                    new Notification(titulo, {
+                        body: corpo,
+                        icon: "icon.png"
+                    });
+                } catch (e) {
+                    console.warn("Erro ao emitir Notification:", e);
+                }
+            }
+        }
+
+        function checarAlertasCriticos(ultimo, diffMinutos) {
+            if (!ultimo) return;
+            const ti = parseFloat(ultimo.temp_int);
+            const rUmid = parseInt(ultimo.rele_umid);
+            const fase = ultimo.fase || '';
+
+            if (rUmid === 2) {
+                dispararAlerta('agua', '🚨 Falta d\'Água no Grow', 'O umidificador foi desligado automaticamente para evitar queima!', 'critico');
+            }
+            if (ti >= 29.5) {
+                dispararAlerta('tempCritica', '🔥 Alerta Térmico Crítico', `Temperatura interna atingiu ${ti.toFixed(1)}°C!`, 'critico');
+            }
+            if (fase.includes('SHT30 OFFLINE') || fase.includes('DHT OFFLINE')) {
+                dispararAlerta('sensorOffline', '⚠️ Falha em Sensor', 'Sensor interno de temperatura/umidade desconectado!', 'alerta');
+            }
+            if (diffMinutos >= 10) {
+                dispararAlerta('placaOffline', '📡 Placa Desconectada', `O ESP32 não envia telemetria há ${diffMinutos} minutos!`, 'alerta');
+            }
+        }
+
+        function atualizarBtnNotificacoes() {
+            const btn = document.getElementById('btnNotificacoes');
+            const icone = document.getElementById('iconeNotif');
+            const txt = document.getElementById('txtNotif');
+            if (!btn) return;
+            if (notificacoesAtivas && "Notification" in window && Notification.permission === "granted") {
+                btn.className = "px-2.5 py-1.5 rounded-lg text-xs font-bold bg-emerald-950/40 hover:bg-emerald-900/50 border border-emerald-500/50 text-emerald-400 flex items-center gap-1.5 transition shadow-sm";
+                if (icone) icone.textContent = "🔔";
+                if (txt) txt.textContent = "Alertas ON";
+            } else {
+                btn.className = "px-2.5 py-1.5 rounded-lg text-xs font-bold bg-slate-800 hover:bg-slate-700 border border-slate-700/60 text-slate-400 hover:text-white flex items-center gap-1.5 transition shadow-sm";
+                if (icone) icone.textContent = "🔕";
+                if (txt) txt.textContent = "Alertas";
+            }
+        }
+
+        function toggleNotificacoes() {
+            if (!("Notification" in window)) {
+                alert("Seu navegador não suporta notificações de desktop.");
+                return;
+            }
+            if (!notificacoesAtivas) {
+                Notification.requestPermission().then(permission => {
+                    if (permission === "granted") {
+                        notificacoesAtivas = true;
+                        localStorage.setItem('grow_alertas_notif', 'true');
+                        atualizarBtnNotificacoes();
+                        new Notification("🍄 Grow do Txai", {
+                            body: "Alertas críticos e bipes ativados com sucesso!",
+                            icon: "icon.png"
+                        });
+                        tocarBipeAlerta('alerta');
+                    } else {
+                        alert("Permissão de notificação negada no navegador.");
+                    }
+                });
+            } else {
+                notificacoesAtivas = false;
+                localStorage.setItem('grow_alertas_notif', 'false');
+                atualizarBtnNotificacoes();
+            }
         }
 
         async function loopDados(forceDelay = null) {
@@ -1900,6 +2360,8 @@
 
         window.onload = () => {
             initCosmicNetwork();
+            atualizarBtnNotificacoes();
+            setInterval(atualizarTimersProtocolo, 1000);
             fetchConfigClima().then(() => {
                 initCharts();
                 loopDados(); // Inicia o motor em tempo real

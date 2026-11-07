@@ -25,10 +25,22 @@ if ($apiKey !== $adminKeyEsperada) {
 }
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-    $cmd = [];
-    if (file_exists($arquivo_comando)) {
-        $cmd = json_decode(file_get_contents($arquivo_comando), true) ?: [];
+    // BUG CORRIGIDO: Race Condition — abre o arquivo com lock exclusivo antes de ler e gravar
+    // Evita perda de comandos quando usuário clica em dois botões quase ao mesmo tempo
+    $fp = fopen($arquivo_comando, 'c+');
+    if ($fp === false) {
+        http_response_code(500);
+        echo json_encode(["error" => "Falha ao abrir arquivo de comandos."]);
+        exit;
     }
+    flock($fp, LOCK_EX);
+
+    $conteudo = '';
+    fseek($fp, 0);
+    while (!feof($fp)) {
+        $conteudo .= fread($fp, 8192);
+    }
+    $cmd = json_decode($conteudo, true) ?: [];
 
     if (isset($_POST['fase'])) $cmd['fase'] = (int)$_POST['fase'];
     if (isset($_POST['luz'])) {
@@ -61,6 +73,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
     }
 
-    file_put_contents($arquivo_comando, json_encode($cmd));
+    // Grava o JSON atualizado com lock ainda ativo (atômico)
+    ftruncate($fp, 0);
+    fseek($fp, 0);
+    fwrite($fp, json_encode($cmd));
+    fflush($fp);
+    flock($fp, LOCK_UN);
+    fclose($fp);
+
     echo json_encode(["status" => "Comando salvo na fila e no Banco de Dados!", "cmd" => $cmd]);
 }

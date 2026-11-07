@@ -1,5 +1,9 @@
 # Arquivos temporários
 *.zip
+esp32c3/
+
+# SEGURANÇA: Nunca versionar credenciais reais de banco de dados e chaves de API
+grow.alquimistasmagicos.com.br/config.php
 
 # Arquivos gerados em tempo de execução pela API no servidor
 grow.alquimistasmagicos.com.br/api/config_clima.json

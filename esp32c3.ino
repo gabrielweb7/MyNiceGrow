@@ -1,11 +1,11 @@
 // ============================================================
 //  GROW IA - Firmware Inteligente + Nuvem IoT
-//  Placa: ESP32-C3-MINI-1-N4
+//  Placa: ESP32-S3 Dual-Core (Xtensa LX7) / Compatível com ESP32-C3
 //  Autor: Gabriel + Antigravity AI
-//  Versão Atual: v422
+//  Versão Atual: v424 (Otimizado para ESP32-S3 Dual USB-C)
 // ============================================================
 
-#define FW_VERSION 422
+#define FW_VERSION 424
 
 #include <Arduino.h>
 #include <ArduinoJson.h>
@@ -69,11 +69,22 @@ const int DIAS_FRUTIFICACAO = 0;
 const int DIAS_SEGUNDO_FLUSH = 0;
 
 // ============================================================
-//  PINOS
+//  PINOS & SUPORTE DE HARDWARE (ESP32-S3 DUAL USB & ESP32-C3)
 // ============================================================
-#ifndef RGB_BUILTIN
-#define RGB_BUILTIN 8
+#if defined(CONFIG_IDF_TARGET_ESP32S3) || defined(ARDUINO_ESP32S3_DEV)
+  #define BOARD_MODEL "ESP32-S3 Dual-Core"
+  #ifndef RGB_BUILTIN
+    #define RGB_BUILTIN 48  // LED RGB integrado comum no ESP32-S3 DevKit
+  #endif
+  #define PIN_BOOT 0        // Botão BOOT físico do ESP32-S3
+#else
+  #define BOARD_MODEL "ESP32-C3 SuperMini"
+  #ifndef RGB_BUILTIN
+    #define RGB_BUILTIN 8   // LED RGB integrado no ESP32-C3
+  #endif
+  #define PIN_BOOT 9        // Botão BOOT físico do ESP32-C3
 #endif
+
 #define PIN_SDA 4
 #define PIN_SCL 5
 #define PIN_DHT 10
@@ -82,6 +93,14 @@ const int DIAS_SEGUNDO_FLUSH = 0;
 #define PIN_RELE_UMIDIFIC 1
 #define PIN_RELE_VENTO_INT 3
 #define PIN_RELE_EXAUST_EXT 6
+
+// Proteção de colisão: se o pino do Relé 1 coincidir com o pino BOOT,
+// desativa o botão de factory reset para não resetar a placa quando a luz acender
+#if (PIN_BOOT == PIN_RELE_LUZ)
+  #define HABILITAR_BOTAO_RESET 0
+#else
+  #define HABILITAR_BOTAO_RESET 1
+#endif
 
 // ============================================================
 //  ENUMS E STRUCTS
@@ -135,7 +154,6 @@ bool releLuz = false, releUmidific = false, releVentoInt = false, releExaustExt 
 bool lastReleLuz = false, lastReleUmidific = false, lastReleVento = false, lastReleExaust = false;
 
 unsigned long ultimaLeitura = 0, ultimoEnvioNuvem = 0;
-#define PIN_BOOT 9  // Botão BOOT da placa ESP32-C3
 
 unsigned long ultimoLogSerial = 0;
 bool faeLigado = false;
@@ -169,6 +187,15 @@ unsigned long lastSwitchLuz = 0, lastSwitchUmid = 0, lastSwitchVento = 0, lastSw
 uint32_t segLuzTotal = 0, segUmidTotal = 0, segVentoTotal = 0, segExaustTotal = 0;
 unsigned long ultimoTickHorimetro = 0;
 unsigned long ultimoSaveHorimetro = 0;
+
+// --- Alerta de Falta de Água (mantido desarmado por design; usado apenas pelo LED/painel) ---
+// REMOVIDO do controle de relés por solicitação. Variável mantida para o LED não crashar.
+bool alertaFaltaAgua = false;
+
+// --- Fallback de Luz Sem NTP: millis() do boot para ciclo 12/12 quando NTP nunca sincroniza ---
+// Acumula ms desde a última inversão do ciclo. Liga por 12h, apaga por 12h.
+unsigned long fallbackLuzUltimaInversao = 0;
+bool fallbackLuzLigada = false;  // começa desligada (assume que acordou de dia)
 
 
 // ============================================================
@@ -308,6 +335,7 @@ void enviarNuvem(unsigned long agora) {
   prefs.end();
 
   json += "\"fw\":" + String(fwAtual) + ",";
+  json += "\"board\":\"" + String(BOARD_MODEL) + "\",";
   json += "\"vFirmware\":\"v" + String(FW_VERSION) + "\"";
   json += "}";
 
@@ -324,7 +352,7 @@ void enviarNuvem(unsigned long agora) {
       String bulk = "[";
       bool first = true;
       int count = 0;
-      char buf2[128];
+      char buf2[512];
       while (f.available() && count < 50) {
         int len = f.readBytesUntil('\n', buf2, sizeof(buf2) - 1);
         if (len > 0) {
@@ -343,7 +371,7 @@ void enviarNuvem(unsigned long agora) {
       // Se houver mais linhas acumuladas, guarda temporariamente o restante
       File tmp = LittleFS.open("/offline.tmp", "w");
       if (tmp) {
-        char buffer[128];
+        char buffer[512];
         while (f.available()) {
           int len = f.readBytesUntil('\n', buffer, sizeof(buffer) - 1);
           if (len > 0) {
@@ -423,7 +451,7 @@ void enviarNuvem(unsigned long agora) {
           prefs.end();
 
           // Se for a primeira inicialização ou se a versão do banco no MySQL mudou:
-          if (versaoNuvem == 0 || versaoNuvem != versaoLocal) {
+          if (versaoNuvem > 0 && versaoNuvem != versaoLocal) {
             JsonObject cfg = docRes["config_clima"];
             bool configAlterada = false;
             for (int i = 1; i <= 3; i++) {
@@ -497,6 +525,15 @@ void enviarNuvem(unsigned long agora) {
           }
         }
 
+        if (docRes.containsKey("comando_reset_agua")) {
+          prefs.begin("grow", false);
+          if (prefs.isKey("sem_agua")) prefs.remove("sem_agua");
+          if (prefs.isKey("umid_acum")) prefs.remove("umid_acum");
+          prefs.end();
+          alertaFaltaAgua = false;
+          Serial.println("📥 COMANDO NUVEM: Reset de Alerta de Agua confirmado e limpo da NVS.");
+        }
+
         uint32_t vNuvem = docRes.containsKey("versao_nuvem") ? (uint32_t)docRes["versao_nuvem"] : 0;
         if (docRes.containsKey("comando_ota") || (vNuvem > 0 && vNuvem > fwAtual)) {
           Serial.printf("📥 OTA INICIANDO (Local: %u, Nuvem: %u)\n", fwAtual, vNuvem);
@@ -515,7 +552,11 @@ void enviarNuvem(unsigned long agora) {
           otaClient.setInsecure();
           httpUpdate.rebootOnUpdate(false);
 
+#if defined(CONFIG_IDF_TARGET_ESP32S3) || defined(ARDUINO_ESP32S3_DEV)
+          String fwUrl = "https://grow.alquimistasmagicos.com.br/build/esp32.esp32.esp32s3/esp32c3.ino.bin";
+#else
           String fwUrl = "https://grow.alquimistasmagicos.com.br/build/esp32.esp32.esp32c3/esp32c3.ino.bin";
+#endif
           t_httpUpdate_return ret = httpUpdate.update(otaClient, fwUrl);
 
           // REATIVA O CAO DE GUARDA (caso o OTA falhe e a placa continue rodando)
@@ -795,13 +836,26 @@ void executarMotor(unsigned long agora) {
   if (modoLuz == LUZ_AUTO) {
     static int confirmacoesNoite = 0;
     if (horaValida && (horaAtual >= LUZ_HORA_LIGA || horaAtual < LUZ_HORA_DESLIGA)) {
+      // NTP sincronizado: modo normal, confirma 3 ciclos seguidos pra evitar glitches
       confirmacoesNoite++;
       if (confirmacoesNoite >= 3) {
         releLuz = true;
       }
-    } else {
+    } else if (horaValida) {
+      // NTP sincronizado: horário diurno — desliga
       confirmacoesNoite = 0;
       releLuz = false;
+    } else {
+      // NTP nunca sincronizou: fallback 12h ON / 12h OFF por millis() do boot
+      confirmacoesNoite = 0;
+      const unsigned long CICLO_12H_MS = 12UL * 3600UL * 1000UL;
+      unsigned long tempoNoFallback = millis() - fallbackLuzUltimaInversao;
+      if (tempoNoFallback >= CICLO_12H_MS) {
+        fallbackLuzLigada = !fallbackLuzLigada;
+        fallbackLuzUltimaInversao = millis();
+        Serial.printf("[LUZ FALLBACK] NTP ausente — alternando ciclo para %s\n", fallbackLuzLigada ? "LIGADA" : "DESLIGADA");
+      }
+      releLuz = fallbackLuzLigada;
     }
   }
 }
@@ -850,7 +904,11 @@ void setup() {
   Serial.begin(115200);
   delay(1500);
   bootTime = millis();
-  Serial.println("\n=== GROW IA v4.0 ===");
+#if defined(CONFIG_IDF_TARGET_ESP32S3) || defined(ARDUINO_ESP32S3_DEV)
+  Serial.println("\n=== GROW IA v4.0 (ESP32-S3 DUAL USB-C) ===");
+#else
+  Serial.println("\n=== GROW IA v4.0 (ESP32-C3 SUPERMINI) ===");
+#endif
 
   int pr[] = { PIN_RELE_LUZ, PIN_RELE_UMIDIFIC, PIN_RELE_VENTO_INT, PIN_RELE_EXAUST_EXT };
   for (int i = 0; i < 4; i++) {
@@ -869,6 +927,9 @@ void setup() {
   inicioFaseTempo = prefs.getUInt("inicio", 0);
   fwAtual = prefs.getUInt("fw_ver", 0);
 
+  // Limpeza preventiva de chaves fantasmas de falta d'água legadas na memória Flash NVS
+  if (prefs.isKey("sem_agua")) prefs.remove("sem_agua");
+  if (prefs.isKey("umid_acum")) prefs.remove("umid_acum");
 
   // Carrega Horimetro
   segLuzTotal = prefs.getUInt("h_luz", 0);
@@ -914,8 +975,10 @@ void setup() {
   server.on("/api/cmd", webApiCmd);
   server.begin();
 
-  // Inicializa proteção por hardware (Cão de Guarda e Botão Físico)
+  // Inicializa proteção por hardware (Cão de Guarda e Botão Físico se habilitado)
+#if (HABILITAR_BOTAO_RESET == 1)
   pinMode(PIN_BOOT, INPUT_PULLUP);
+#endif
   ultimoSuspiro = millis();
   xTaskCreate(watchdogTask, "WDT", 2048, NULL, 1, &wdtTask);
 }
@@ -927,6 +990,7 @@ void loop() {
   unsigned long agora = millis();
   ultimoSuspiro = agora;  // Alimenta o cão de guarda
 
+#if (HABILITAR_BOTAO_RESET == 1)
   // Botão de Factory Reset (Segurar por 5 segundos limpa a memória inteira)
   static unsigned long tempoBotaoPressionado = 0;
   if (digitalRead(PIN_BOOT) == LOW) {
@@ -948,6 +1012,7 @@ void loop() {
   } else {
     tempoBotaoPressionado = 0;
   }
+#endif
 
   // Anti-Brick: Se após 5 minutos do boot de teste não validar a conexão, reverte
   static bool antiBrickVerificado = false;
@@ -1051,7 +1116,9 @@ void loop() {
       time(&stamp);
       if (stamp > 1600000000) {
         inicioFaseTempo = stamp;
+        prefs.begin("grow", false);
         prefs.putUInt("inicio", (uint32_t)inicioFaseTempo);
+        prefs.end();
       }
     }
 
@@ -1086,9 +1153,13 @@ void loop() {
         if (horaValida && (horaAtual >= LUZ_HORA_LIGA || horaAtual < LUZ_HORA_DESLIGA)) {
           confirmacoesNoiteOff++;
           if (confirmacoesNoiteOff >= 3) releLuz = true;
-        } else {
+        } else if (horaValida) {
           confirmacoesNoiteOff = 0;
           releLuz = false;
+        } else {
+          // Fallback 12/12 sem NTP (mesmo estado calculado na função normal)
+          confirmacoesNoiteOff = 0;
+          releLuz = fallbackLuzLigada;
         }
       }
     }

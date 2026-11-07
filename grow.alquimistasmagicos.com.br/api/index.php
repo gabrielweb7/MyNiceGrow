@@ -88,6 +88,9 @@ if ($method === 'POST') {
         if (isset($row['vFirmware'])) {
             file_put_contents(__DIR__ . '/vFirmware.txt', $row['vFirmware']);
         }
+        if (isset($row['board'])) {
+            file_put_contents(__DIR__ . '/board_model.txt', $row['board']);
+        }
         // Salva modo atual da luz se reportado
         if (isset($row['modoLuz'])) {
             file_put_contents(__DIR__ . '/modo_luz.txt', (string)(int)$row['modoLuz']);
@@ -102,15 +105,24 @@ if ($method === 'POST') {
         // Se o ESP32 gravou o UNIX timestamp (offline), usamos ele. Senão, hora de agora.
         $ts = isset($row['timestamp']) && $row['timestamp'] > 0 ? date('Y-m-d H:i:s', $row['timestamp']) : date('Y-m-d H:i:s');
         
-        // Filtro de sanidade contra interferência eletromagnética (leituras corrompidas)
-        if (isset($row['uE']) && ($row['uE'] > 100 || $row['uE'] < 0)) continue;
-        if (isset($row['tE']) && ($row['tE'] < 0 || $row['tE'] > 60)) continue;
+        // Filtro de sanidade: descarta apenas se o sensor INTERNO (crítico) estiver com leitura fisicamente impossível.
+        // Sensor externo (DHT11) com falha envia -99; apenas zeramos os campos externos sem descartar o registro inteiro.
         if (isset($row['uI']) && ($row['uI'] > 100 || $row['uI'] < 0)) continue;
-        if (isset($row['tI']) && ($row['tI'] < 0 || $row['tI'] > 60)) continue;
+        if (isset($row['tI']) && ($row['tI'] < -10 || $row['tI'] > 60)) continue;
+
+        // Sensor externo: se fora do range fisicamente possível (ex: -99 de falha), grava como NULL em vez de descartar
+        $tE = (isset($row['tE']) && $row['tE'] >= -10 && $row['tE'] <= 60) ? $row['tE'] : null;
+        $uE = (isset($row['uE']) && $row['uE'] >= 0 && $row['uE'] <= 100) ? $row['uE'] : null;
+
+        // Sanitiza estados dos relés (0 ou 1). Elimina qualquer valor legado '2' (falta d'água)
+        $rLuz = (isset($row['rLuz']) && (int)$row['rLuz'] === 1) ? 1 : 0;
+        $rUmid = (isset($row['rUmid']) && (int)$row['rUmid'] === 1) ? 1 : 0;
+        $rVento = (isset($row['rVento']) && (int)$row['rVento'] === 1) ? 1 : 0;
+        $rExaust = (isset($row['rExaust']) && (int)$row['rExaust'] === 1) ? 1 : 0;
 
         $stmt->bind_param("sddddiiiis", 
-            $ts, $row['tI'], $row['uI'], $row['tE'], $row['uE'], 
-            $row['rLuz'], $row['rUmid'], $row['rVento'], $row['rExaust'], $row['fase']
+            $ts, $row['tI'], $row['uI'], $tE, $uE, 
+            $rLuz, $rUmid, $rVento, $rExaust, $row['fase']
         );
         if($stmt->execute()) $successCount++;
     }
@@ -119,9 +131,8 @@ if ($method === 'POST') {
     // AUTO-LIMPEZA DO BANCO DE DADOS (Anti-Crash de Disco HostGator)
     // Executa a limpeza com 5% de chance em cada requisição para não pesar o servidor
     if (rand(1, 100) <= 5) {
-        // Apaga dados mais antigos que 15 dias (15 * 24 * 60 * 60 = 1296000 segundos)
-        $limiteTempo = time() - 1296000;
-        $conn->query("DELETE FROM telemetria WHERE timestamp < $limiteTempo");
+        // Apaga dados mais antigos que 15 dias usando comparação DATETIME nativa do MySQL
+        $conn->query("DELETE FROM telemetria WHERE timestamp < DATE_SUB(NOW(), INTERVAL 15 DAY)");
     }
     
     $resposta = ["status" => "ok", "inseridos" => $successCount];
@@ -135,17 +146,43 @@ if ($method === 'POST') {
 
     $arquivo_comando = __DIR__ . '/comando_pendente.json';
     if (file_exists($arquivo_comando)) {
-        $cmd = json_decode(file_get_contents($arquivo_comando), true);
-        if (isset($cmd['fase'])) $resposta['comando_fase'] = $cmd['fase'];
-        if (isset($cmd['luz'])) $resposta['comando_luz'] = $cmd['luz'];
-        if (isset($cmd['reset_agua'])) $resposta['comando_reset_agua'] = 1;
-        if (isset($cmd['ota'])) $resposta['comando_ota'] = 1;
-        unlink($arquivo_comando); // Deleta comandos pontuais apos entregar ao ESP32
+        $fpCmd = fopen($arquivo_comando, 'c+');
+        if ($fpCmd !== false) {
+            flock($fpCmd, LOCK_EX);
+            $conteudo = '';
+            fseek($fpCmd, 0);
+            while (!feof($fpCmd)) $conteudo .= fread($fpCmd, 8192);
+            $cmd = json_decode($conteudo, true);
+            if ($cmd) {
+                if (isset($cmd['fase'])) $resposta['comando_fase'] = $cmd['fase'];
+                if (isset($cmd['luz'])) $resposta['comando_luz'] = $cmd['luz'];
+                if (isset($cmd['reset_agua'])) $resposta['comando_reset_agua'] = 1;
+                if (isset($cmd['ota'])) $resposta['comando_ota'] = 1;
+            }
+            // Esvazia os comandos entregues com trava atômica para evitar conflito com comando.php
+            ftruncate($fpCmd, 0);
+            fflush($fpCmd);
+            flock($fpCmd, LOCK_UN);
+            fclose($fpCmd);
+        }
     }
     
     // Auto-Update: Usa a data de modificação real do arquivo no servidor
-    $arquivo_bin = __DIR__ . '/../../build/esp32.esp32.esp32c3/esp32c3.ino.bin';
-    if (file_exists($arquivo_bin)) {
+    // Suporta build tanto na raiz quanto na pasta do subdomínio para ESP32-S3 e ESP32-C3
+    $candidatos_bin = [
+        __DIR__ . '/../../build/esp32.esp32.esp32s3/esp32c3.ino.bin',
+        __DIR__ . '/../build/esp32.esp32.esp32s3/esp32c3.ino.bin',
+        __DIR__ . '/../../build/esp32.esp32.esp32c3/esp32c3.ino.bin',
+        __DIR__ . '/../build/esp32.esp32.esp32c3/esp32c3.ino.bin'
+    ];
+    $arquivo_bin = null;
+    foreach ($candidatos_bin as $c) {
+        if (file_exists($c)) {
+            $arquivo_bin = $c;
+            break;
+        }
+    }
+    if ($arquivo_bin) {
         $resposta['versao_nuvem'] = filemtime($arquivo_bin);
     }
     
@@ -167,12 +204,26 @@ elseif ($method === 'GET') {
     
     // Multiplica a busca para cobrir pontos de 10s e garantir minutos únicos suficientes
     $queryLimit = min(50000, $limit * 6);
-    $sql = "SELECT * FROM telemetria WHERE (hum_ext <= 100 OR hum_ext IS NULL) AND (temp_ext >= 15 OR temp_ext IS NULL) ORDER BY id DESC LIMIT $queryLimit";
+    // BUG CORRIGIDO: temp_ext >= 15 apagava noites frias do gráfico; agora filtra apenas
+    // leituras fisicamente impossíveis (< -10°C) ou ruído extremo (hum_ext > 100).
+    $sql = "SELECT * FROM telemetria WHERE (hum_ext <= 100 OR hum_ext IS NULL) AND (temp_ext >= -10 OR temp_ext IS NULL) ORDER BY id DESC LIMIT $queryLimit";
     $result = $conn->query($sql);
     
     // Headers de Versão
     $fwPlaca = file_exists(__DIR__ . '/fw_status.txt') ? file_get_contents(__DIR__ . '/fw_status.txt') : '0';
-    $fwNuvem = file_exists(__DIR__ . '/../../build/esp32.esp32.esp32c3/esp32c3.ino.bin') ? filemtime(__DIR__ . '/../../build/esp32.esp32.esp32c3/esp32c3.ino.bin') : '0';
+    $candidatos_bin = [
+        __DIR__ . '/../../build/esp32.esp32.esp32s3/esp32c3.ino.bin',
+        __DIR__ . '/../build/esp32.esp32.esp32s3/esp32c3.ino.bin',
+        __DIR__ . '/../../build/esp32.esp32.esp32c3/esp32c3.ino.bin',
+        __DIR__ . '/../build/esp32.esp32.esp32c3/esp32c3.ino.bin'
+    ];
+    $fwNuvem = '0';
+    foreach ($candidatos_bin as $c) {
+        if (file_exists($c)) {
+            $fwNuvem = (string)filemtime($c);
+            break;
+        }
+    }
     
     // Obtém o Hash do Git da Nuvem (pasta superior)
     $gitHead = __DIR__ . '/../../.git/refs/heads/main';
@@ -192,6 +243,8 @@ elseif ($method === 'GET') {
         $seenMinutes[$minKey] = true;
 
         $r['unix_ts'] = $ts;
+        // Sanitiza rele_umid para 0 ou 1 caso haja registros legados com valor 2 (antiga falta d'água)
+        $r['rele_umid'] = ((int)$r['rele_umid'] === 1) ? 1 : 0;
         $rows[] = $r;
         if (count($rows) >= $limit) break;
     }
@@ -204,10 +257,10 @@ elseif ($method === 'GET') {
     }
     echo json_encode($rows);
     
-    // Auto-purge inteligente: roda com probabilidade de 1% (a cada ~8 minutos) usando a coluna indexada unix_ts
+    // Auto-purge inteligente: roda com probabilidade de 1% (a cada ~8 minutos)
+    // BUG CORRIGIDO: coluna unix_ts não existe na tabela; usar comparação DATETIME nativa
     if (mt_rand(1, 100) === 1) {
-        $limite90Dias = time() - (90 * 86400);
-        $conn->query("DELETE FROM telemetria WHERE unix_ts < $limite90Dias");
+        $conn->query("DELETE FROM telemetria WHERE timestamp < DATE_SUB(NOW(), INTERVAL 90 DAY)");
     }
 }
 
