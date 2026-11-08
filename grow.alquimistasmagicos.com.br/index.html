@@ -1739,66 +1739,43 @@
             else if (faseLimpa === "Frutificacao") cId = "2";
             else if (faseLimpa === "Secagem Total") cId = "4";
             
-            let tempMin = 20.0;
-            let tempMax = configClima[cId] ? configClima[cId].tX : 25.0;
-            let umidAlvo = configClima[cId] ? (configClima[cId].uA || configClima[cId].uN || 95.0) : 95.0;
-
-            const quente = tI > tempMax;
-            const frio = tI < tempMin;
-            const arFrio = tE < (tI - 1.0);
-            const arQuente = tE > (tI + 1.0);
+            const cfg = (typeof configClima !== 'undefined' && configClima[cId]) ? configClima[cId] : null;
+            const tempMax = cfg ? parseFloat(cfg.tX) : 35.0;
+            const umidAlvo = cfg ? parseFloat(cfg.uA || cfg.uN || 95.0) : 95.0;
 
             if (faseLimpa === "Standby") {
                 status = "💤 Modo Standby"; desc = "Estufa inativa aguardando comandos."; cor = "text-slate-400";
-            } else if (tI >= 33.0 && rLuz === 0) {
-                status = "🔥 Corte Térmico da Luz"; desc = "Temperatura extremamente crítica! A luz foi forçada a apagar para não gerar mais calor."; cor = "text-rose-500";
-            } else if (quente) {
-                // DEFESA TÉRMICA (ESTUFA SELADA)
+            } else if (faseLimpa === "Secagem Total") {
+                status = "🏜️ Secagem Total Ativa"; desc = "Umidificador travado e fluxo contínuo de ar para desidratar a estufa."; cor = "text-amber-400";
+            } else if (tI >= 34.0 && rLuz === 0) {
+                status = "🔥 Corte Térmico de Emergência"; desc = "Temperatura crítica (≥ 34°C)! Luz desligada preventivamente."; cor = "text-rose-500";
+            } else if (rExaust === 1) {
+                status = "💨 Troca de Ar (FAE)"; 
+                desc = "Expulsando o CO2 acumulado e trazendo oxigênio fresco conforme o ciclo programado."; 
+                cor = "text-teal-400";
+            } else if (rVento === 1) {
                 if (rUmid === 1) {
-                    status = "💧 Resfriamento por Evaporação"; 
-                    desc = `Temperatura acima da meta (${tI.toFixed(1)}°C / Máx: ${tempMax}°C). Névoa fria e circulação interna ativadas em estufa selada para absorver calor.`; 
-                    cor = "text-cyan-400";
-                } else if (rVento === 1 && rExaust === 0) {
-                    status = "🛡️ Defesa Térmica Passiva (Estufa Selada)"; 
-                    desc = "Estufa selada contra o ar quente da sala. Brisa interna circulando para evaporar o orvalho das paredes e refrigerar."; 
-                    cor = "text-amber-400";
-                } else if (rExaust === 1) {
-                    status = "⚠️ Alívio Térmico (Exaustão)"; 
-                    desc = "Exaustor acionado para renovar e aliviar o calor acumulado."; 
-                    cor = "text-orange-400";
+                    status = "🌀 Brisa com Névoa em Execução";
+                    desc = "Ciclo programado de circulação interna com injeção de névoa viva para oxigenar e hidratar.";
+                    cor = "text-cyan-300";
                 } else {
-                    status = "🌡️ Alerta de Calor"; 
-                    desc = `Temperatura interna (${tI.toFixed(1)}°C) acima do limite ideal (${tempMax}°C). Sistema atuando no controle térmico.`; 
-                    cor = "text-orange-400";
+                    status = "🌀 Brisa Preventiva em Execução";
+                    desc = "Ciclo programado de circulação interna para quebrar bolsões de CO2 pesado acumulados no fundo.";
+                    cor = "text-indigo-400";
                 }
+            } else if (rUmid === 1) {
+                status = "💧 Injeção de Névoa no Alvo";
+                desc = `Umidificador acionado para atingir a umidade alvo (${umidAlvo}%).`;
+                cor = "text-blue-300";
             } else {
-                // CLIMA NORMAL (não quente)
-                // BUG CORRIGIDO: firmware atual não força ventilador junto com FAE,
-                // então FAE é detectado apenas pelo exaustor ligado.
-                if (rExaust === 1) {
-                    status = "💨 Troca de Ar (FAE)"; 
-                    desc = "Expulsando o gás carbônico (CO2) pesado e trazendo oxigênio fresco conforme o ciclo programado."; 
-                    cor = "text-teal-400";
-                } else if (rVento === 1 && rExaust === 0) {
-                    if (rUmid === 1) {
-                        status = "🌀 Brisa com Névoa em Execução";
-                        desc = "Ciclo programado de circulação interna soprando com injeção de névoa viva para oxigenar e hidratar os frutos.";
-                        cor = "text-cyan-300";
-                    } else {
-                        status = "🌀 Brisa Preventiva em Execução";
-                        desc = "Ciclo programado de circulação interna para quebrar bolsões de CO2 pesado acumulados no fundo.";
-                        cor = "text-indigo-400";
-                    }
-                } else if (rUmid === 1 && rExaust === 0) {
-                    if (uI < umidAlvo) {
-                        status = "💦 Recuperando Umidade Alvo";
-                        desc = `A umidade (${uI.toFixed(1)}%) está abaixo da meta alvo (${umidAlvo}%). Umidificador ligado para atingir o nível desejado.`;
-                        cor = "text-blue-300";
-                    } else {
-                        status = "💧 Umidade no Alvo";
-                        desc = `Umidade em ${uI.toFixed(1)}% (meta alvo de ${umidAlvo}% atingida). Umidificador finalizando ciclo.`;
-                        cor = "text-emerald-400";
-                    }
+                if (tI > tempMax) {
+                    status = "🌡️ Temperatura Acima do Alvo";
+                    desc = `Temperatura interna (${tI.toFixed(1)}°C) acima do limite programado (${tempMax}°C).`;
+                    cor = "text-amber-400";
+                } else {
+                    status = "✅ Clima Estabilizado";
+                    desc = "Todos os parâmetros estão dentro da meta para a fase atual.";
+                    cor = "text-emerald-400";
                 }
             }
 
