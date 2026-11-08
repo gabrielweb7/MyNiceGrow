@@ -2,10 +2,10 @@
 //  GROW IA - Firmware Inteligente + Nuvem IoT
 //  Placa: ESP32-S3 Dual-Core (Xtensa LX7) / Compatível com ESP32-C3
 //  Autor: Gabriel + Antigravity AI
-//  Versão Atual: v424 (Otimizado para ESP32-S3 Dual USB-C)
+//  Versão Atual: v425 (Umidade Alvo Única + Otimização ESP32-S3)
 // ============================================================
 
-#define FW_VERSION 424
+#define FW_VERSION 425
 
 #include <Arduino.h>
 #include <ArduinoJson.h>
@@ -217,11 +217,11 @@ const char* nomeModoLuz() {
   return "OFF";
 }
 PerfilClimatico perfis[5] = {
-  { TEMP_ALVO_MAX, 97.0, 99.9, 1UL * 60000, FAE_OFF_MS, 1UL * 60000, 2UL * 60000, 2UL * 60000, 8UL * 60000, false },  // 0: Standby (padrão)
-  { 28.0, 97.0, 99.9, 1UL * 60000, 40UL * 60000, 1UL * 60000, 2UL * 60000, 2UL * 60000, 8UL * 60000, true },          // 1: Pinagem (1m ON / 2m OFF + névoa)
-  { 29.0, 92.0, 94.0, 2UL * 60000, 25UL * 60000, 1UL * 60000, 2UL * 60000, 2UL * 60000, 8UL * 60000, true },          // 2: Frutificacao (1m ON / 2m OFF + névoa)
-  { 28.0, 97.0, 99.9, 1UL * 60000, 40UL * 60000, 1UL * 60000, 2UL * 60000, 2UL * 60000, 8UL * 60000, true },          // 3: Segundo Flush (1m ON / 2m OFF + névoa)
-  { TEMP_ALVO_MAX, 97.0, 99.9, 1UL * 60000, FAE_OFF_MS, 1UL * 60000, 2UL * 60000, 2UL * 60000, 8UL * 60000, false }   // 4: Secagem
+  { TEMP_ALVO_MAX, 95.0, 95.0, 1UL * 60000, FAE_OFF_MS, 1UL * 60000, 2UL * 60000, 2UL * 60000, 8UL * 60000, false },  // 0: Standby (padrão)
+  { 28.0, 95.0, 95.0, 1UL * 60000, 40UL * 60000, 1UL * 60000, 2UL * 60000, 2UL * 60000, 8UL * 60000, true },          // 1: Pinagem (Umidade Alvo 95%)
+  { 29.0, 92.0, 92.0, 2UL * 60000, 25UL * 60000, 1UL * 60000, 2UL * 60000, 2UL * 60000, 8UL * 60000, true },          // 2: Frutificacao (Umidade Alvo 92%)
+  { 28.0, 95.0, 95.0, 1UL * 60000, 40UL * 60000, 1UL * 60000, 2UL * 60000, 2UL * 60000, 8UL * 60000, true },          // 3: Segundo Flush (Umidade Alvo 95%)
+  { TEMP_ALVO_MAX, 95.0, 95.0, 1UL * 60000, FAE_OFF_MS, 1UL * 60000, 2UL * 60000, 2UL * 60000, 8UL * 60000, false }   // 4: Secagem
 };
 
 void salvarPerfisNVS() {
@@ -458,8 +458,9 @@ void enviarNuvem(unsigned long agora) {
               String key = String(i);
               if (cfg.containsKey(key)) {
                 perfis[i].tempMax = cfg[key]["tX"].as<float>();
-                perfis[i].umidMin = cfg[key]["uN"].as<float>();
-                perfis[i].umidMax = cfg[key]["uX"].as<float>();
+                float uAlvo = cfg[key].containsKey("uA") ? cfg[key]["uA"].as<float>() : (cfg[key].containsKey("uN") ? cfg[key]["uN"].as<float>() : 95.0);
+                perfis[i].umidMin = uAlvo;
+                perfis[i].umidMax = uAlvo;
                 perfis[i].faeOnMs = cfg[key]["fO"].as<unsigned long>() * 60000UL;
                 perfis[i].faeOffMs = cfg[key]["fF"].as<unsigned long>() * 60000UL;
                 unsigned long vO = cfg[key].containsKey("vO") ? cfg[key]["vO"].as<unsigned long>() : 1;
@@ -800,11 +801,14 @@ void executarMotor(unsigned long agora) {
 
   // -----------------------------------------------------
 
-  // Variável de estado para a histerese da umidade
+  // CONTROLE DE UMIDADE ALVO ÚNICA:
+  // Se a umidade estiver abaixo do alvo, liga o umidificador.
+  // Quando atinge o alvo (+0.5% histerese de proteção mecânica do relé), desliga.
   static bool umidificadorHisterese = false;
-  if (humInt < pf.umidMin) {
+  float alvoUmid = (pf.umidMin > 0) ? pf.umidMin : 95.0;
+  if (humInt < alvoUmid) {
     umidificadorHisterese = true;
-  } else if (humInt >= pf.umidMax || humInt >= 99.5) {
+  } else if (humInt >= (alvoUmid + 0.5) || humInt >= 99.5) {
     umidificadorHisterese = false;
   }
 

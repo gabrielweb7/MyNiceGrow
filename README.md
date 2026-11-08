@@ -134,10 +134,10 @@ O algoritmo implementa perfis climáticos autônomos por fase. As configuraçõe
 | Fase | Ícone | Temp. Alvo | Umidade Alvo | Renovação de Ar (FAE) | Brisa Interna + Névoa | Objetivo Biológico |
 | :--- | :---: | :---: | :---: | :---: | :---: | :--- |
 | **Standby** | ⏸️ | Desligado | Desligado | Desligado | Desligado | Higienização, manutenção ou repouso entre safras. |
-| **Pinagem** | 🍄 | Máx 24.0 °C | 90% a 98% | 2 min ON / 58 min OFF | 2 min ON / 8 min OFF (`vU=1`) | Estimula primórdios por alta umidade, micro-orvalho e ar rico. |
-| **Frutificação**| 🌳 | Máx 25.0 °C | 88% a 95% | 2 min ON / 30 min OFF | 3 min ON / 3 min OFF (`vU=1`) | Transpiração controlada para crescimento vigoroso dos frutos. |
-| **Segundo Flush**| 🔄 | Máx 24.5 °C | 90% a 96% | 2 min ON / 45 min OFF | 2 min ON / 10 min OFF (`vU=1`) | Hidratação profunda e recuperação do bolo pós-colheita. |
-| **Secagem Total**| 🏜️ | Ambiente | Mínima | 100% LIGADO (Direto) | 100% LIGADO (Direto) | Umidificador travado e fluxo máximo para desidratar colheita. |
+| **Pinagem** | 🍄 | Máx 28.0 °C | Alvo 95% | 1 min ON / 40 min OFF | 1 min ON / 2 min OFF (`vU=1`) | Estimula primórdios por alta umidade, micro-orvalho e ar rico. |
+| **Frutificação**| 🌳 | Máx 29.0 °C | Alvo 92% | 2 min ON / 25 min OFF | 1 min ON / 2 min OFF (`vU=1`) | Transpiração controlada para crescimento vigoroso dos frutos. |
+| **Segundo Flush**| 🔄 | Máx 28.0 °C | Alvo 95% | 1 min ON / 40 min OFF | 1 min ON / 2 min OFF (`vU=1`) | Hidratação profunda e recuperação do bolo pós-colheita. |
+| **Secagem Total**| 🏜️ | Ambiente | Mínima (0%) | 100% LIGADO (Direto) | 100% LIGADO (Direto) | Umidificador travado e fluxo máximo para desidratar colheita. |
 
 ---
 
