@@ -2,10 +2,10 @@
 //  GROW IA - Firmware Inteligente + Nuvem IoT
 //  Placa: ESP32-S3 Dual-Core (Xtensa LX7) / Compatível com ESP32-C3
 //  Autor: Gabriel + Antigravity AI
-//  Versão Atual: v426 (Desembaçamento Térmico SHT30 + Otimização)
+//  Versão Atual: v425 (Umidade Alvo Única + Otimização ESP32-S3)
 // ============================================================
 
-#define FW_VERSION 426
+#define FW_VERSION 425
 
 #include <Arduino.h>
 #include <ArduinoJson.h>
@@ -172,63 +172,6 @@ void watchdogTask(void* pvParameters) {
       ESP.restart();
     }
     vTaskDelay(2000 / portTICK_PERIOD_MS);
-  }
-}
-
-// ---------------------------------------------------------
-// REGENERAÇÃO E DESEMBAÇAMENTO TÉRMICO DO SENSOR SHT30
-// ---------------------------------------------------------
-enum EstadoRegenSHT {
-  REGEN_IDLE = 0,
-  REGEN_AQUECENDO,
-  REGEN_ESFRIANDO
-};
-EstadoRegenSHT estadoRegen = REGEN_IDLE;
-unsigned long tempoInicioRegen = 0;
-bool emRegeneracaoSHT = false;
-
-void iniciarRegeneracaoSHT() {
-  if (emRegeneracaoSHT) return;
-  sht30.heater(true);
-  estadoRegen = REGEN_AQUECENDO;
-  tempoInicioRegen = millis();
-  emRegeneracaoSHT = true;
-  releUmidific = false;  // Pausa o umidificador para não jogar névoa no chip aquecido
-  Serial.println("♨️ [SHT30] Início de Desembaçamento Térmico! Heater LIGADO (4s)...");
-}
-
-void gerenciarRegeneracaoSHT(unsigned long agora) {
-  if (!emRegeneracaoSHT) return;
-
-  if (estadoRegen == REGEN_AQUECENDO) {
-    if (agora - tempoInicioRegen >= 4000) {  // 4s aquecendo
-      sht30.heater(false);
-      estadoRegen = REGEN_ESFRIANDO;
-      tempoInicioRegen = agora;
-      Serial.println("❄️ [SHT30] Heater DESLIGADO. Aguardando 20s de arrefecimento e estabilização...");
-    }
-  } else if (estadoRegen == REGEN_ESFRIANDO) {
-    if (agora - tempoInicioRegen >= 20000) {  // 20s resfriando
-      estadoRegen = REGEN_IDLE;
-      emRegeneracaoSHT = false;
-      Serial.println("✅ [SHT30] Regeneração concluída! Capturando nova leitura real do ar...");
-
-      float tI = 0.0f, hI = 0.0f;
-      if (sht30.readBoth(&tI, &hI) && !isnan(tI) && !isnan(hI)) {
-        if (hI > 100.0f) hI = 100.0f;
-        for (int i = 0; i < FILTRO_N; i++) {
-          bufTempInt[i] = tI;
-          bufHumInt[i] = hI;
-        }
-        idxFiltroInt = 0;
-        filtroIntPreenchido = true;
-        tempInt = tI;
-        humInt = hI;
-        atualizarMinMax();
-        Serial.printf("📊 [SHT30] Nova Leitura: Temp=%.1f°C | Umid=%.1f%%\n", tempInt, humInt);
-      }
-      ultimoEnvioNuvem = 0;  // Notifica o painel web instantaneamente com a nova leitura!
-    }
   }
 }
 
@@ -587,11 +530,6 @@ void enviarNuvem(unsigned long agora) {
           prefs.end();
           alertaFaltaAgua = false;
           Serial.println("📥 COMANDO NUVEM: Reset de Alerta de Agua confirmado e limpo da NVS.");
-        }
-
-        if (docRes.containsKey("comando_heater") && docRes["comando_heater"] == 1) {
-          Serial.println("📥 COMANDO NUVEM: Ordem para Desembaçar / Regenerar Sensor SHT30 recebida!");
-          iniciarRegeneracaoSHT();
         }
 
         uint32_t vNuvem = docRes.containsKey("versao_nuvem") ? (uint32_t)docRes["versao_nuvem"] : 0;
@@ -1123,9 +1061,6 @@ void loop() {
   server.handleClient();
   ArduinoOTA.handle();
 
-  // Gerenciamento não-bloqueante do Desembaçamento / Regeneração Térmica do SHT30
-  gerenciarRegeneracaoSHT(agora);
-
   // Auto-Reconnect Passivo: Se ligou sem Wi-Fi (roteador desligado), tenta reconectar sozinho a cada 2 minutos
   static unsigned long ultimaTentativaWifi = 0;
   if (WiFi.status() != WL_CONNECTED && agora > 60000 && (agora - ultimaTentativaWifi > 120000)) {
@@ -1150,10 +1085,8 @@ void loop() {
         sensorIntOk = true;
         Serial.println("[RECUPERACAO] SHT30 voltou a responder!");
       }
-      if (!emRegeneracaoSHT) {
-        atualizarFiltroInt(tI, hI);
-        atualizarMinMax();
-      }
+      atualizarFiltroInt(tI, hI);
+      atualizarMinMax();
     } else {
       shtFalhasFisicas++;
       if (shtFalhasFisicas >= 6) {  // 12s de falha contínua
@@ -1223,10 +1156,8 @@ void loop() {
     else statusSis = SIS_OK;
 
     if (sensorIntOk) {
-      if (!emRegeneracaoSHT) {
-        executarMotor(agora);
-        aplicarSeguranca();
-      }
+      executarMotor(agora);
+      aplicarSeguranca();
     } else {
       // FALHA CRÍTICA DO SENSOR SHT30:
       releUmidific = false;  // Não injeta água as cegas

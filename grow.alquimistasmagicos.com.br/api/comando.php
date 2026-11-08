@@ -57,7 +57,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
     if (isset($_POST['reset_agua'])) $cmd['reset_agua'] = 1;
     if (isset($_POST['ota'])) $cmd['ota'] = 1;
-    if (isset($_POST['heater'])) $cmd['heater'] = 1;
 
     // Salva configurações climáticas no Banco de Dados MySQL
     if (isset($_POST['config'])) {
