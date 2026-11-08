@@ -5,7 +5,7 @@
 //  Versão Atual: v426 (Blindagem Total Anti-Travamento & Auto-Recovery)
 // ============================================================
 
-#define FW_VERSION 426
+#define FW_VERSION 430
 
 #include <Arduino.h>
 #include <ArduinoJson.h>
@@ -93,6 +93,8 @@ const int DIAS_FRUTIFICACAO = 0;
 #define PIN_RELE_UMIDIFIC 1
 #define PIN_RELE_VENTO_INT 3
 #define PIN_RELE_EXAUST_EXT 6
+#define PIN_RELE_AR_COND 7
+#define PIN_RELE_VENTO_EXT 8
 
 // Proteção de colisão: se o pino do Relé 1 coincidir com o pino BOOT,
 // desativa o botão de factory reset para não resetar a placa quando a luz acender
@@ -112,6 +114,12 @@ enum FaseCultivo { FASE_STANDBY = 0,
 enum ModoLuz { LUZ_AUTO,
                LUZ_FORCADA_ON,
                LUZ_FORCADA_OFF };
+enum ModoAr { AR_AUTO = 0,
+              AR_FORCADA_ON = 1,
+              AR_FORCADA_OFF = 2 };
+enum ModoVentoExt { VENTO_EXT_AUTO = 0,
+                    VENTO_EXT_FORCADA_ON = 1,
+                    VENTO_EXT_FORCADA_OFF = 2 };
 enum StatusSis { SIS_OK,
                  SIS_SEM_WIFI,
                  SIS_ERRO_SENSOR };
@@ -135,6 +143,8 @@ Preferences prefs;
 
 FaseCultivo faseAtual = FASE_STANDBY;
 ModoLuz modoLuz = LUZ_AUTO;
+ModoAr modoAr = AR_AUTO;
+ModoVentoExt modoVentoExt = VENTO_EXT_AUTO;
 StatusSis statusSis = SIS_SEM_WIFI;
 
 float tempInt = -99.0, humInt = -99.0, tempExt = -99.0, humExt = -99.0;
@@ -150,7 +160,9 @@ char horaMinTemp[6] = "--:--", horaMaxTemp[6] = "--:--", horaMinHum[6] = "--:--"
 int ultimoDia = -1;
 
 bool releLuz = false, releUmidific = false, releVentoInt = false, releExaustExt = false;
+bool releArCond = false, releVentoExt = false;
 bool lastReleLuz = false, lastReleUmidific = false, lastReleVento = false, lastReleExaust = false;
+bool lastReleArCond = false, lastReleVentoExt = false;
 
 unsigned long ultimaLeitura = 0, ultimoEnvioNuvem = 0;
 
@@ -181,10 +193,20 @@ void watchdogTask(void* pvParameters) {
 // ---------------------------------------------------------
 const unsigned long MIN_DWELL_RELE_MS = 15000;  // Minimo 15s entre ligar/desligar
 unsigned long lastSwitchLuz = 0, lastSwitchUmid = 0, lastSwitchVento = 0, lastSwitchExaust = 0;
+unsigned long lastSwitchArCond = 0, lastSwitchVentoExt = 0;
 bool bypassDwellFase = true;  // Permite resposta imediata no boot e em trocas manuais de fase/clima
+
+// Proteção Especial do Compressor do Ar Condicionado (Anti-Short Cycle Guard):
+// - Tempo mínimo de compressor desligado antes de religar: 180 segundos (3 minutos)
+// - Tempo mínimo de compressor ligado antes de desligar: 60 segundos (1 minuto)
+unsigned long compressorUltimoDesligamento = 0;
+unsigned long compressorUltimaPartida = 0;
+const unsigned long AC_MIN_REST_MS = 180UL * 1000UL;
+const unsigned long AC_MIN_RUN_MS  = 60UL * 1000UL;
 
 // --- Horímetro de Manutenção Preventiva (Segundos de Uso NVS) ---
 uint32_t segLuzTotal = 0, segUmidTotal = 0, segVentoTotal = 0, segExaustTotal = 0;
+uint32_t segArTotal = 0, segVentoExtTotal = 0;
 unsigned long ultimoTickHorimetro = 0;
 unsigned long ultimoSaveHorimetro = 0;
 
@@ -391,6 +413,10 @@ void enviarNuvem(unsigned long agora) {
   json += "\"rUmid\":" + String(lastReleUmidific ? 1 : 0) + ",";
   json += "\"rVento\":" + String(lastReleVento ? 1 : 0) + ",";
   json += "\"rExaust\":" + String(lastReleExaust ? 1 : 0) + ",";
+  json += "\"rAr\":" + String(lastReleArCond ? 1 : 0) + ",";
+  json += "\"rVentoExt\":" + String(lastReleVentoExt ? 1 : 0) + ",";
+  json += "\"modoAr\":" + String((int)modoAr) + ",";
+  json += "\"modoVentoExt\":" + String((int)modoVentoExt) + ",";
   String faseStr = nomeFase((int)faseAtual);
   if (!sensorIntOk) faseStr = "ALERTA: SHT30 OFFLINE";
 
@@ -627,6 +653,44 @@ void enviarNuvem(unsigned long agora) {
           }
         }
 
+        if (docRes.containsKey("comando_ar")) {
+          int ca = docRes["comando_ar"];
+          bool arMudou = false;
+          if (ca == 0 && modoAr != AR_AUTO) {
+            modoAr = AR_AUTO;
+            Serial.println("📥 COMANDO NUVEM: Ar Condicionado em modo AUTO");
+            arMudou = true;
+          } else if (ca == 1 && modoAr != AR_FORCADA_ON) {
+            modoAr = AR_FORCADA_ON;
+            Serial.println("📥 COMANDO NUVEM: Ar Condicionado FORCADO LIGADO");
+            arMudou = true;
+          } else if (ca == 2 && modoAr != AR_FORCADA_OFF) {
+            modoAr = AR_FORCADA_OFF;
+            Serial.println("📥 COMANDO NUVEM: Ar Condicionado FORCADO DESLIGADO");
+            arMudou = true;
+          }
+          if (arMudou) recalcularMotorImediato = true;
+        }
+
+        if (docRes.containsKey("comando_vento_ext")) {
+          int cve = docRes["comando_vento_ext"];
+          bool veMudou = false;
+          if (cve == 0 && modoVentoExt != VENTO_EXT_AUTO) {
+            modoVentoExt = VENTO_EXT_AUTO;
+            Serial.println("📥 COMANDO NUVEM: Vento Externo em modo AUTO");
+            veMudou = true;
+          } else if (cve == 1 && modoVentoExt != VENTO_EXT_FORCADA_ON) {
+            modoVentoExt = VENTO_EXT_FORCADA_ON;
+            Serial.println("📥 COMANDO NUVEM: Vento Externo FORCADO LIGADO");
+            veMudou = true;
+          } else if (cve == 2 && modoVentoExt != VENTO_EXT_FORCADA_OFF) {
+            modoVentoExt = VENTO_EXT_FORCADA_OFF;
+            Serial.println("📥 COMANDO NUVEM: Vento Externo FORCADO DESLIGADO");
+            veMudou = true;
+          }
+          if (veMudou) recalcularMotorImediato = true;
+        }
+
         if (recalcularMotorImediato) {
           if (sensorIntOk) {
             executarMotor(agora);
@@ -839,6 +903,47 @@ void aplicarReles() {
     alterou = true;
   }
 
+  // Controle de Relé 5 (Ar Condicionado) com proteção de compressor anti-short cycle:
+  if (releArCond != lastReleArCond) {
+    bool podeComutarAr = false;
+    if (releArCond) {
+      // Quer LIGAR compressor: respeita descanso mínimo de 3 minutos
+      if (compressorUltimoDesligamento == 0 || agora - compressorUltimoDesligamento >= AC_MIN_REST_MS || modoAr == AR_FORCADA_ON) {
+        podeComutarAr = true;
+      } else {
+        unsigned long faltaSeg = (AC_MIN_REST_MS - (agora - compressorUltimoDesligamento)) / 1000UL;
+        Serial.printf("⏳ COMPRESSOR AC: Protecao anti-ciclo curto ativa. Aguardando descanso (%lu s restantes)...\n", faltaSeg);
+      }
+    } else {
+      // Quer DESLIGAR compressor: respeita tempo mínimo ligado de 60 segundos
+      if (compressorUltimaPartida == 0 || agora - compressorUltimaPartida >= AC_MIN_RUN_MS || modoAr == AR_FORCADA_OFF) {
+        podeComutarAr = true;
+      }
+    }
+
+    if (podeComutarAr) {
+      lastReleArCond = releArCond;
+      lastSwitchArCond = agora;
+      if (lastReleArCond) {
+        compressorUltimaPartida = agora;
+      } else {
+        compressorUltimoDesligamento = agora;
+      }
+      digitalWrite(PIN_RELE_AR_COND, lastReleArCond ? LOW : HIGH);
+      Serial.printf("❄️ ACAO: AR CONDICIONADO %s\n", lastReleArCond ? "LIGADO" : "DESLIGADO");
+      alterou = true;
+    }
+  }
+
+  // Controle de Relé 6 (Vento Externo):
+  if (releVentoExt != lastReleVentoExt && (bypassDwellFase || agora - lastSwitchVentoExt >= MIN_DWELL_RELE_MS)) {
+    lastReleVentoExt = releVentoExt;
+    lastSwitchVentoExt = agora;
+    digitalWrite(PIN_RELE_VENTO_EXT, lastReleVentoExt ? LOW : HIGH);
+    Serial.printf("🌪️ ACAO: VENTO EXTERNO %s\n", lastReleVentoExt ? "LIGADO" : "DESLIGADO");
+    alterou = true;
+  }
+
   bypassDwellFase = false;
 
   // Se a placa tomou alguma decisão e ligou/desligou algo autonomamente,
@@ -864,6 +969,8 @@ void executarMotor(unsigned long agora) {
     releUmidific = false;
     releVentoInt = false;
     releExaustExt = false;
+    releArCond = false;
+    releVentoExt = false;
     if (modoLuz == LUZ_AUTO) releLuz = false;
     return;
   }
@@ -871,6 +978,8 @@ void executarMotor(unsigned long agora) {
     releUmidific = false;
     releVentoInt = true;
     releExaustExt = true;
+    releArCond = false;
+    releVentoExt = true;
     if (modoLuz == LUZ_AUTO) releLuz = false;
     return;
   }
@@ -898,30 +1007,54 @@ void executarMotor(unsigned long agora) {
     faeLigado = novoFaeLigado;
   }
 
-  // --- CONTROLE TÉRMICO E FAE (Com Histerese de 1.5°C contra o Efeito Yo-Yo) ---
-  static bool modoQuenteTravado = false;
+  // --- CONTROLE TÉRMICO E CLIMATIZAÇÃO INTELIGENTE (AR CONDICIONADO + VENTO EXTERNO) ---
+  // Histerese de 1.5°C para o ciclo do compressor contra liga/desliga intermitente
+  static bool modoRefrigeracaoAtivo = false;
   if (tempInt >= pf.tempMax) {
-    modoQuenteTravado = true;
-  } else if (tempInt < (pf.tempMax - 1.5)) {
-    modoQuenteTravado = false;
+    modoRefrigeracaoAtivo = true;
+  } else if (tempInt < (pf.tempMax - 1.5f)) {
+    modoRefrigeracaoAtivo = false;
   }
-  bool quente = modoQuenteTravado;
 
-  // DEFESA TÉRMICA REMOVIDA (Conforme solicitado, não faremos resfriamento evaporativo)
-  // A variável 'quente' ainda pode ser usada pelo dashboard para alertas visuais, mas não aciona atuadores.
+  // Ar Condicionado e Vento Externo:
+  if (modoRefrigeracaoAtivo) {
+    releArCond = true;
+    releVentoExt = true; // Ventilador externo acoplado ao AC acelera convecção e resfriamento da sala
+  } else {
+    releArCond = false;
+    // Quando o AC estiver desligado, o Vento Externo opera em circulação periódica (2 min a cada 15 min)
+    // para evitar estagnação térmica e manter o ambiente estável ao redor do grow
+    unsigned long cicloVentoExt = 15UL * 60UL * 1000UL;
+    unsigned long momentoExt = agora % cicloVentoExt;
+    releVentoExt = (momentoExt < (2UL * 60UL * 1000UL));
+  }
 
-  // RESET EXPLICITO: Todos os reles partem de OFF e sao ligados explicitamente pela logica abaixo.
+  // RESET EXPLICITO: Todos os reles partem de OFF e sao definidos pelas regras abaixo
   releExaustExt = false;
   releVentoInt = false;
   if (modoLuz == LUZ_AUTO) releLuz = false;
 
-  // A Renovação de Ar Programada (FAE)
+  // 1. A Renovação de Ar Programada (FAE)
   if (faeLigado) {
     releExaustExt = true;
-    // Ventilador interno NÃO é mais forçado a ligar junto com o exaustor (pedido do usuário)
   }
 
-  // --- CIRCULACAO INTERNA DINAMICA & BRISA COM NEVOA ---
+  // 2. Injeção de Ar Gelado no Grow (Quando o ambiente externo já foi resfriado pelo AC)
+  // O DHT11 confirma se o ar da sala está mais frio que a estufa (tempExt < tempInt - 1.0)
+  // GUARDA CRÍTICA DE UMIDADE: Se a umidade interna cair perto do mínimo (pf.umidMin - 3.0),
+  // a injeção via exaustão é interrompida para impedir dessecação dos frutos.
+  bool ambienteExternoFrio = (sensorExtOk && tempExt > -40.0f && tempExt < (tempInt - 1.0f) && tempExt <= pf.tempMax);
+  bool guardaUmidadeOk = (humInt >= (pf.umidMin - 3.0f));
+
+  if (modoRefrigeracaoAtivo && ambienteExternoFrio) {
+    if (guardaUmidadeOk) {
+      releExaustExt = true; // Injeta o ar novo resfriado
+    } else {
+      releExaustExt = false; // Pausa injeção para priorizar recuperação de umidade
+    }
+  }
+
+  // --- CIRCULACAO INTERNA DINAMICA & VENTO INTERNO COM NEVOA ---
   // Gira o ar internamente para evitar bolsões de CO2 pesado e, se configurado, injeta névoa viva.
   bool brisaUmidificadora = false;
   if (!releVentoInt) {
@@ -947,11 +1080,7 @@ void executarMotor(unsigned long agora) {
     }
   }
 
-  // -----------------------------------------------------
-
   // CONTROLE DE UMIDADE ALVO ÚNICA:
-  // Se a umidade estiver abaixo do alvo, liga o umidificador.
-  // Quando atinge o alvo (+0.5% histerese de proteção mecânica do relé), desliga.
   static bool umidificadorHisterese = false;
   float alvoUmid = (pf.umidMin > 0) ? pf.umidMin : 95.0;
   if (humInt < alvoUmid) {
@@ -961,22 +1090,22 @@ void executarMotor(unsigned long agora) {
   }
 
   bool querLigarUmid = umidificadorHisterese;
-  // Automação: Injetar Névoa na Brisa
-  // Conforme solicitado, se a opção estiver ligada no painel, injeta névoa independente se a umidade já é 100%.
   if (brisaUmidificadora) {
     querLigarUmid = true;
   }
+  // Se a guarda de umidade acusar que a umidade caiu durante a climatização, prioriza reidratação
+  if (modoRefrigeracaoAtivo && !guardaUmidadeOk) {
+    querLigarUmid = true;
+  }
+
   if (querLigarUmid) {
     releUmidific = true;
   } else {
-    // Trava de saturação mínima de 2 minutos REMOVIDA a pedido do usuário.
-    // Agora o umidificador obedece fielmente os timers curtos (ex: 1 min).
     releUmidific = false;
   }
 
   // BLOQUEIO CONTRA DESPERDÍCIO (EXAUSTOR):
-  // Nunca desperdiçar umidade jogando o ar pra fora
-  if (releExaustExt) {
+  if (releExaustExt && guardaUmidadeOk) {
     releUmidific = false;
   }
 
@@ -1018,6 +1147,10 @@ void executarMotor(unsigned long agora) {
 void aplicarSeguranca() {
   if (modoLuz == LUZ_FORCADA_ON) releLuz = true;
   if (modoLuz == LUZ_FORCADA_OFF) releLuz = false;
+  if (modoAr == AR_FORCADA_ON) releArCond = true;
+  if (modoAr == AR_FORCADA_OFF) releArCond = false;
+  if (modoVentoExt == VENTO_EXT_FORCADA_ON) releVentoExt = true;
+  if (modoVentoExt == VENTO_EXT_FORCADA_OFF) releVentoExt = false;
   if (tempInt >= TEMP_CORTE_LUZ) {
     releLuz = false;
     Serial.println("🔥 SEGURANCA: Corte Termico da LUZ ativado!");
@@ -1099,6 +1232,14 @@ void setup() {
   digitalWrite(PIN_RELE_EXAUST_EXT, (faseAtual == FASE_SECAGEM) ? LOW : HIGH);
   lastReleExaust = (faseAtual == FASE_SECAGEM);
   releExaustExt = lastReleExaust;
+  pinMode(PIN_RELE_AR_COND, OUTPUT);
+  digitalWrite(PIN_RELE_AR_COND, HIGH);
+  lastReleArCond = false;
+  releArCond = false;
+  pinMode(PIN_RELE_VENTO_EXT, OUTPUT);
+  digitalWrite(PIN_RELE_VENTO_EXT, HIGH);
+  lastReleVentoExt = false;
+  releVentoExt = false;
 
   Serial.begin(115200);
   delay(1500);

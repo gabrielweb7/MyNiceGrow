@@ -63,6 +63,20 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             file_put_contents(__DIR__ . '/modo_luz.txt', (string)$l);
         }
     }
+    if (isset($_POST['ar'])) {
+        $a = (int)$_POST['ar']; // 0: AUTO, 1: ON, 2: OFF
+        if (in_array($a, [0, 1, 2], true)) {
+            $cmd['ar'] = $a;
+            file_put_contents(__DIR__ . '/modo_ar.txt', (string)$a);
+        }
+    }
+    if (isset($_POST['vento_ext'])) {
+        $ve = (int)$_POST['vento_ext']; // 0: AUTO, 1: ON, 2: OFF
+        if (in_array($ve, [0, 1, 2], true)) {
+            $cmd['vento_ext'] = $ve;
+            file_put_contents(__DIR__ . '/modo_vento_ext.txt', (string)$ve);
+        }
+    }
     if (isset($_POST['reset_agua'])) $cmd['reset_agua'] = 1;
     if (isset($_POST['ota'])) $cmd['ota'] = 1;
 

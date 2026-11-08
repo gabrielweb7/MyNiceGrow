@@ -189,7 +189,7 @@
         <!-- STATUS DOS RELÉS -->
         <section class="fade-in glass rounded-xl p-4 md:p-5 border border-slate-700/30">
             <h2 class="text-xs font-bold text-slate-400 uppercase tracking-wider mb-3">⚡ Status dos Relés (Tempo Real)</h2>
-            <div class="grid grid-cols-2 md:grid-cols-4 gap-3">
+            <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
                 <div id="releLuz" class="rele-off rounded-lg p-3 text-center transition-all duration-500">
                     <div class="text-2xl mb-1">💡</div>
                     <p class="text-xs font-bold">Luz</p>
@@ -202,13 +202,23 @@
                 </div>
                 <div id="releVento" class="rele-off rounded-lg p-3 text-center transition-all duration-500">
                     <div class="text-2xl mb-1">🌀</div>
-                    <p class="text-xs font-bold">Ventilador</p>
+                    <p class="text-xs font-bold">Vento Interno</p>
                     <p class="text-[10px] text-slate-400 mt-0.5" id="releVentoStatus">OFF</p>
                 </div>
                 <div id="releExaust" class="rele-off rounded-lg p-3 text-center transition-all duration-500">
                     <div class="text-2xl mb-1">🌬️</div>
                     <p class="text-xs font-bold">Exaustor</p>
                     <p class="text-[10px] text-slate-400 mt-0.5" id="releExaustStatus">OFF</p>
+                </div>
+                <div id="releAr" class="rele-off rounded-lg p-3 text-center transition-all duration-500">
+                    <div class="text-2xl mb-1">❄️</div>
+                    <p class="text-xs font-bold">Ar Condicionado</p>
+                    <p class="text-[10px] text-slate-400 mt-0.5" id="releArStatus">OFF</p>
+                </div>
+                <div id="releVentoExt" class="rele-off rounded-lg p-3 text-center transition-all duration-500">
+                    <div class="text-2xl mb-1">🌪️</div>
+                    <p class="text-xs font-bold">Vento Externo</p>
+                    <p class="text-[10px] text-slate-400 mt-0.5" id="releVentoExtStatus">OFF</p>
                 </div>
             </div>
         </section>
@@ -307,21 +317,31 @@
                 </h2>
                 <span class="text-[10px] text-slate-500 font-medium" id="resumoPeriodoData">Cálculo contínuo</span>
             </div>
-            <div class="grid grid-cols-2 sm:grid-cols-4 gap-3">
+            <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
                 <div class="bg-slate-800/70 p-3 rounded-lg border border-slate-700/40 text-center">
                     <span class="text-[10px] font-semibold text-slate-400 block uppercase">Trocas de Ar (FAE)</span>
                     <p class="text-xl md:text-2xl font-black text-teal-400 mt-0.5" id="cntFae24h">--</p>
                     <span class="text-[9px] text-slate-400 block mt-0.5" id="tempoFae24h">--</span>
                 </div>
                 <div class="bg-slate-800/70 p-3 rounded-lg border border-slate-700/40 text-center">
-                    <span class="text-[10px] font-semibold text-slate-400 block uppercase">Ciclos de Brisa</span>
-                    <p class="text-xl md:text-2xl font-black text-indigo-400 mt-0.5" id="cntBrisa24h">--</p>
+                    <span class="text-[10px] font-semibold text-slate-400 block uppercase">Vento Interno</span>
+                    <p class="text-xl md:text-2xl font-black text-emerald-400 mt-0.5" id="cntBrisa24h">--</p>
                     <span class="text-[9px] text-slate-400 block mt-0.5" id="tempoBrisa24h">--</span>
                 </div>
                 <div class="bg-slate-800/70 p-3 rounded-lg border border-slate-700/40 text-center">
                     <span class="text-[10px] font-semibold text-slate-400 block uppercase">Injeções de Névoa</span>
                     <p class="text-xl md:text-2xl font-black text-cyan-400 mt-0.5" id="cntUmid24h">--</p>
                     <span class="text-[9px] text-slate-400 block mt-0.5" id="tempoUmid24h">--</span>
+                </div>
+                <div class="bg-slate-800/70 p-3 rounded-lg border border-slate-700/40 text-center">
+                    <span class="text-[10px] font-semibold text-slate-400 block uppercase">Ar Condicionado</span>
+                    <p class="text-xl md:text-2xl font-black text-cyan-300 mt-0.5" id="cntAr24h">--</p>
+                    <span class="text-[9px] text-slate-400 block mt-0.5" id="tempoAr24h">--</span>
+                </div>
+                <div class="bg-slate-800/70 p-3 rounded-lg border border-slate-700/40 text-center">
+                    <span class="text-[10px] font-semibold text-slate-400 block uppercase">Vento Externo</span>
+                    <p class="text-xl md:text-2xl font-black text-purple-400 mt-0.5" id="cntVentoExt24h">--</p>
+                    <span class="text-[9px] text-slate-400 block mt-0.5" id="tempoVentoExt24h">--</span>
                 </div>
                 <div class="bg-slate-800/70 p-3 rounded-lg border border-slate-700/40 text-center">
                     <span class="text-[10px] font-semibold text-slate-400 block uppercase">Oscilação Térmica</span>
@@ -366,7 +386,7 @@
             </div>
 
             <!-- Horímetro / Legenda Interativa com Filtros Clicáveis -->
-            <div class="grid grid-cols-2 md:grid-cols-4 gap-2 mb-3">
+            <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2 mb-3">
                 <div id="btnLegendaLuz" onclick="toggleDatasetReles(0, 'btnLegendaLuz')" 
                      class="bg-slate-800/60 hover:bg-slate-700/60 cursor-pointer rounded-lg px-3 py-2 border border-slate-700/40 flex items-center justify-between transition-all duration-300 select-none shadow-sm"
                      title="Clique para ocultar/mostrar a Luz no gráfico">
@@ -385,9 +405,9 @@
                 </div>
                 <div id="btnLegendaVento" onclick="toggleDatasetReles(2, 'btnLegendaVento')" 
                      class="bg-slate-800/60 hover:bg-slate-700/60 cursor-pointer rounded-lg px-3 py-2 border border-slate-700/40 flex items-center justify-between transition-all duration-300 select-none shadow-sm"
-                     title="Clique para ocultar/mostrar o Ventilador no gráfico">
+                     title="Clique para ocultar/mostrar o Vento Interno no gráfico">
                     <span class="flex items-center gap-1.5 text-xs font-bold text-slate-300">
-                        <span style="background:#00ffaa" class="w-2.5 h-2.5 inline-block rounded-sm shadow-sm"></span> Vento
+                        <span style="background:#00ffaa" class="w-2.5 h-2.5 inline-block rounded-sm shadow-sm"></span> Vento Int.
                     </span>
                     <span id="tempoVento" class="text-xs font-black text-white">--</span>
                 </div>
@@ -399,9 +419,25 @@
                     </span>
                     <span id="tempoExaust" class="text-xs font-black text-white">--</span>
                 </div>
+                <div id="btnLegendaAr" onclick="toggleDatasetReles(4, 'btnLegendaAr')" 
+                     class="bg-slate-800/60 hover:bg-slate-700/60 cursor-pointer rounded-lg px-3 py-2 border border-slate-700/40 flex items-center justify-between transition-all duration-300 select-none shadow-sm"
+                     title="Clique para ocultar/mostrar o Ar Condicionado no gráfico">
+                    <span class="flex items-center gap-1.5 text-xs font-bold text-slate-300">
+                        <span style="background:#00e5ff" class="w-2.5 h-2.5 inline-block rounded-sm shadow-sm"></span> Ar Cond.
+                    </span>
+                    <span id="tempoAr" class="text-xs font-black text-white">--</span>
+                </div>
+                <div id="btnLegendaVentoExt" onclick="toggleDatasetReles(5, 'btnLegendaVentoExt')" 
+                     class="bg-slate-800/60 hover:bg-slate-700/60 cursor-pointer rounded-lg px-3 py-2 border border-slate-700/40 flex items-center justify-between transition-all duration-300 select-none shadow-sm"
+                     title="Clique para ocultar/mostrar o Vento Externo no gráfico">
+                    <span class="flex items-center gap-1.5 text-xs font-bold text-slate-300">
+                        <span style="background:#a78bfa" class="w-2.5 h-2.5 inline-block rounded-sm shadow-sm"></span> Vento Ext.
+                    </span>
+                    <span id="tempoVentoExt" class="text-xs font-black text-white">--</span>
+                </div>
             </div>
 
-            <div style="position:relative; height:210px;"><canvas id="canvasReles"></canvas></div>
+            <div style="position:relative; height:260px;"><canvas id="canvasReles"></canvas></div>
         </section>
 
         </div> <!-- /#viewDashboard -->
@@ -744,7 +780,7 @@
                         <h4 class="text-xs font-bold uppercase tracking-wider text-slate-300 mb-3 flex items-center gap-1.5">
                             <span>🔌</span> Pinagem Física Soldada (ESP32-S3 Dual-Core)
                         </h4>
-                        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+                        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-3">
                             <div class="bg-slate-800/50 p-3.5 rounded-xl border border-slate-700/60">
                                 <div class="text-[10px] text-amber-400 font-bold uppercase tracking-wide">Sensor Industrial</div>
                                 <div class="text-sm font-extrabold text-white mt-1">SHT30 (I2C)</div>
@@ -767,8 +803,17 @@
                                 <div class="text-[11px] text-slate-400 mt-1.5 space-y-0.5">
                                     <div><strong>GPIO 0:</strong> Relé 1 (Luz - Roxo)</div>
                                     <div><strong>GPIO 1:</strong> Relé 2 (Umidificador)</div>
-                                    <div><strong>GPIO 2:</strong> Relé 3 (Vent. Brisa)</div>
-                                    <div><strong>GPIO 3:</strong> Relé 4 (Exaustor FAE)</div>
+                                    <div><strong>GPIO 3:</strong> Relé 3 (Vento Interno)</div>
+                                    <div><strong>GPIO 6:</strong> Relé 4 (Exaustor FAE)</div>
+                                </div>
+                            </div>
+                            <div class="bg-slate-800/50 p-3.5 rounded-xl border border-slate-700/60">
+                                <div class="text-[10px] text-blue-400 font-bold uppercase tracking-wide">Climatização & HVAC</div>
+                                <div class="text-sm font-extrabold text-white mt-1">Relés Mecânicos</div>
+                                <div class="text-[11px] text-slate-400 mt-1.5 space-y-0.5">
+                                    <div><strong class="text-cyan-300">GPIO 7:</strong> Ar Condicionado</div>
+                                    <div><strong class="text-purple-300">GPIO 8:</strong> Vento Externo</div>
+                                    <div class="text-slate-500">Acionamento Active LOW</div>
                                 </div>
                             </div>
                             <div class="bg-slate-800/50 p-3.5 rounded-xl border border-slate-700/60">
@@ -1081,6 +1126,8 @@
             const elUmid = document.getElementById('tempoUmid');
             const elVento = document.getElementById('tempoVento');
             const elExaust = document.getElementById('tempoExaust');
+            const elAr = document.getElementById('tempoAr');
+            const elVentoExt = document.getElementById('tempoVentoExt');
             const elContainer = document.getElementById('containerFiltroReles');
 
             // No filtro de 7 dias, não mostra quantidade de horas (conforme solicitado)
@@ -1089,6 +1136,8 @@
                 if (elUmid) elUmid.textContent = '';
                 if (elVento) elVento.textContent = '';
                 if (elExaust) elExaust.textContent = '';
+                if (elAr) elAr.textContent = '';
+                if (elVentoExt) elVentoExt.textContent = '';
                 if (elContainer) elContainer.classList.add('hidden');
                 return;
             }
@@ -1097,7 +1146,7 @@
 
             if (!data || data.length === 0) return;
 
-            let segLuz = 0, segUmid = 0, segVento = 0, segExaust = 0;
+            let segLuz = 0, segUmid = 0, segVento = 0, segExaust = 0, segAr = 0, segVentoExt = 0;
 
             for (let i = 0; i < data.length; i++) {
                 let duracao = 60; // Duração padrão estimada para cada registro (1 minuto)
@@ -1114,6 +1163,8 @@
                 if (parseInt(data[i].rele_umid) === 1) segUmid += duracao;
                 if (parseInt(data[i].rele_vento) === 1) segVento += duracao;
                 if (parseInt(data[i].rele_exaust) === 1) segExaust += duracao;
+                if (parseInt(data[i].rele_ar) === 1) segAr += duracao;
+                if (parseInt(data[i].rele_vento_ext) === 1) segVentoExt += duracao;
             }
 
             const formatarTempo = (seg) => {
@@ -1129,6 +1180,8 @@
             if (elUmid) elUmid.innerHTML = formatarTempo(segUmid);
             if (elVento) elVento.innerHTML = formatarTempo(segVento);
             if (elExaust) elExaust.innerHTML = formatarTempo(segExaust);
+            if (elAr) elAr.innerHTML = formatarTempo(segAr);
+            if (elVentoExt) elVentoExt.innerHTML = formatarTempo(segVentoExt);
         }
 
         function toggleDatasetReles(index, elId) {
@@ -1673,22 +1726,24 @@
 
             let relesOpts = baseOptions({
                 min: -0.6,
-                max: 3.6,
+                max: 5.6,
                 grid: { color: 'rgba(255, 255, 255, 0.05)' },
                 ticks: {
                     stepSize: 1,
                     autoSkip: false,
                     color: (c) => {
-                        const colors = ['#ff6400', '#00ffaa', '#00c8ff', '#ffdc00'];
+                        const colors = ['#ff6400', '#00ffaa', '#00c8ff', '#ffdc00', '#00e5ff', '#a78bfa'];
                         return colors[c.tick.value] || '#94a3b8';
                     },
                     font: { size: 10, weight: 'bold' },
                     callback: function(v) {
                         switch(v) {
                             case 0: return '🌬️ Exaust';
-                            case 1: return '🌀 Vento';
+                            case 1: return '🌀 Vento Int';
                             case 2: return '💨 Umidif';
                             case 3: return '💡 Luz';
+                            case 4: return '❄️ Ar Cond';
+                            case 5: return '🌪️ Vento Ext';
                             default: return '';
                         }
                     }
@@ -1703,8 +1758,10 @@
                 data: { datasets: [
                     { label: 'Luz', data: [], backgroundColor: (ctx) => (ctx.raw && ctx.raw.ghost) ? 'rgba(51, 52, 35, 1)' : 'rgba(255, 220, 0, 0.9)', borderColor: '#ffdc00', borderWidth: 0, barPercentage: 1.05, categoryPercentage: 1.0, grouped: false },
                     { label: 'Umidif.', data: [], backgroundColor: (ctx) => (ctx.raw && ctx.raw.ghost) ? 'rgba(12, 49, 73, 1)' : 'rgba(0, 200, 255, 0.9)', borderColor: '#00c8ff', borderWidth: 0, barPercentage: 1.05, categoryPercentage: 1.0, grouped: false },
-                    { label: 'Vento', data: [], backgroundColor: (ctx) => (ctx.raw && ctx.raw.ghost) ? 'rgba(12, 57, 60, 1)' : 'rgba(0, 255, 170, 0.9)', borderColor: '#00ffaa', borderWidth: 0, barPercentage: 1.05, categoryPercentage: 1.0, grouped: false },
-                    { label: 'Exaustor', data: [], backgroundColor: (ctx) => (ctx.raw && ctx.raw.ghost) ? 'rgba(51, 34, 35, 1)' : 'rgba(255, 100, 0, 0.9)', borderColor: '#ff6400', borderWidth: 0, barPercentage: 1.05, categoryPercentage: 1.0, grouped: false }
+                    { label: 'Vento Int.', data: [], backgroundColor: (ctx) => (ctx.raw && ctx.raw.ghost) ? 'rgba(12, 57, 60, 1)' : 'rgba(0, 255, 170, 0.9)', borderColor: '#00ffaa', borderWidth: 0, barPercentage: 1.05, categoryPercentage: 1.0, grouped: false },
+                    { label: 'Exaustor', data: [], backgroundColor: (ctx) => (ctx.raw && ctx.raw.ghost) ? 'rgba(51, 34, 35, 1)' : 'rgba(255, 100, 0, 0.9)', borderColor: '#ff6400', borderWidth: 0, barPercentage: 1.05, categoryPercentage: 1.0, grouped: false },
+                    { label: 'Ar Cond.', data: [], backgroundColor: (ctx) => (ctx.raw && ctx.raw.ghost) ? 'rgba(0, 45, 60, 1)' : 'rgba(0, 229, 255, 0.9)', borderColor: '#00e5ff', borderWidth: 0, barPercentage: 1.05, categoryPercentage: 1.0, grouped: false },
+                    { label: 'Vento Ext.', data: [], backgroundColor: (ctx) => (ctx.raw && ctx.raw.ghost) ? 'rgba(38, 25, 60, 1)' : 'rgba(167, 139, 250, 0.9)', borderColor: '#a78bfa', borderWidth: 0, barPercentage: 1.05, categoryPercentage: 1.0, grouped: false }
                 ]},
                 options: relesOpts,
                 plugins: [crosshairPlugin, agoraLinePlugin]
@@ -1949,6 +2006,8 @@
                 setRele('releUmid', 'releUmidStatus', parseInt(ultimo.rele_umid));
                 setRele('releVento', 'releVentoStatus', parseInt(ultimo.rele_vento));
                 setRele('releExaust', 'releExaustStatus', parseInt(ultimo.rele_exaust));
+                setRele('releAr', 'releArStatus', parseInt(ultimo.rele_ar || 0));
+                setRele('releVentoExt', 'releVentoExtStatus', parseInt(ultimo.rele_vento_ext || 0));
 
                 // Processa o cérebro / protocolo da Sistema
                 atualizarStatusProtocolos(ultimo);
@@ -1984,7 +2043,7 @@
                 const amostras = Array.from(porIntervalo.values());
 
                 const dTempInt = [], dTempExt = [], dHumInt = [], dHumExt = [];
-                const dLuz = [], dUmid = [], dVento = [], dExaust = [];
+                const dLuz = [], dUmid = [], dVento = [], dExaust = [], dAr = [], dVentoExt = [];
 
                 let lastTi = null, lastTe = null;
 
@@ -2003,20 +2062,26 @@
                     dHumInt.push({ x: ts, y: (hI > 0 && hI <= 100) ? hI : null });
                     dHumExt.push({ x: ts, y: (hE > 0 && hE <= 100) ? hE : null });
 
-                    // Relés em 4 pistas horizontais independentes (Swimlanes):
+                    // Relés em 6 pistas horizontais independentes (Swimlanes):
+                    // Pista 5 = Vento Externo [4.65, 5.35]
+                    // Pista 4 = Ar Condicionado [3.65, 4.35]
                     // Pista 3 = Luz [2.65, 3.35]
                     // Pista 2 = Umidificador [1.65, 2.35]
-                    // Pista 1 = Ventilador [0.65, 1.35]
+                    // Pista 1 = Vento Interno [0.65, 1.35]
                     // Pista 0 = Exaustor [-0.35, 0.35]
                     const rLuz = parseInt(d.rele_luz) === 1 ? [2.65, 3.35] : null;
                     const rUmid = parseInt(d.rele_umid) === 1 ? [1.65, 2.35] : null;
                     const rVento = parseInt(d.rele_vento) === 1 ? [0.65, 1.35] : null;
                     const rExaust = parseInt(d.rele_exaust) === 1 ? [-0.35, 0.35] : null;
+                    const rAr = parseInt(d.rele_ar) === 1 ? [3.65, 4.35] : null;
+                    const rVentoExt = parseInt(d.rele_vento_ext) === 1 ? [4.65, 5.35] : null;
 
                     dLuz.push({ x: ts, y: rLuz });
                     dUmid.push({ x: ts, y: rUmid });
                     dVento.push({ x: ts, y: rVento });
                     dExaust.push({ x: ts, y: rExaust });
+                    dAr.push({ x: ts, y: rAr });
+                    dVentoExt.push({ x: ts, y: rVentoExt });
                 });
 
                 // PROJEÇÃO DO FUTURO (GRÁFICO FANTASMA)
@@ -2091,6 +2156,8 @@
                     dExaust.push({ x: t, y: isExaustOn ? [-0.35, 0.35] : null, ghost: true });
                     dVento.push({ x: t, y: isVentoOn ? [0.65, 1.35] : null, ghost: true });
                     dUmid.push({ x: t, y: isUmidOn ? [1.65, 2.35] : null, ghost: true });
+                    dAr.push({ x: t, y: null, ghost: true });
+                    dVentoExt.push({ x: t, y: null, ghost: true });
                     
                     // Empurra nulls pros outros gráficos para sincronizar o eixo X e consertar o Pan/Zoom!
                     dTempInt.push({ x: t, y: null });
@@ -2108,6 +2175,8 @@
                     chartReles.data.datasets[1].data = dUmid;
                     chartReles.data.datasets[2].data = dVento;
                     chartReles.data.datasets[3].data = dExaust;
+                    chartReles.data.datasets[4].data = dAr;
+                    chartReles.data.datasets[5].data = dVentoExt;
 
                     // Atualiza limites de zoom/pan para impedir que o usuário se perca no vazio
                     const tsPrimeiro = data[0].unix_ts ? (data[0].unix_ts * 1000) : new Date(data[0].timestamp.replace(' ', 'T')).getTime();
@@ -2150,6 +2219,8 @@
             const rUmid = parseInt(ultimo.rele_umid);
             const rVento = parseInt(ultimo.rele_vento);
             const rExaust = parseInt(ultimo.rele_exaust);
+            const rAr = parseInt(ultimo.rele_ar || 0);
+            const rVentoExt = parseInt(ultimo.rele_vento_ext || 0);
             
             let faseLimpa = (ultimo.fase || '--').replace(' (DHT OFFLINE)', '').replace('ALERTA: SHT30 OFFLINE', 'Standby');
             
@@ -2168,17 +2239,31 @@
                 status = "🏜️ Secagem Total Ativa"; desc = "Umidificador travado e fluxo contínuo de ar para desidratar a estufa."; cor = "text-amber-400";
             } else if (tI >= 34.0 && rLuz === 0) {
                 status = "🔥 Corte Térmico de Emergência"; desc = "Temperatura crítica (≥ 34°C)! Luz desligada preventivamente."; cor = "text-rose-500";
+            } else if (rAr === 1) {
+                if (rExaust === 1) {
+                    status = "❄️💨 Climatização Ativa: Injeção de Ar Frio";
+                    desc = "Ar Condicionado e Vento refrigerando; exaustor puxando ar frio com proteção contínua de umidade.";
+                    cor = "text-cyan-300";
+                } else {
+                    status = "❄️ Refrigeração Externa em Andamento";
+                    desc = "Ar Condicionado e Vento Externo ligados para abaixar a temperatura da sala antes da injeção.";
+                    cor = "text-cyan-400";
+                }
+            } else if (rVentoExt === 1) {
+                status = "🌪️ Circulação Térmica Externa";
+                desc = "Vento Externo acionado para homogeneizar o ar e acelerar resfriamento do cômodo.";
+                cor = "text-purple-300";
             } else if (rExaust === 1) {
                 status = "💨 Troca de Ar (FAE)"; 
                 desc = "Expulsando o CO2 acumulado e trazendo oxigênio fresco conforme o ciclo programado."; 
                 cor = "text-teal-400";
             } else if (rVento === 1) {
                 if (rUmid === 1) {
-                    status = "🌀 Brisa com Névoa em Execução";
+                    status = "🌀 Vento Interno com Névoa em Execução";
                     desc = "Ciclo programado de circulação interna com injeção de névoa viva para oxigenar e hidratar.";
                     cor = "text-cyan-300";
                 } else {
-                    status = "🌀 Brisa Preventiva em Execução";
+                    status = "🌀 Vento Interno Preventivo em Execução";
                     desc = "Ciclo programado de circulação interna para quebrar bolsões de CO2 pesado acumulados no fundo.";
                     cor = "text-indigo-400";
                 }
@@ -2189,7 +2274,7 @@
             } else {
                 if (tI > tempMax) {
                     status = "🌡️ Temperatura Acima do Alvo";
-                    desc = `Temperatura interna (${tI.toFixed(1)}°C) acima do limite programado (${tempMax}°C).`;
+                    desc = `Temperatura interna (${tI.toFixed(1)}°C) acima do limite programado (${tempMax}°C). Climatização em espera / anti-ciclo curto.`;
                     cor = "text-amber-400";
                 } else {
                     status = "✅ Clima Estabilizado";
@@ -2345,8 +2430,8 @@
 
             if (dados24h.length === 0) return;
 
-            let cntFae = 0, cntBrisa = 0, cntUmid = 0;
-            let segFae = 0, segBrisa = 0, segUmid = 0;
+            let cntFae = 0, cntBrisa = 0, cntUmid = 0, cntAr = 0, cntVentoExt = 0;
+            let segFae = 0, segBrisa = 0, segUmid = 0, segAr = 0, segVentoExt = 0;
             let minT = Infinity, maxT = -Infinity;
 
             for (let i = 0; i < dados24h.length; i++) {
@@ -2360,6 +2445,8 @@
                 const rEx = parseInt(d.rele_exaust) === 1;
                 const rVn = parseInt(d.rele_vento) === 1;
                 const rUm = parseInt(d.rele_umid) === 1;
+                const rAr = parseInt(d.rele_ar) === 1;
+                const rVe = parseInt(d.rele_vento_ext) === 1;
 
                 let duracao = 60;
                 if (i < dados24h.length - 1) {
@@ -2372,15 +2459,21 @@
                 if (rEx) segFae += duracao;
                 if (rVn) segBrisa += duracao;
                 if (rUm) segUmid += duracao;
+                if (rAr) segAr += duracao;
+                if (rVe) segVentoExt += duracao;
 
                 // Contagem por borda de subida
                 if (i > 0) {
                     const antEx = parseInt(dados24h[i-1].rele_exaust) === 1;
                     const antVn = parseInt(dados24h[i-1].rele_vento) === 1;
                     const antUm = parseInt(dados24h[i-1].rele_umid) === 1;
+                    const antAr = parseInt(dados24h[i-1].rele_ar) === 1;
+                    const antVe = parseInt(dados24h[i-1].rele_vento_ext) === 1;
                     if (rEx && !antEx) cntFae++;
                     if (rVn && !antVn) cntBrisa++;
                     if (rUm && !antUm) cntUmid++;
+                    if (rAr && !antAr) cntAr++;
+                    if (rVe && !antVe) cntVentoExt++;
                 }
             }
 
@@ -2397,6 +2490,10 @@
             const elBriT = document.getElementById('tempoBrisa24h');
             const elUmi = document.getElementById('cntUmid24h');
             const elUmiT = document.getElementById('tempoUmid24h');
+            const elAr = document.getElementById('cntAr24h');
+            const elArT = document.getElementById('tempoAr24h');
+            const elVe = document.getElementById('cntVentoExt24h');
+            const elVeT = document.getElementById('tempoVentoExt24h');
             const elDelta = document.getElementById('deltaTemp24h');
             const elDeltaF = document.getElementById('deltaTempFaixa');
 
@@ -2406,6 +2503,16 @@
             if (elBriT) elBriT.textContent = fmtMinutos(segBrisa);
             if (elUmi) elUmi.textContent = `${cntUmid} ciclos`;
             if (elUmiT) elUmiT.textContent = fmtMinutos(segUmid);
+            if (elAr) elAr.textContent = `${cntAr} ciclos`;
+            if (elArT) {
+                const medAr = cntAr > 0 ? Math.round((segAr / cntAr) / 60) : 0;
+                elArT.textContent = `${fmtMinutos(segAr)} (méd. ${medAr} min/ciclo)`;
+            }
+            if (elVe) elVe.textContent = `${cntVentoExt} ciclos`;
+            if (elVeT) {
+                const medVe = cntVentoExt > 0 ? Math.round((segVentoExt / cntVentoExt) / 60) : 0;
+                elVeT.textContent = `${fmtMinutos(segVentoExt)} (méd. ${medVe} min/ciclo)`;
+            }
 
             if (elDelta && minT !== Infinity && maxT !== -Infinity) {
                 const delta = maxT - minT;

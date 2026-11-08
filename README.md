@@ -93,8 +93,10 @@ O ecossistema opera em uma **topologia híbrida e resiliente**: a placa ESP32-S3
 | **DHT11 (Ambiente/Sala)** | Leitura de Referência Externa | **GPIO 10** | **GPIO 10** | 3.3V (Resistor pull-up) | One-Wire Digital |
 | **Relé 1 (Luz)** | Iluminação do Cultivo (12/12) | **GPIO 0** | **GPIO 0** | Nível Baixo Ativo (`LOW`=Liga) | Digital Output *(Protegido)* |
 | **Relé 2 (Umidificador)** | Névoa Ultrassônica | **GPIO 1** | **GPIO 1** | Nível Baixo Ativo (`LOW`=Liga) | Digital Output |
-| **Relé 3 (Ventilador)** | Circulação Interna / Brisa | **GPIO 3** | **GPIO 3** | Nível Baixo Ativo (`LOW`=Liga) | Digital Output |
-| **Relé 4 (Exaustor)** | Troca de Ar (FAE / Emergência) | **GPIO 6** | **GPIO 6** | Nível Baixo Ativo (`LOW`=Liga) | Digital Output |
+| **Relé 3 (Vento Interno)** | Circulação Interna / Brisa | **GPIO 3** | **GPIO 3** | Nível Baixo Ativo (`LOW`=Liga) | Digital Output |
+| **Relé 4 (Exaustor)** | Troca de Ar (FAE / Injeção Fria) | **GPIO 6** | **GPIO 6** | Nível Baixo Ativo (`LOW`=Liga) | Digital Output |
+| **Relé 5 (Ar Condicionado)** | Refrigeração HVAC (Anti-Ciclo Curto) | **GPIO 7** | **GPIO 7** | Nível Baixo Ativo (`LOW`=Liga) | Digital Output |
+| **Relé 6 (Vento Externo)** | Convecção Térmica da Sala | **GPIO 8** | **GPIO 8** | Nível Baixo Ativo (`LOW`=Liga) | Digital Output |
 | **Botão Físico (BOOT)** | Reset de Fábrica (Segurar 5s) | **GPIO 0** *(Auto-safe)* | **GPIO 9** | Pull-up Interno (`LOW` press.) | Interrupção / Polling |
 | **LED RGB Integrado** | Sinalização de Status / Alertas | **GPIO 48** | **GPIO 8** | WS2812 / RGB | Pulso Serial Integrado |
 
@@ -110,19 +112,29 @@ O ecossistema opera em uma **topologia híbrida e resiliente**: a placa ESP32-S3
    (3.3V) --------> | 3V3               GND | <-------- (GND Geral)
    (5V Ext) ------> | 5V                G0  | --------> IN1 (Relé Luz)
                     |                   G1  | --------> IN2 (Relé Umidificador)
-   (SHT30: Verde SDA)->| G4             G3  | --------> IN3 (Relé Ventilador)
+   (SHT30: Verde SDA)->| G4             G3  | --------> IN3 (Relé Vento Interno)
    (SHT30: Amarelo SCL)| G5             G6  | --------> IN4 (Relé Exaustor)
+                    |                   G7  | --------> IN (Relé 5 - Ar Condicionado)
+                    |                   G8  | --------> IN (Relé 6 - Vento Externo)
    (DHT11 Data) --> | G10              RGB  | <-------- LED WS2812 (GPIO 48)
                     | [USB-OTG]   [USB-UART]|
                     +-----------------------+
 
-  ALIMENTAÇÃO & PROTEÇÃO:
-  • Portas USB-C: Utilize a porta USB-UART (ou Native com CDC On Boot) para gravação e monitor serial.
-  • Fonte DC: 5V / 2A a 3A estabilizada com capacitor de desacoplamento.
-  • Módulo de Relés: Alimentado em 5V com jumper VCC-JDVCC para isolação óptica total.
-  • Relés acionados em nível lógico BAIXO (Active LOW): 
-      - LOW  = Relé Atracado (Equipamento LIGADO)
-      - HIGH = Relé Aberto    (Equipamento DESLIGADO)
+  MÓDULO DE RELÉ DO AR CONDICIONADO / VENTO EXTERNO (BESTEP JQC-3F 3VDC):
+  • Barra de Controle (Borne de 3 vias):
+      - DC+ ──> 3.3V do ESP32-S3
+      - DC- ──> GND do ESP32-S3
+      - IN  ──> GPIO 7 (Ar Condicionado) ou GPIO 8 (Vento Externo)
+      - Jumper Amarelo: Manter plugado na posição "Low" (Garante active LOW)
+  • Barra de Saída / Carga AC (Borne de 3 vias):
+      - COM (Comum)             ──> Fase da tomada AC da parede
+      - NO  (Normalmente Aberto)──> Fase que vai para o Ar Condicionado / Ventilador
+      - NC  (Normalmente Fechado)──> Não conectar (deixar vazio)
+
+  PROTEÇÃO DO COMPRESSOR (ANTI-SHORT CYCLE GUARD):
+  • Mínimo de 180 segundos (3 minutos) desligado antes de religar para equalizar pressão de gás do compressor.
+  • Mínimo de 60 segundos ligado para evitar partidas falsas.
+  • Histerese térmica de 1.5°C contra efeito liga/desliga intermitente.
 ```
 
 ---

@@ -4,6 +4,8 @@
 *.bak
 *.old
 esp32c3/
+out_s3/
+out_c3/
 
 # SEGURANÇA: Arquivo local privado com as credenciais reais do servidor (NUNCA vai para o Git)
 **/config.local.php

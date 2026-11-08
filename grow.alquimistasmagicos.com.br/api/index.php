@@ -53,6 +53,21 @@ function caminhoBinFirmware($boardModel) {
     return null;
 }
 
+// Garante que as colunas rele_ar e rele_vento_ext existem na tabela telemetria
+function garantirColunasExtras($conn) {
+    static $verificado = false;
+    if ($verificado) return;
+    $check1 = $conn->query("SHOW COLUMNS FROM telemetria LIKE 'rele_ar'");
+    if ($check1 && $check1->num_rows === 0) {
+        $conn->query("ALTER TABLE telemetria ADD COLUMN rele_ar TINYINT(1) DEFAULT 0 AFTER rele_exaust");
+    }
+    $check2 = $conn->query("SHOW COLUMNS FROM telemetria LIKE 'rele_vento_ext'");
+    if ($check2 && $check2->num_rows === 0) {
+        $conn->query("ALTER TABLE telemetria ADD COLUMN rele_vento_ext TINYINT(1) DEFAULT 0 AFTER rele_ar");
+    }
+    $verificado = true;
+}
+
 // Garante que a tabela de configurações do sistema existe no MySQL
 function garantirTabelaConfig($conn) {
     $conn->query("CREATE TABLE IF NOT EXISTS config_sistema (
@@ -122,7 +137,8 @@ if ($method === 'POST') {
     $envioEmLote = isset($data[0]);
     if (!$envioEmLote) $data = [$data];
 
-    $stmt = $conn->prepare("INSERT INTO telemetria (timestamp, temp_int, hum_int, temp_ext, hum_ext, rele_luz, rele_umid, rele_vento, rele_exaust, fase) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)");
+    garantirColunasExtras($conn);
+    $stmt = $conn->prepare("INSERT INTO telemetria (timestamp, temp_int, hum_int, temp_ext, hum_ext, rele_luz, rele_umid, rele_vento, rele_exaust, rele_ar, rele_vento_ext, fase) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)");
 
     $successCount = 0;
     foreach ($data as $row) {
@@ -140,6 +156,10 @@ if ($method === 'POST') {
         // Salva modo atual da luz se reportado
         if (isset($row['modoLuz'])) {
             file_put_contents(__DIR__ . '/modo_luz.txt', (string)(int)$row['modoLuz']);
+        }
+        // Salva modo atual do ar condicionado se reportado
+        if (isset($row['modoAr'])) {
+            file_put_contents(__DIR__ . '/modo_ar.txt', (string)(int)$row['modoAr']);
         }
         // Salva flag de erro de OTA se a placa reportar que precisou reverter
         if (isset($row['otaError']) && $row['otaError'] == 1) {
@@ -168,10 +188,12 @@ if ($method === 'POST') {
         $rUmid = (isset($row['rUmid']) && (int)$row['rUmid'] === 1) ? 1 : 0;
         $rVento = (isset($row['rVento']) && (int)$row['rVento'] === 1) ? 1 : 0;
         $rExaust = (isset($row['rExaust']) && (int)$row['rExaust'] === 1) ? 1 : 0;
+        $rAr = (isset($row['rAr']) && (int)$row['rAr'] === 1) ? 1 : 0;
+        $rVentoExt = (isset($row['rVentoExt']) && (int)$row['rVentoExt'] === 1) ? 1 : 0;
 
-        $stmt->bind_param("sddddiiiis", 
+        $stmt->bind_param("sddddiiiiiis", 
             $ts, $row['tI'], $row['uI'], $tE, $uE, 
-            $rLuz, $rUmid, $rVento, $rExaust, $faseRow
+            $rLuz, $rUmid, $rVento, $rExaust, $rAr, $rVentoExt, $faseRow
         );
         if($stmt->execute()) $successCount++;
     }
@@ -204,6 +226,8 @@ if ($method === 'POST') {
             if ($cmd) {
                 if (isset($cmd['fase'])) $resposta['comando_fase'] = $cmd['fase'];
                 if (isset($cmd['luz'])) $resposta['comando_luz'] = $cmd['luz'];
+                if (isset($cmd['ar'])) $resposta['comando_ar'] = $cmd['ar'];
+                if (isset($cmd['vento_ext'])) $resposta['comando_vento_ext'] = $cmd['vento_ext'];
                 if (isset($cmd['reset_agua'])) $resposta['comando_reset_agua'] = 1;
                 if (isset($cmd['ota'])) $resposta['comando_ota'] = 1;
             }
@@ -269,8 +293,10 @@ elseif ($method === 'GET') {
         $seenMinutes[$minKey] = true;
 
         $r['unix_ts'] = $ts;
-        // Sanitiza rele_umid para 0 ou 1 caso haja registros legados com valor 2 (antiga falta d'água)
+        // Sanitiza rele_umid, rele_ar e rele_vento_ext para 0 ou 1
         $r['rele_umid'] = ((int)$r['rele_umid'] === 1) ? 1 : 0;
+        $r['rele_ar'] = (isset($r['rele_ar']) && (int)$r['rele_ar'] === 1) ? 1 : 0;
+        $r['rele_vento_ext'] = (isset($r['rele_vento_ext']) && (int)$r['rele_vento_ext'] === 1) ? 1 : 0;
         $rows[] = $r;
         if (count($rows) >= $limit) break;
     }
@@ -279,7 +305,11 @@ elseif ($method === 'GET') {
     $rows = array_reverse($rows);
     if (count($rows) > 0) {
         $modoLuzAtual = file_exists(__DIR__ . '/modo_luz.txt') ? (int)trim(file_get_contents(__DIR__ . '/modo_luz.txt')) : 0;
+        $modoArAtual = file_exists(__DIR__ . '/modo_ar.txt') ? (int)trim(file_get_contents(__DIR__ . '/modo_ar.txt')) : 0;
+        $modoVentoExtAtual = file_exists(__DIR__ . '/modo_vento_ext.txt') ? (int)trim(file_get_contents(__DIR__ . '/modo_vento_ext.txt')) : 0;
         $rows[count($rows) - 1]['modo_luz'] = $modoLuzAtual;
+        $rows[count($rows) - 1]['modo_ar'] = $modoArAtual;
+        $rows[count($rows) - 1]['modo_vento_ext'] = $modoVentoExtAtual;
     }
     echo json_encode($rows);
     
