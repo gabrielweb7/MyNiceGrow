@@ -174,6 +174,7 @@ if ($method === 'POST') {
                 if (isset($cmd['luz'])) $resposta['comando_luz'] = $cmd['luz'];
                 if (isset($cmd['reset_agua'])) $resposta['comando_reset_agua'] = 1;
                 if (isset($cmd['ota'])) $resposta['comando_ota'] = 1;
+                if (isset($cmd['heater'])) $resposta['comando_heater'] = 1;
             }
             // Esvazia os comandos entregues com trava atômica para evitar conflito com comando.php
             ftruncate($fpCmd, 0);

@@ -122,7 +122,12 @@
                     <span class="text-lg">💧</span>
                 </div>
                 <p class="text-2xl md:text-3xl font-extrabold text-blue-400 transition-colors duration-500" id="valUi">--</p>
-                <p class="text-[10px] text-slate-500 mt-1" id="minMaxHum">Min -- / Max --</p>
+                <div class="flex items-center justify-between mt-1 gap-1">
+                    <p class="text-[10px] text-slate-500 truncate" id="minMaxHum">Min -- / Max --</p>
+                    <button id="btnDesembacarMini" onclick="abrirConfirmacaoRegenSensor()" class="hidden text-[9px] font-bold text-amber-300 bg-amber-500/20 hover:bg-amber-500/30 px-2 py-0.5 rounded border border-amber-500/30 transition-all flex items-center gap-1 shrink-0 active:scale-95" title="Sensor cravado em 100%? Clique para desembaçar e recalibrar">
+                        <span>♨️</span> Desembaçar
+                    </button>
+                </div>
             </div>
             <!-- VPD Biológico -->
             <div id="cardVpd" class="stat-card glass rounded-xl p-4 md:p-5 glow-cyan border border-cyan-500/20 col-span-2 sm:col-span-1 transition-all duration-500">
@@ -259,6 +264,26 @@
                         <div class="text-xl mb-0.5">🌑</div>
                         <p class="text-xs">Forçar DESLIGADA</p>
                         <p class="text-[9px] text-slate-400 font-normal mt-0.5">Luz Apagada (OFF)</p>
+                    </button>
+                </div>
+            </div>
+
+            <!-- REGENERAÇÃO E DESEMBAÇAMENTO TÉRMICO DO SENSOR SHT30 -->
+            <div class="mt-4 pt-4 border-t border-slate-700/40">
+                <div class="flex items-center justify-between mb-2">
+                    <h3 class="text-xs font-bold text-slate-400 uppercase tracking-wider flex items-center gap-1.5">
+                        <span>♨️</span> Calibração & Desembaçamento SHT30
+                    </h3>
+                    <span class="text-[10px] text-amber-400 font-semibold bg-amber-950/40 px-2 py-0.5 rounded border border-amber-800/40">Heater Sensirion</span>
+                </div>
+                <div class="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 bg-slate-800/60 p-3 sm:p-3.5 rounded-xl border border-slate-700/50">
+                    <div class="text-[11px] text-slate-300 leading-snug">
+                        <span class="text-white font-bold flex items-center gap-1"><span>💧</span> Sensor cravado em 99–100%?</span>
+                        <p class="text-slate-400 text-[10px] mt-0.5">Se você suspeita que o bolo está secando mas o sensor marca 100%, aqueça o chip por 4s para evaporar o orvalho e ler a umidade real.</p>
+                    </div>
+                    <button id="btnDesembacarMain" onclick="abrirConfirmacaoRegenSensor()" class="whitespace-nowrap py-3 px-4 bg-gradient-to-r from-amber-600 via-orange-600 to-amber-600 hover:from-amber-500 hover:to-orange-500 text-white font-bold text-xs rounded-xl shadow-lg shadow-amber-950/30 transition-all duration-200 active:scale-95 flex items-center justify-center gap-2 shrink-0">
+                        <span>♨️</span>
+                        <span>Desembaçar Sensor (~35s)</span>
                     </button>
                 </div>
             </div>
@@ -403,6 +428,113 @@
             <div id="txtGitHash" class="text-emerald-400 font-bold tracking-widest text-xs drop-shadow-[0_0_8px_rgba(52,211,153,0.7)]">Versão: 1.5.0</div>
         </footer>
     </main>
+
+    <!-- Modal Confirmação Regeneração SHT30 -->
+    <div id="modalConfirmRegen" onclick="if(event.target === this) fecharConfirmacaoRegen()" class="fixed inset-0 bg-black/80 backdrop-blur-md z-[120] hidden flex items-center justify-center p-3 sm:p-4">
+        <div class="bg-slate-900 border border-amber-500/40 rounded-2xl w-full max-w-sm sm:max-w-md p-5 sm:p-6 shadow-2xl relative animate-in fade-in zoom-in-95 duration-200">
+            <div class="flex items-start gap-3.5 mb-4">
+                <div class="w-12 h-12 rounded-xl bg-amber-500/20 border border-amber-500/30 flex items-center justify-center text-2xl shrink-0">
+                    ♨️
+                </div>
+                <div>
+                    <h3 class="text-base sm:text-lg font-black text-white">Desembaçar Sensor SHT30?</h3>
+                    <p class="text-xs text-amber-400/90 font-medium mt-0.5">Recalibração Térmica da Membrana</p>
+                </div>
+            </div>
+
+            <div class="space-y-2.5 text-xs text-slate-300 leading-relaxed bg-slate-800/60 p-3.5 rounded-xl border border-slate-700/60 mb-5">
+                <p>
+                    Este comando aciona o <strong class="text-amber-300">aquecedor interno (Heater)</strong> do chip SHT30 por 4 segundos para evaporar microgotículas presas na membrana.
+                </p>
+                <div class="flex items-center gap-2 text-slate-400 text-[11px] pt-1 border-t border-slate-700/50">
+                    <span class="text-amber-400 font-bold">⏱️ Duração total:</span>
+                    <span>cerca de <strong>35 segundos</strong>.</span>
+                </div>
+                <p class="text-[11px] text-slate-400">
+                    O chip arrefecerá de volta à temperatura da estufa e trará a nova leitura calibrada para o painel.
+                </p>
+            </div>
+
+            <div class="grid grid-cols-2 gap-3">
+                <button onclick="fecharConfirmacaoRegen()" class="w-full py-3 px-4 rounded-xl border border-slate-700 bg-slate-800/80 hover:bg-slate-700 text-slate-300 font-semibold text-xs transition-all active:scale-95">
+                    Cancelar
+                </button>
+                <button onclick="iniciarCicloRegenSensor()" class="w-full py-3 px-4 rounded-xl bg-gradient-to-r from-amber-600 to-orange-600 hover:from-amber-500 hover:to-orange-500 text-white font-bold text-xs shadow-lg shadow-amber-900/30 transition-all active:scale-95 flex items-center justify-center gap-1.5">
+                    <span>🔥</span> Iniciar (~35s)
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal Progresso Regeneração SHT30 -->
+    <div id="modalProgressoRegen" class="fixed inset-0 bg-black/85 backdrop-blur-md z-[130] hidden flex items-center justify-center p-3 sm:p-4">
+        <div class="bg-slate-900/95 border border-cyan-500/40 rounded-2xl w-full max-w-sm sm:max-w-md p-5 sm:p-6 shadow-2xl relative text-center">
+            <!-- Ícone dinâmico com pulso -->
+            <div class="relative w-20 h-20 mx-auto mb-4 flex items-center justify-center">
+                <div id="regenPulseRing" class="absolute inset-0 rounded-full bg-cyan-500/20 animate-ping"></div>
+                <div id="regenIconBox" class="relative w-16 h-16 rounded-full bg-gradient-to-tr from-cyan-600 to-blue-500 border border-cyan-400/50 flex items-center justify-center text-3xl shadow-lg shadow-cyan-500/30 transition-all duration-500">
+                    ♨️
+                </div>
+            </div>
+
+            <h3 id="regenTitle" class="text-base sm:text-lg font-black text-white mb-1">Regenerando Sensor SHT30</h3>
+            <p id="regenStepDesc" class="text-xs text-cyan-300 min-h-[32px] flex items-center justify-center font-medium px-2 leading-tight">
+                Enviando comando para o ESP32...
+            </p>
+
+            <!-- Contador Grande de Segundos -->
+            <div class="my-4">
+                <span id="regenSecondsLeft" class="text-4xl sm:text-5xl font-black text-white tracking-tight">35</span>
+                <span class="text-xs text-slate-400 uppercase font-bold ml-1">segundos</span>
+            </div>
+
+            <!-- Barra de Progresso com Gradiente -->
+            <div class="w-full bg-slate-800 rounded-full h-2.5 overflow-hidden p-0.5 border border-slate-700 mb-5">
+                <div id="regenProgressBar" class="bg-gradient-to-r from-amber-500 via-orange-500 to-cyan-400 h-full rounded-full transition-all duration-1000 ease-linear" style="width: 0%"></div>
+            </div>
+
+            <!-- Indicador das Fases com 4 Passos -->
+            <div class="grid grid-cols-4 gap-1.5 text-[10px] font-semibold text-slate-400 mb-4">
+                <div id="step1" class="p-1.5 rounded-lg bg-cyan-950/40 border border-cyan-500/30 text-cyan-300 transition-all">
+                    📡 Nuvem
+                </div>
+                <div id="step2" class="p-1.5 rounded-lg bg-slate-800 border border-slate-700 transition-all">
+                    🔥 Aquecer
+                </div>
+                <div id="step3" class="p-1.5 rounded-lg bg-slate-800 border border-slate-700 transition-all">
+                    ❄️ Esfriar
+                </div>
+                <div id="step4" class="p-1.5 rounded-lg bg-slate-800 border border-slate-700 transition-all">
+                    📊 Leitura
+                </div>
+            </div>
+
+            <!-- Resultado Final (Oculto no início) -->
+            <div id="regenResultBox" class="hidden text-left bg-emerald-950/40 border border-emerald-500/40 p-3.5 rounded-xl mb-4 text-xs text-emerald-200">
+                <p class="font-bold text-emerald-300 mb-1 flex items-center gap-1.5">
+                    <span>✅</span> Recalibração Concluída com Sucesso!
+                </p>
+                <div class="grid grid-cols-3 gap-2 text-center mt-2 pt-2 border-t border-emerald-500/20">
+                    <div>
+                        <span class="text-[9px] uppercase text-emerald-400/80 block">Umidade</span>
+                        <strong id="resRegenHum" class="text-sm font-black text-white">--%</strong>
+                    </div>
+                    <div>
+                        <span class="text-[9px] uppercase text-emerald-400/80 block">Temp</span>
+                        <strong id="resRegenTemp" class="text-sm font-black text-white">--°C</strong>
+                    </div>
+                    <div>
+                        <span class="text-[9px] uppercase text-emerald-400/80 block">VPD</span>
+                        <strong id="resRegenVpd" class="text-sm font-black text-white">-- kPa</strong>
+                    </div>
+                </div>
+            </div>
+
+            <button id="btnFecharRegen" onclick="fecharProgressoRegen()" class="hidden w-full py-3 px-4 rounded-xl bg-slate-800 hover:bg-slate-700 text-white font-bold text-xs border border-slate-700 transition-all active:scale-95">
+                Concluir & Fechar
+            </button>
+        </div>
+    </div>
 
     <!-- Modal Configurações Responsivo -->
     <div id="modalConfig" onclick="if(event.target === this) fecharConfig()" class="fixed inset-0 bg-black/80 backdrop-blur-sm z-[100] hidden flex items-center justify-center p-3 sm:p-4">
@@ -768,6 +900,13 @@
                 }
                 cardUi.className = `stat-card glass rounded-xl p-4 md:p-5 ${glowUi} border ${borderUi} transition-all duration-500`;
                 valUi.className = `text-2xl md:text-3xl font-extrabold ${textUi} transition-colors duration-500`;
+
+                // Botão de acesso rápido se a umidade estiver cravada no topo
+                const btnMini = document.getElementById('btnDesembacarMini');
+                if (btnMini) {
+                    if (ui >= 98.0) btnMini.classList.remove('hidden');
+                    else btnMini.classList.add('hidden');
+                }
             }
 
             // --- 3. TEMPERATURA EXTERNA ---
@@ -1042,6 +1181,179 @@
                 
                 loopDados(2000); // Força refresh rápido
             }
+        }
+
+        // =======================================================
+        // REGENERAÇÃO & DESEMBAÇAMENTO TÉRMICO DO SENSOR SHT30
+        // =======================================================
+        let regenIntervalTimer = null;
+
+        function abrirConfirmacaoRegenSensor() {
+            const modal = document.getElementById('modalConfirmRegen');
+            if (modal) modal.classList.remove('hidden');
+        }
+
+        function fecharConfirmacaoRegen() {
+            const modal = document.getElementById('modalConfirmRegen');
+            if (modal) modal.classList.add('hidden');
+        }
+
+        function fecharProgressoRegen() {
+            if (regenIntervalTimer) {
+                clearInterval(regenIntervalTimer);
+                regenIntervalTimer = null;
+            }
+            const modal = document.getElementById('modalProgressoRegen');
+            if (modal) modal.classList.add('hidden');
+        }
+
+        async function iniciarCicloRegenSensor() {
+            fecharConfirmacaoRegen();
+
+            const modalProg = document.getElementById('modalProgressoRegen');
+            const elSec = document.getElementById('regenSecondsLeft');
+            const elBar = document.getElementById('regenProgressBar');
+            const elTitle = document.getElementById('regenTitle');
+            const elDesc = document.getElementById('regenStepDesc');
+            const elIcon = document.getElementById('regenIconBox');
+            const ring = document.getElementById('regenPulseRing');
+            const resultBox = document.getElementById('regenResultBox');
+            const btnFechar = document.getElementById('btnFecharRegen');
+            
+            const step1 = document.getElementById('step1');
+            const step2 = document.getElementById('step2');
+            const step3 = document.getElementById('step3');
+            const step4 = document.getElementById('step4');
+
+            if (!modalProg) return;
+
+            // Reset do estado visual do modal
+            if (resultBox) resultBox.classList.add('hidden');
+            if (btnFechar) btnFechar.classList.add('hidden');
+            modalProg.classList.remove('hidden');
+
+            if (elTitle) elTitle.textContent = "Regenerando Sensor SHT30";
+            if (elIcon) {
+                elIcon.textContent = "📡";
+                elIcon.className = "relative w-16 h-16 rounded-full bg-gradient-to-tr from-cyan-600 to-blue-500 border border-cyan-400/50 flex items-center justify-center text-3xl shadow-lg shadow-cyan-500/30 transition-all duration-500";
+            }
+            if (ring) {
+                ring.classList.remove('hidden');
+                ring.className = "absolute inset-0 rounded-full bg-cyan-500/20 animate-ping";
+            }
+            if (elDesc) elDesc.textContent = "Transmitindo ordem de aquecimento para o ESP32 via nuvem...";
+            if (elBar) elBar.style.width = "0%";
+
+            // Dispara o comando para o servidor/ESP32
+            const ok = await enviarComando({ heater: 1 });
+            if (!ok) {
+                fecharProgressoRegen();
+                return;
+            }
+
+            const DURACAO_TOTAL = 35; // 35 segundos de processo completo
+            let restante = DURACAO_TOTAL;
+            if (elSec) elSec.textContent = restante;
+
+            function atualizarPassos(ativo) {
+                [step1, step2, step3, step4].forEach((s, idx) => {
+                    if (!s) return;
+                    if (idx + 1 === ativo) {
+                        s.className = "p-1.5 rounded-lg bg-amber-500/20 border border-amber-400 text-amber-300 font-bold scale-105 transition-all shadow-sm";
+                    } else if (idx + 1 < ativo) {
+                        s.className = "p-1.5 rounded-lg bg-emerald-950/40 border border-emerald-500/40 text-emerald-400 transition-all";
+                    } else {
+                        s.className = "p-1.5 rounded-lg bg-slate-800/60 border border-slate-700/60 text-slate-500 transition-all";
+                    }
+                });
+            }
+
+            atualizarPassos(1);
+
+            if (regenIntervalTimer) clearInterval(regenIntervalTimer);
+
+            regenIntervalTimer = setInterval(async () => {
+                restante--;
+                const decorrido = DURACAO_TOTAL - restante;
+                const progressoPct = Math.min(100, Math.round((decorrido / DURACAO_TOTAL) * 100));
+
+                if (elSec) elSec.textContent = Math.max(0, restante);
+                if (elBar) elBar.style.width = `${progressoPct}%`;
+
+                // Fase 1: 0 a 7s (Conectando & ESP32 pegando da nuvem)
+                if (decorrido < 7) {
+                    atualizarPassos(1);
+                    if (elIcon) elIcon.textContent = "📡";
+                    if (elDesc) elDesc.textContent = "Comando em fila. O ESP32 está capturando da nuvem...";
+                } 
+                // Fase 2: 7 a 13s (Heater do SHT30 ativo por 4s)
+                else if (decorrido < 13) {
+                    atualizarPassos(2);
+                    if (elIcon) {
+                        elIcon.textContent = "🔥";
+                        elIcon.className = "relative w-16 h-16 rounded-full bg-gradient-to-tr from-amber-600 to-orange-500 border border-orange-400/50 flex items-center justify-center text-3xl shadow-lg shadow-orange-500/40 scale-110 transition-all duration-500 animate-pulse";
+                    }
+                    if (ring) ring.className = "absolute inset-0 rounded-full bg-amber-500/30 animate-ping";
+                    if (elDesc) elDesc.textContent = "Aquecedor interno ligado no chip! Evaporando microgotículas da membrana...";
+                }
+                // Fase 3: 13 a 29s (Cooldown / Arrefecimento térmico de 20s)
+                else if (decorrido < 29) {
+                    atualizarPassos(3);
+                    if (elIcon) {
+                        elIcon.textContent = "❄️";
+                        elIcon.className = "relative w-16 h-16 rounded-full bg-gradient-to-tr from-sky-600 to-cyan-500 border border-cyan-400/50 flex items-center justify-center text-3xl shadow-lg shadow-cyan-500/30 transition-all duration-500";
+                    }
+                    if (ring) ring.className = "absolute inset-0 rounded-full bg-sky-500/20 animate-pulse";
+                    if (elDesc) elDesc.textContent = "Aquecedor desligado. Sensor arrefecendo de volta ao ar ambiente...";
+                }
+                // Fase 4: 29 a 35s (Nova Leitura & Envio do ESP32)
+                else if (restante > 0) {
+                    atualizarPassos(4);
+                    if (elIcon) {
+                        elIcon.textContent = "📊";
+                        elIcon.className = "relative w-16 h-16 rounded-full bg-gradient-to-tr from-emerald-600 to-teal-500 border border-emerald-400/50 flex items-center justify-center text-3xl shadow-lg shadow-emerald-500/30 transition-all duration-500";
+                    }
+                    if (ring) ring.className = "absolute inset-0 rounded-full bg-emerald-500/20 animate-ping";
+                    if (elDesc) elDesc.textContent = "Sensor estabilizado! Capturando nova leitura calibrada do ar...";
+                }
+                // Conclusão (0s)
+                else {
+                    clearInterval(regenIntervalTimer);
+                    regenIntervalTimer = null;
+
+                    atualizarPassos(4);
+                    if (elBar) elBar.style.width = "100%";
+                    if (elIcon) {
+                        elIcon.textContent = "✨";
+                        elIcon.className = "relative w-16 h-16 rounded-full bg-gradient-to-tr from-emerald-500 to-green-600 border border-emerald-400 flex items-center justify-center text-3xl shadow-xl shadow-emerald-500/40 transition-all duration-500";
+                    }
+                    if (ring) ring.className = "hidden";
+                    if (elTitle) elTitle.textContent = "Calibração Concluída!";
+                    if (elDesc) elDesc.textContent = "Nova telemetria recebida e sincronizada com o painel.";
+
+                    // Força busca imediata dos novos dados do servidor
+                    try {
+                        await carregarDados(typeof limitAtual !== 'undefined' ? limitAtual : 100);
+                        const vUi = document.getElementById('valUi')?.textContent || '--';
+                        const vTi = document.getElementById('valTi')?.textContent || '--';
+                        const vVpd = document.getElementById('valVpd')?.textContent || '--';
+
+                        const resHum = document.getElementById('resRegenHum');
+                        const resTemp = document.getElementById('resRegenTemp');
+                        const resVpd = document.getElementById('resRegenVpd');
+
+                        if (resHum) resHum.textContent = vUi;
+                        if (resTemp) resTemp.textContent = vTi;
+                        if (resVpd) resVpd.textContent = vVpd;
+
+                        if (resultBox) resultBox.classList.remove('hidden');
+                    } catch (err) {
+                        console.error("Erro ao sincronizar novos dados pós-regen:", err);
+                    }
+
+                    if (btnFechar) btnFechar.classList.remove('hidden');
+                }
+            }, 1000);
         }
 
         function syncZoom(sourceChart) {
