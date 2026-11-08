@@ -5,7 +5,7 @@
 //  Versão Atual: v426 (Blindagem Total Anti-Travamento & Auto-Recovery)
 // ============================================================
 
-#define FW_VERSION 430
+#define FW_VERSION 431
 
 #include <Arduino.h>
 #include <ArduinoJson.h>
@@ -94,7 +94,7 @@ const int DIAS_FRUTIFICACAO = 0;
 #define PIN_RELE_VENTO_INT 3
 #define PIN_RELE_EXAUST_EXT 6
 #define PIN_RELE_AR_COND 7
-#define PIN_RELE_VENTO_EXT 8
+// #define PIN_RELE_VENTO_EXT 8 // (Comentado: pronto para upgrade futuro com módulo relé duplo)
 
 // Proteção de colisão: se o pino do Relé 1 coincidir com o pino BOOT,
 // desativa o botão de factory reset para não resetar a placa quando a luz acender
@@ -414,9 +414,9 @@ void enviarNuvem(unsigned long agora) {
   json += "\"rVento\":" + String(lastReleVento ? 1 : 0) + ",";
   json += "\"rExaust\":" + String(lastReleExaust ? 1 : 0) + ",";
   json += "\"rAr\":" + String(lastReleArCond ? 1 : 0) + ",";
-  json += "\"rVentoExt\":" + String(lastReleVentoExt ? 1 : 0) + ",";
+  json += "\"rVentoExt\":0,";
   json += "\"modoAr\":" + String((int)modoAr) + ",";
-  json += "\"modoVentoExt\":" + String((int)modoVentoExt) + ",";
+  json += "\"modoVentoExt\":0,";
   String faseStr = nomeFase((int)faseAtual);
   if (!sensorIntOk) faseStr = "ALERTA: SHT30 OFFLINE";
 
@@ -935,7 +935,7 @@ void aplicarReles() {
     }
   }
 
-  // Controle de Relé 6 (Vento Externo):
+  /* Controle de Relé 6 (Vento Externo) - Comentado até upgrade para módulo duplo:
   if (releVentoExt != lastReleVentoExt && (bypassDwellFase || agora - lastSwitchVentoExt >= MIN_DWELL_RELE_MS)) {
     lastReleVentoExt = releVentoExt;
     lastSwitchVentoExt = agora;
@@ -943,6 +943,7 @@ void aplicarReles() {
     Serial.printf("🌪️ ACAO: VENTO EXTERNO %s\n", lastReleVentoExt ? "LIGADO" : "DESLIGADO");
     alterou = true;
   }
+  */
 
   bypassDwellFase = false;
 
@@ -970,7 +971,7 @@ void executarMotor(unsigned long agora) {
     releVentoInt = false;
     releExaustExt = false;
     releArCond = false;
-    releVentoExt = false;
+    // releVentoExt = false;
     if (modoLuz == LUZ_AUTO) releLuz = false;
     return;
   }
@@ -979,7 +980,7 @@ void executarMotor(unsigned long agora) {
     releVentoInt = true;
     releExaustExt = true;
     releArCond = false;
-    releVentoExt = true;
+    // releVentoExt = true;
     if (modoLuz == LUZ_AUTO) releLuz = false;
     return;
   }
@@ -1007,7 +1008,7 @@ void executarMotor(unsigned long agora) {
     faeLigado = novoFaeLigado;
   }
 
-  // --- CONTROLE TÉRMICO E CLIMATIZAÇÃO INTELIGENTE (AR CONDICIONADO + VENTO EXTERNO) ---
+  // --- CONTROLE TÉRMICO E CLIMATIZAÇÃO INTELIGENTE (AR CONDICIONADO) ---
   // Histerese de 1.5°C para o ciclo do compressor contra liga/desliga intermitente
   static bool modoRefrigeracaoAtivo = false;
   if (tempInt >= pf.tempMax) {
@@ -1016,17 +1017,13 @@ void executarMotor(unsigned long agora) {
     modoRefrigeracaoAtivo = false;
   }
 
-  // Ar Condicionado e Vento Externo:
+  // Ar Condicionado (Refrigeração da Sala):
   if (modoRefrigeracaoAtivo) {
     releArCond = true;
-    releVentoExt = true; // Ventilador externo acoplado ao AC acelera convecção e resfriamento da sala
+    // releVentoExt = true; // (Comentado: pronto para upgrade com relé de 2 canais)
   } else {
     releArCond = false;
-    // Quando o AC estiver desligado, o Vento Externo opera em circulação periódica (2 min a cada 15 min)
-    // para evitar estagnação térmica e manter o ambiente estável ao redor do grow
-    unsigned long cicloVentoExt = 15UL * 60UL * 1000UL;
-    unsigned long momentoExt = agora % cicloVentoExt;
-    releVentoExt = (momentoExt < (2UL * 60UL * 1000UL));
+    // releVentoExt = false;
   }
 
   // RESET EXPLICITO: Todos os reles partem de OFF e sao definidos pelas regras abaixo
@@ -1149,8 +1146,8 @@ void aplicarSeguranca() {
   if (modoLuz == LUZ_FORCADA_OFF) releLuz = false;
   if (modoAr == AR_FORCADA_ON) releArCond = true;
   if (modoAr == AR_FORCADA_OFF) releArCond = false;
-  if (modoVentoExt == VENTO_EXT_FORCADA_ON) releVentoExt = true;
-  if (modoVentoExt == VENTO_EXT_FORCADA_OFF) releVentoExt = false;
+  // if (modoVentoExt == VENTO_EXT_FORCADA_ON) releVentoExt = true;
+  // if (modoVentoExt == VENTO_EXT_FORCADA_OFF) releVentoExt = false;
   if (tempInt >= TEMP_CORTE_LUZ) {
     releLuz = false;
     Serial.println("🔥 SEGURANCA: Corte Termico da LUZ ativado!");
@@ -1236,10 +1233,8 @@ void setup() {
   digitalWrite(PIN_RELE_AR_COND, HIGH);
   lastReleArCond = false;
   releArCond = false;
-  pinMode(PIN_RELE_VENTO_EXT, OUTPUT);
-  digitalWrite(PIN_RELE_VENTO_EXT, HIGH);
-  lastReleVentoExt = false;
-  releVentoExt = false;
+  // pinMode(PIN_RELE_VENTO_EXT, OUTPUT); // (Comentado: pronto para upgrade com relé duplo)
+  // digitalWrite(PIN_RELE_VENTO_EXT, HIGH);
 
   Serial.begin(115200);
   delay(1500);
