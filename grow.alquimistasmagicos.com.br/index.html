@@ -2097,7 +2097,10 @@
             try {
                 const AudioCtxClass = window.AudioContext || window.webkitAudioContext;
                 if (!AudioCtxClass) return;
-                const audioCtx = new AudioCtxClass();
+                if (!window._growAudioCtx || window._growAudioCtx.state === 'closed') {
+                    window._growAudioCtx = new AudioCtxClass();
+                }
+                const audioCtx = window._growAudioCtx;
                 if (audioCtx.state === 'suspended') audioCtx.resume();
                 const osc = audioCtx.createOscillator();
                 const gain = audioCtx.createGain();
@@ -2209,15 +2212,19 @@
             }
         }
 
+        let loopGen = 0;
         async function loopDados(forceDelay = null) {
-            if (loopTimeout) clearTimeout(loopTimeout);
+            const myGen = ++loopGen;
+            if (loopTimeout) { clearTimeout(loopTimeout); loopTimeout = null; }
             await carregarDados(limitAtual);
-            
+            if (myGen !== loopGen) return; // Impede loops duplicados quando usuário troca de aba ou clica em botões
+
             // Sincroniza a cada 2s se tiver comando pendente
             // Se aba estiver em segundo plano (document.hidden), reduz para 30s para economizar bateria e dados móveis
             let isPendente = (Date.now() - luzPendenteTempo < 25000) || (Date.now() - fasePendenteTempo < 25000);
             let delayPadrao = document.hidden ? 30000 : 5000;
             let delay = forceDelay || (isPendente ? 2000 : delayPadrao);
+            if (loopTimeout) clearTimeout(loopTimeout);
             loopTimeout = setTimeout(() => loopDados(), delay);
         }
 

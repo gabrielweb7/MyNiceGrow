@@ -2,10 +2,10 @@
 //  GROW IA - Firmware Inteligente + Nuvem IoT
 //  Placa: ESP32-S3 Dual-Core (Xtensa LX7) / Compatível com ESP32-C3
 //  Autor: Gabriel + Antigravity AI
-//  Versão Atual: v425 (Umidade Alvo Única + Otimização ESP32-S3)
+//  Versão Atual: v426 (Blindagem Total Anti-Travamento & Auto-Recovery)
 // ============================================================
 
-#define FW_VERSION 425
+#define FW_VERSION 426
 
 #include <Arduino.h>
 #include <ArduinoJson.h>
@@ -24,6 +24,7 @@
 #include <Update.h>
 #include <LittleFS.h>  // Datalogger Offline
 #include <time.h>
+#include <sys/time.h>
 #include <Preferences.h>  // Memória Anti-Apagão
 
 // ============================================================
@@ -180,6 +181,7 @@ void watchdogTask(void* pvParameters) {
 // ---------------------------------------------------------
 const unsigned long MIN_DWELL_RELE_MS = 15000;  // Minimo 15s entre ligar/desligar
 unsigned long lastSwitchLuz = 0, lastSwitchUmid = 0, lastSwitchVento = 0, lastSwitchExaust = 0;
+bool bypassDwellFase = true;  // Permite resposta imediata no boot e em trocas manuais de fase/clima
 
 // --- Horímetro de Manutenção Preventiva (Segundos de Uso NVS) ---
 uint32_t segLuzTotal = 0, segUmidTotal = 0, segVentoTotal = 0, segExaustTotal = 0;
@@ -258,6 +260,7 @@ String formatUptime(unsigned long ms) {
 void setNovaFase(FaseCultivo nova) {
   if (faseAtual == nova) return;
   faseAtual = nova;
+  bypassDwellFase = true;  // Comuta relés imediatamente na troca de fase
   time_t agora;
   time(&agora);
   inicioFaseTempo = (agora > 1600000000) ? agora : 0;
@@ -267,6 +270,38 @@ void setNovaFase(FaseCultivo nova) {
   prefs.end();
   Serial.printf("[FSM] Fase -> %s\n", nomeFase((int)faseAtual));
   ultimoEnvioNuvem = 0;  // Força re-envio p/ atualizar o Dashboard imediatamente
+}
+
+// Destravamento físico do barramento I2C (NXP Spec: 9 pulsos SCL + STOP)
+// Evita que o SHT30 trave a linha SDA em LOW após ruído elétrico de relés
+void recuperarBarramentoI2C() {
+  Serial.println("[RECUPERACAO] Destravando fisicamente barramento I2C (9 pulsos SCL) e reiniciando SHT30...");
+  Wire.end();
+  pinMode(PIN_SDA, INPUT_PULLUP);
+  pinMode(PIN_SCL, OUTPUT);
+  for (int i = 0; i < 9; i++) {
+    digitalWrite(PIN_SCL, LOW);
+    delayMicroseconds(10);
+    digitalWrite(PIN_SCL, HIGH);
+    delayMicroseconds(10);
+  }
+  // Condição de STOP manual no barramento
+  pinMode(PIN_SDA, OUTPUT);
+  digitalWrite(PIN_SDA, LOW);
+  delayMicroseconds(10);
+  digitalWrite(PIN_SCL, HIGH);
+  delayMicroseconds(10);
+  digitalWrite(PIN_SDA, HIGH);
+  delayMicroseconds(10);
+
+  Wire.begin(PIN_SDA, PIN_SCL);
+  Wire.setClock(100000);
+  Wire.setTimeOut(50);  // Timeout de 50ms: impede travamento infinito do loop se houver falha elétrica no I2C
+  if (sht30.begin(0x44)) {
+    sht30.reset();
+    delay(15);
+    sht30.heater(false);
+  }
 }
 
 // ============================================================
@@ -384,52 +419,67 @@ void enviarNuvem(unsigned long agora) {
       if (tmp) tmp.close();
       f.close();
 
-      WiFiClientSecure clientBulk;
-      clientBulk.setInsecure();
-      HTTPClient httpBulk;
-      if (httpBulk.begin(clientBulk, CLOUD_URL)) {
-        httpBulk.setTimeout(5000);  // <-- Adicionado: Timeout explícito p/ upload em lote
-        httpBulk.addHeader("Content-Type", "application/json");
-        httpBulk.addHeader("X-Api-Key", CLOUD_KEY);
-        int code = httpBulk.POST(bulk);
-        httpBulk.end();
-        if (code == 200) {
-          LittleFS.remove("/offline.log");
-          if (LittleFS.exists("/offline.tmp")) {
-            File checkTmp = LittleFS.open("/offline.tmp", "r");
-            if (checkTmp && checkTmp.size() > 10) {
-              checkTmp.close();
-              LittleFS.rename("/offline.tmp", "/offline.log");
-            } else {
-              if (checkTmp) checkTmp.close();
-              LittleFS.remove("/offline.tmp");
+      if (count == 0) {
+        // Arquivo vazio ou corrompido: remove imediatamente para não travar em erro HTTP 400
+        LittleFS.remove("/offline.log");
+        LittleFS.remove("/offline.tmp");
+      } else {
+        ultimoSuspiro = millis();  // Alimenta Watchdog antes do TLS/HTTPS
+        WiFiClientSecure clientBulk;
+        clientBulk.setInsecure();
+        clientBulk.setTimeout(4);  // Timeout de socket TLS em segundos (evita 30s default)
+        HTTPClient httpBulk;
+        httpBulk.setConnectTimeout(4000);
+        if (httpBulk.begin(clientBulk, CLOUD_URL)) {
+          httpBulk.setTimeout(4000);
+          httpBulk.addHeader("Content-Type", "application/json");
+          httpBulk.addHeader("X-Api-Key", CLOUD_KEY);
+          int code = httpBulk.POST(bulk);
+          ultimoSuspiro = millis();  // Alimenta Watchdog após envio em lote
+          httpBulk.end();
+          if (code == 200) {
+            LittleFS.remove("/offline.log");
+            if (LittleFS.exists("/offline.tmp")) {
+              File checkTmp = LittleFS.open("/offline.tmp", "r");
+              if (checkTmp && checkTmp.size() > 10) {
+                checkTmp.close();
+                LittleFS.rename("/offline.tmp", "/offline.log");
+              } else {
+                if (checkTmp) checkTmp.close();
+                LittleFS.remove("/offline.tmp");
+              }
             }
+            Serial.printf("[NUVEM] Lote offline (%d registros) sincronizado com sucesso!\n", count);
+          } else {
+            LittleFS.remove("/offline.tmp");
           }
-          Serial.printf("[NUVEM] Lote offline (%d registros) sincronizado com sucesso!\n", count);
         } else {
           LittleFS.remove("/offline.tmp");
         }
-      } else {
-        LittleFS.remove("/offline.tmp");
       }
     }
   }
 
   // 2. ENVIA LEITURA ATUAL
+  ultimoSuspiro = millis();  // Alimenta Watchdog antes do POST principal
   WiFiClientSecure client;
   client.setInsecure();
+  client.setTimeout(4);  // Timeout de socket TLS em segundos
   HTTPClient http;
+  http.setConnectTimeout(4000);
   if (http.begin(client, CLOUD_URL)) {
-    http.setTimeout(5000);  // Tenta por max 5s, depois desiste pra não travar a placa
+    http.setTimeout(4000);  // Tenta por max 4s, depois desiste pra não travar a placa
     http.addHeader("Content-Type", "application/json");
     http.addHeader("X-Api-Key", CLOUD_KEY);
     int code = http.POST(json);
+    ultimoSuspiro = millis();  // Alimenta Watchdog logo após resposta da nuvem
     if (code == 200) {
       prefs.begin("grow", false);
       if (prefs.getBool("ota_test", false)) {
         prefs.putBool("ota_test", false);
         prefs.putInt("ota_boot_fails", 0);
         prefs.putBool("ota_falhou", false);
+        prefs.putUInt("ota_bad_ver", 0);
         uint32_t tentativa = prefs.getUInt("ota_tentativa", 0);
         if (tentativa > 0) {
           prefs.putUInt("fw_ver", tentativa);
@@ -441,6 +491,7 @@ void enviarNuvem(unsigned long agora) {
       String response = http.getString();
       DynamicJsonDocument docRes(2048);
       if (!deserializeJson(docRes, response)) {
+        bool recalcularMotorImediato = false;
         if (docRes.containsKey("config_clima")) {
           uint32_t versaoNuvem = docRes.containsKey("cfg_ver") ? (uint32_t)docRes["cfg_ver"] : 0;
           prefs.begin("grow", true);
@@ -479,6 +530,8 @@ void enviarNuvem(unsigned long agora) {
                 prefs.putUInt("cfg_ver", versaoNuvem);
                 prefs.end();
               }
+              bypassDwellFase = true;
+              recalcularMotorImediato = true;
               Serial.printf("✅ [SYNC NUVEM] Perfis climáticos atualizados com o Banco de Dados! Versão: %u\n", versaoNuvem);
             }
           }
@@ -489,6 +542,7 @@ void enviarNuvem(unsigned long agora) {
           if (fc != (int)faseAtual) {
             Serial.printf("📥 COMANDO NUVEM: Alterar fase para %s\n", nomeFase(fc));
             setNovaFase((FaseCultivo)fc);
+            recalcularMotorImediato = true;
           }
         }
         if (docRes.containsKey("comando_luz")) {
@@ -511,16 +565,20 @@ void enviarNuvem(unsigned long agora) {
             prefs.begin("grow", false);
             prefs.putInt("modoLuz", (int)modoLuz);
             prefs.end();
-            if (sensorIntOk) {
-              executarMotor(agora);
-              aplicarSeguranca();
-            } else {
-              if (modoLuz == LUZ_FORCADA_ON) releLuz = true;
-              if (modoLuz == LUZ_FORCADA_OFF) releLuz = false;
-            }
-            aplicarReles();
-            ultimoEnvioNuvem = 0;  // Dispara atualização imediata com relés já comutados
+            recalcularMotorImediato = true;
           }
+        }
+
+        if (recalcularMotorImediato) {
+          if (sensorIntOk) {
+            executarMotor(agora);
+            aplicarSeguranca();
+          } else {
+            if (modoLuz == LUZ_FORCADA_ON) releLuz = true;
+            if (modoLuz == LUZ_FORCADA_OFF) releLuz = false;
+          }
+          aplicarReles();
+          ultimoEnvioNuvem = 0;  // Dispara atualização imediata com relés já comutados
         }
 
         if (docRes.containsKey("comando_reset_agua")) {
@@ -533,14 +591,13 @@ void enviarNuvem(unsigned long agora) {
         }
 
         uint32_t vNuvem = docRes.containsKey("versao_nuvem") ? (uint32_t)docRes["versao_nuvem"] : 0;
-        if (docRes.containsKey("comando_ota") || (vNuvem > 0 && vNuvem > fwAtual)) {
+        prefs.begin("grow", true);
+        uint32_t otaBadVer = prefs.getUInt("ota_bad_ver", 0);
+        prefs.end();
+        bool otaManual = docRes.containsKey("comando_ota");
+        // Evita loop infinito de OTA caso uma versão específica da nuvem tenha sofrido rollback por falha
+        if (otaManual || (vNuvem > 0 && vNuvem > fwAtual && vNuvem != otaBadVer)) {
           Serial.printf("📥 OTA INICIANDO (Local: %u, Nuvem: %u)\n", fwAtual, vNuvem);
-          prefs.begin("grow", false);
-          prefs.putBool("ota_test", true);
-          prefs.putUInt("ota_tentativa", vNuvem);
-          prefs.putBool("ota_falhou", false);
-          prefs.putInt("ota_boot_fails", 0);
-          prefs.end();
 
           // SUSPENDE O CAO DE GUARDA: O download OTA pode demorar minutos.
           // Sem isso, o Watchdog reinicia a placa no meio da gravacao do firmware!
@@ -562,6 +619,13 @@ void enviarNuvem(unsigned long agora) {
           vTaskResume(wdtTask);
 
           if (ret == HTTP_UPDATE_OK) {
+            // Grava flag de teste APENAS após download e flash 100% concluídos com sucesso!
+            prefs.begin("grow", false);
+            prefs.putBool("ota_test", true);
+            prefs.putUInt("ota_tentativa", vNuvem);
+            prefs.putBool("ota_falhou", false);
+            prefs.putInt("ota_boot_fails", 0);
+            prefs.end();
             Serial.println("✅ OTA CONCLUIDO! Reiniciando em modo de teste (Anti-Brick)...");
             delay(1000);
             ESP.restart();
@@ -673,8 +737,8 @@ void aplicarReles() {
     releLuz = false;
   }
 
-  bool corteLuzImediato = (tempInt >= TEMP_CORTE_LUZ || modoLuz == LUZ_FORCADA_OFF);
-  bool corteUmidImediato = false;
+  bool corteLuzImediato = (tempInt >= TEMP_CORTE_LUZ || modoLuz == LUZ_FORCADA_OFF || bypassDwellFase);
+  bool corteUmidImediato = (releExaustExt || faseAtual == FASE_STANDBY || faseAtual == FASE_SECAGEM || !sensorIntOk || bypassDwellFase);
 
   // Luz: Bypass do dwell time quando está DESLIGANDO (false), em corte de emergência ou comando manual forçado
   bool desligandoLuz = (!releLuz && lastReleLuz);
@@ -683,7 +747,13 @@ void aplicarReles() {
     lastReleLuz = releLuz;
     lastSwitchLuz = agora;
     digitalWrite(PIN_RELE_LUZ, releLuz ? LOW : HIGH);
-    Serial.printf("💡 ACAO: LUZ %s\n", releLuz ? "LIGADA" : "DESLIGADA");
+    prefs.begin("grow", false);
+    prefs.putBool("r_luz", lastReleLuz);
+    time_t tsNow;
+    time(&tsNow);
+    if (tsNow > 1700000000) prefs.putUInt("ult_ts", (uint32_t)tsNow);
+    prefs.end();
+    Serial.printf("💡 ACAO: LUZ %s (Estado salvo na NVS)\n", releLuz ? "LIGADA" : "DESLIGADA");
     alterou = true;
   }
   if (releUmidific != lastReleUmidific && (corteUmidImediato || agora - lastSwitchUmid >= MIN_DWELL_RELE_MS)) {
@@ -693,20 +763,22 @@ void aplicarReles() {
     Serial.printf("💧 ACAO: UMIDIFICADOR %s\n", releUmidific ? "LIGADO" : "DESLIGADO");
     alterou = true;
   }
-  if (releVentoInt != lastReleVento && (agora - lastSwitchVento >= MIN_DWELL_RELE_MS)) {
+  if (releVentoInt != lastReleVento && (bypassDwellFase || agora - lastSwitchVento >= MIN_DWELL_RELE_MS)) {
     lastReleVento = releVentoInt;
     lastSwitchVento = agora;
     digitalWrite(PIN_RELE_VENTO_INT, releVentoInt ? LOW : HIGH);
     Serial.printf("💨 ACAO: VENTILADOR INT %s\n", releVentoInt ? "LIGADO" : "DESLIGADO");
     alterou = true;
   }
-  if (releExaustExt != lastReleExaust && (agora - lastSwitchExaust >= MIN_DWELL_RELE_MS)) {
+  if (releExaustExt != lastReleExaust && (bypassDwellFase || agora - lastSwitchExaust >= MIN_DWELL_RELE_MS)) {
     lastReleExaust = releExaustExt;
     lastSwitchExaust = agora;
     digitalWrite(PIN_RELE_EXAUST_EXT, releExaustExt ? LOW : HIGH);
     Serial.printf("🌪️ ACAO: EXAUSTOR EXT %s\n", releExaustExt ? "LIGADO" : "DESLIGADO");
     alterou = true;
   }
+
+  bypassDwellFase = false;
 
   // Se a placa tomou alguma decisão e ligou/desligou algo autonomamente,
   // força a comunicação imediata com o banco de dados para o painel não ficar defasado
@@ -853,19 +925,22 @@ void executarMotor(unsigned long agora) {
   // O sistema não vai mais contar o tempo de umidificação nem disparar alarme.
 
   if (modoLuz == LUZ_AUTO) {
-    static int confirmacoesNoite = 0;
+    static int confirmacoesNoite = lastReleLuz ? 3 : 0;
     if (horaValida && (horaAtual >= LUZ_HORA_LIGA || horaAtual < LUZ_HORA_DESLIGA)) {
-      // NTP sincronizado: modo normal, confirma 3 ciclos seguidos pra evitar glitches
+      // NTP/RTC sincronizado: se já estava acesa antes do reboot, mantém acesa sem piscar
+      if (lastReleLuz && confirmacoesNoite < 3) confirmacoesNoite = 3;
       confirmacoesNoite++;
       if (confirmacoesNoite >= 3) {
         releLuz = true;
+      } else {
+        releLuz = lastReleLuz;
       }
     } else if (horaValida) {
       // NTP sincronizado: horário diurno — desliga
       confirmacoesNoite = 0;
       releLuz = false;
     } else {
-      // NTP nunca sincronizou: fallback 12h ON / 12h OFF por millis() do boot
+      // Sem NTP e sem RTC: mantém exatamente o último estado conhecido antes do reboot (fallback 12h ON / 12h OFF)
       confirmacoesNoite = 0;
       const unsigned long CICLO_12H_MS = 12UL * 3600UL * 1000UL;
       unsigned long tempoNoFallback = millis() - fallbackLuzUltimaInversao;
@@ -919,31 +994,16 @@ void webApiCmd() {
 //  SETUP
 // ============================================================
 void setup() {
-  Serial.begin(115200);
-  delay(1500);
-  bootTime = millis();
-#if defined(CONFIG_IDF_TARGET_ESP32S3) || defined(ARDUINO_ESP32S3_DEV)
-  Serial.println("\n=== GROW IA v4.0 (ESP32-S3 DUAL USB-C) ===");
-#else
-  Serial.println("\n=== GROW IA v4.0 (ESP32-C3 SUPERMINI) ===");
-#endif
-
-  int pr[] = { PIN_RELE_LUZ, PIN_RELE_UMIDIFIC, PIN_RELE_VENTO_INT, PIN_RELE_EXAUST_EXT };
-  for (int i = 0; i < 4; i++) {
-    pinMode(pr[i], OUTPUT);
-    digitalWrite(pr[i], HIGH);
-  }
-
-  if (!LittleFS.begin(true)) Serial.println("[ERRO] LittleFS");
-  else Serial.println("[OK] LittleFS (Datalogger)");
-
-  carregarPerfisNVS();
-
+  // 1. RESTAURAÇÃO INSTANTÂNEA PÓS-RESET / QUEDA DE ENERGIA (Milissegundo Zero)
+  // Carrega o estado salvo na memória Flash ANTES de qualquer delay ou conexão Wi-Fi,
+  // garantindo que a Luz e as configurações continuem exatamente como estavam sem piscar!
   prefs.begin("grow", false);
   faseAtual = (FaseCultivo)prefs.getInt("fase", (int)FASE_STANDBY);
   modoLuz = (ModoLuz)prefs.getInt("modoLuz", (int)LUZ_AUTO);
   inicioFaseTempo = prefs.getUInt("inicio", 0);
   fwAtual = prefs.getUInt("fw_ver", 0);
+  bool luzSalvaNVS = prefs.getBool("r_luz", false);
+  uint32_t ultTsSalvo = prefs.getUInt("ult_ts", 0);
 
   // Limpeza preventiva de chaves fantasmas de falta d'água legadas na memória Flash NVS
   if (prefs.isKey("sem_agua")) prefs.remove("sem_agua");
@@ -954,11 +1014,62 @@ void setup() {
   segUmidTotal = prefs.getUInt("h_umid", 0);
   segVentoTotal = prefs.getUInt("h_vento", 0);
   segExaustTotal = prefs.getUInt("h_exaust", 0);
-
   prefs.end();
+
+  if (modoLuz == LUZ_FORCADA_ON) luzSalvaNVS = true;
+  else if (modoLuz == LUZ_FORCADA_OFF) luzSalvaNVS = false;
+
+  releLuz = luzSalvaNVS;
+  lastReleLuz = luzSalvaNVS;
+  fallbackLuzLigada = luzSalvaNVS;
+
+  // Inicializa pinos dos relés já preservando o estado real da Luz (LOW = Ligado, HIGH = Desligado)
+  pinMode(PIN_RELE_LUZ, OUTPUT);
+  digitalWrite(PIN_RELE_LUZ, lastReleLuz ? LOW : HIGH);
+  pinMode(PIN_RELE_UMIDIFIC, OUTPUT);
+  digitalWrite(PIN_RELE_UMIDIFIC, HIGH);
+  pinMode(PIN_RELE_VENTO_INT, OUTPUT);
+  digitalWrite(PIN_RELE_VENTO_INT, (faseAtual == FASE_SECAGEM) ? LOW : HIGH);
+  lastReleVento = (faseAtual == FASE_SECAGEM);
+  releVentoInt = lastReleVento;
+  pinMode(PIN_RELE_EXAUST_EXT, OUTPUT);
+  digitalWrite(PIN_RELE_EXAUST_EXT, (faseAtual == FASE_SECAGEM) ? LOW : HIGH);
+  lastReleExaust = (faseAtual == FASE_SECAGEM);
+  releExaustExt = lastReleExaust;
+
+  Serial.begin(115200);
+  delay(1500);
+  bootTime = millis();
+  fallbackLuzUltimaInversao = bootTime;
+#if defined(CONFIG_IDF_TARGET_ESP32S3) || defined(ARDUINO_ESP32S3_DEV)
+  Serial.println("\n=== GROW IA v4.0 (ESP32-S3 DUAL USB-C) ===");
+#else
+  Serial.println("\n=== GROW IA v4.0 (ESP32-C3 SUPERMINI) ===");
+#endif
+
+  if (!LittleFS.begin(true)) Serial.println("[ERRO] LittleFS");
+  else Serial.println("[OK] LittleFS (Datalogger)");
+
+  carregarPerfisNVS();
+
+  // Configura fuso horário e restaura relógio interno imediatamente se houve apagão total sem internet
+  configTime(GMT_OFFSET_SEC, DAYLIGHT_OFF, NTP_SERVER);
+  time_t agoraRtc;
+  time(&agoraRtc);
+  if (agoraRtc < 1700000000 && ultTsSalvo > 1700000000) {
+    struct timeval tv = { .tv_sec = (time_t)ultTsSalvo, .tv_usec = 0 };
+    settimeofday(&tv, NULL);
+    Serial.println("🕒 [RTC RESTORE] Relógio restaurado da memória Flash NVS pós-apagão!");
+  }
+  struct tm tiBoot = { 0 };
+  if (getLocalTime(&tiBoot, 10) && (tiBoot.tm_year + 1900 >= 2024)) {
+    horaValida = true;
+    horaAtual = tiBoot.tm_hour;
+  }
 
   Wire.begin(PIN_SDA, PIN_SCL);
   Wire.setClock(100000);
+  Wire.setTimeOut(50);  // Timeout de 50ms no barramento I2C contra travamentos elétricos
   if (sht30.begin(0x44)) {
     sht30.heater(false);
     Serial.println("[OK] SHT30");
@@ -974,6 +1085,8 @@ void setup() {
     prefs.putInt("ota_boot_fails", fails);
     if (fails > 2) {
       Serial.println("🚨 [ANTI-BRICK] Bootloop detectado! Revertendo para firmware antigo...");
+      uint32_t badVer = prefs.getUInt("ota_tentativa", 0);
+      if (badVer > 0) prefs.putUInt("ota_bad_ver", badVer);
       prefs.putBool("ota_test", false);
       prefs.putBool("ota_falhou", true);
       prefs.putInt("ota_boot_fails", 0);
@@ -985,6 +1098,10 @@ void setup() {
   }
   prefs.end();
 
+  WiFi.persistent(true);
+  WiFi.setAutoReconnect(true);
+  wm.setConnectTimeout(15);
+  wm.setConfigPortalTimeout(180);  // Fecha AP de setup após 3 min para não bloquear reconexão automática pós-apagão
   wm.setConfigPortalBlocking(false);
   wm.autoConnect("GROW_SETUP");
 
@@ -1003,7 +1120,7 @@ void setup() {
   pinMode(PIN_BOOT, INPUT_PULLUP);
 #endif
   ultimoSuspiro = millis();
-  xTaskCreate(watchdogTask, "WDT", 2048, NULL, 1, &wdtTask);
+  xTaskCreate(watchdogTask, "WDT", 4096, NULL, 1, &wdtTask);
 }
 
 // ============================================================
@@ -1039,7 +1156,7 @@ void loop() {
 
   // Anti-Brick: Se após 5 minutos do boot de teste não validar a conexão, reverte
   static bool antiBrickVerificado = false;
-  if (!antiBrickVerificado && agora > 300000UL) {
+  if (!antiBrickVerificado && (agora - bootTime > 300000UL)) {
     antiBrickVerificado = true;
     prefs.begin("grow", true);
     bool emTeste = prefs.getBool("ota_test", false);
@@ -1047,6 +1164,8 @@ void loop() {
     if (emTeste) {
       Serial.println("🚨 FATAL: Novo firmware não respondeu à nuvem em 5 mins! Restaurando versão anterior...");
       prefs.begin("grow", false);
+      uint32_t badVer = prefs.getUInt("ota_tentativa", 0);
+      if (badVer > 0) prefs.putUInt("ota_bad_ver", badVer);
       prefs.putBool("ota_test", false);
       prefs.putBool("ota_falhou", true);
       prefs.putInt("ota_boot_fails", 0);
@@ -1061,11 +1180,12 @@ void loop() {
   server.handleClient();
   ArduinoOTA.handle();
 
-  // Auto-Reconnect Passivo: Se ligou sem Wi-Fi (roteador desligado), tenta reconectar sozinho a cada 2 minutos
+  // Auto-Reconnect Passivo Blindado (100% imune ao rollover de 49.7 dias do millis):
+  // Se o roteador demorou a voltar após queda de energia ou caiu durante a operação, reconecta a cada 60s
   static unsigned long ultimaTentativaWifi = 0;
-  if (WiFi.status() != WL_CONNECTED && agora > 60000 && (agora - ultimaTentativaWifi > 120000)) {
+  if (WiFi.status() != WL_CONNECTED && (agora - ultimaTentativaWifi >= 60000UL)) {
     ultimaTentativaWifi = agora;
-    Serial.println("[WIFI] Roteador ausente no boot. Tentando reconexão em background...");
+    Serial.println("[WIFI] Desconectado. Forçando reconexão automática em background...");
     WiFi.reconnect();
   }
 
@@ -1091,14 +1211,9 @@ void loop() {
       shtFalhasFisicas++;
       if (shtFalhasFisicas >= 6) {  // 12s de falha contínua
         sensorIntOk = false;
-        // Tentativa de recuperação do I2C (comum travar durante quedas/picos de Wi-Fi)
+        // Tentativa de recuperação física do barramento I2C a cada 12s
         if (shtFalhasFisicas % 6 == 0) {
-          Serial.println("[RECUPERACAO] Reiniciando barramento I2C do SHT30...");
-          Wire.begin(PIN_SDA, PIN_SCL);
-          Wire.setClock(100000);
-          if (sht30.begin(0x44)) {
-            sht30.heater(false);
-          }
+          recuperarBarramentoI2C();
         }
       }
     }
@@ -1131,10 +1246,31 @@ void loop() {
     struct tm ti = { 0 };
     if (getLocalTime(&ti, 25)) {
       if (ti.tm_year + 1900 >= 2024 && ti.tm_hour >= 0 && ti.tm_hour <= 23) {
-        // Anti-Jitter: Se a hora já era válida, rejeita saltos bruscos impossíveis (mais de 1h) em ciclos de 2s
+        static int confirmacoesSaltoHora = 0;
+        static int ultimaHoraSalvaNVS = -1;
+        // Anti-Jitter Inteligente: Rejeita ruído isolado de 1 ciclo, mas aceita ajuste real do NTP se persistir por 3 leituras (6s)
         if (!horaValida || horaAtual < 0 || abs(ti.tm_hour - horaAtual) <= 1 || (horaAtual == 23 && ti.tm_hour == 0) || (horaAtual == 0 && ti.tm_hour == 23)) {
+          confirmacoesSaltoHora = 0;
           horaValida = true;
           horaAtual = ti.tm_hour;
+        } else {
+          confirmacoesSaltoHora++;
+          if (confirmacoesSaltoHora >= 3) {
+            confirmacoesSaltoHora = 0;
+            horaValida = true;
+            horaAtual = ti.tm_hour;
+          }
+        }
+        // Faz backup do relógio na Flash NVS na virada de cada hora cheia
+        if (horaValida && horaAtual != ultimaHoraSalvaNVS) {
+          ultimaHoraSalvaNVS = horaAtual;
+          time_t tsCheck;
+          time(&tsCheck);
+          if (tsCheck > 1700000000) {
+            prefs.begin("grow", false);
+            prefs.putUInt("ult_ts", (uint32_t)tsCheck);
+            prefs.end();
+          }
         }
       } else {
         horaValida = false;  // RTC foi resetado para 1970 devido a Brownout Reset (Kickback)!
@@ -1178,15 +1314,17 @@ void loop() {
 
       // Luz continua rodando independentemente do clima
       if (modoLuz == LUZ_AUTO) {
-        static int confirmacoesNoiteOff = 0;
+        static int confirmacoesNoiteOff = lastReleLuz ? 3 : 0;
         if (horaValida && (horaAtual >= LUZ_HORA_LIGA || horaAtual < LUZ_HORA_DESLIGA)) {
+          if (lastReleLuz && confirmacoesNoiteOff < 3) confirmacoesNoiteOff = 3;
           confirmacoesNoiteOff++;
           if (confirmacoesNoiteOff >= 3) releLuz = true;
+          else releLuz = lastReleLuz;
         } else if (horaValida) {
           confirmacoesNoiteOff = 0;
           releLuz = false;
         } else {
-          // Fallback 12/12 sem NTP (mesmo estado calculado na função normal)
+          // Fallback 12/12 sem NTP (mantém o estado salvo antes do reboot)
           confirmacoesNoiteOff = 0;
           releLuz = fallbackLuzLigada;
         }
@@ -1206,14 +1344,18 @@ void loop() {
       if (lastReleVento) segVentoTotal += deltaHorimetro;
       if (lastReleExaust) segExaustTotal += deltaHorimetro;
 
-      // Salva o horimetro na memoria Flash a cada 30 minutos de execucao
-      if (agora - ultimoSaveHorimetro >= 1800000UL) {
+      // Salva o horimetro e o relógio na memoria Flash a cada 15 minutos de execucao
+      if (agora - ultimoSaveHorimetro >= 900000UL) {
         ultimoSaveHorimetro = agora;
         prefs.begin("grow", false);
         prefs.putUInt("h_luz", segLuzTotal);
         prefs.putUInt("h_umid", segUmidTotal);
         prefs.putUInt("h_vento", segVentoTotal);
         prefs.putUInt("h_exaust", segExaustTotal);
+        prefs.putBool("r_luz", lastReleLuz);
+        time_t tsNow;
+        time(&tsNow);
+        if (tsNow > 1700000000) prefs.putUInt("ult_ts", (uint32_t)tsNow);
         prefs.end();
       }
     }

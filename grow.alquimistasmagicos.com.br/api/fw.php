@@ -1,8 +1,16 @@
 <?php
+date_default_timezone_set('America/Sao_Paulo');
 header("Content-Type: application/json");
 header("Access-Control-Allow-Origin: *");
 $fwPlaca = file_exists(__DIR__ . "/fw_status.txt") ? file_get_contents(__DIR__ . "/fw_status.txt") : "0";
-$candidatos_bin = [
+$board = file_exists(__DIR__ . "/board_model.txt") ? trim(file_get_contents(__DIR__ . "/board_model.txt")) : "ESP32-S3";
+$isC3 = (stripos($board, 'C3') !== false);
+$candidatos_bin = $isC3 ? [
+    __DIR__ . "/../../build/esp32.esp32.esp32c3/esp32c3.ino.bin",
+    __DIR__ . "/../build/esp32.esp32.esp32c3/esp32c3.ino.bin",
+    __DIR__ . "/../../build/esp32.esp32.esp32s3/esp32c3.ino.bin",
+    __DIR__ . "/../build/esp32.esp32.esp32s3/esp32c3.ino.bin"
+] : [
     __DIR__ . "/../../build/esp32.esp32.esp32s3/esp32c3.ino.bin",
     __DIR__ . "/../build/esp32.esp32.esp32s3/esp32c3.ino.bin",
     __DIR__ . "/../../build/esp32.esp32.esp32c3/esp32c3.ino.bin",
@@ -21,7 +29,6 @@ $gitHead = __DIR__ . '/../../.git/refs/heads/main';
 $gitHash = file_exists($gitHead) ? substr(trim(file_get_contents($gitHead)), 0, 7) : 'Desconhecido';
 $modoLuz = file_exists(__DIR__ . "/modo_luz.txt") ? (int)trim(file_get_contents(__DIR__ . "/modo_luz.txt")) : 0;
 $vFirmware = file_exists(__DIR__ . "/vFirmware.txt") ? trim(file_get_contents(__DIR__ . "/vFirmware.txt")) : "";
-$board = file_exists(__DIR__ . "/board_model.txt") ? trim(file_get_contents(__DIR__ . "/board_model.txt")) : "ESP32-S3";
 echo json_encode(["placa" => trim($fwPlaca), "nuvem" => trim($fwNuvem), "error" => $fwError, "gitHash" => $gitHash, "modoLuz" => $modoLuz, "vFirmware" => $vFirmware, "board" => $board]);
 
 

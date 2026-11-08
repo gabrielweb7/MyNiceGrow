@@ -1,4 +1,5 @@
 <?php
+date_default_timezone_set('America/Sao_Paulo');
 ob_start("ob_gzhandler"); // Compressão GZIP ativa: reduz o payload do painel em 90%!
 header('Content-Type: application/json');
 header('Access-Control-Allow-Origin: *');
@@ -145,10 +146,9 @@ if ($method === 'POST') {
     $stmt->close();
     
     // AUTO-LIMPEZA DO BANCO DE DADOS (Anti-Crash de Disco HostGator)
-    // Executa a limpeza com 5% de chance em cada requisição para não pesar o servidor
-    if (rand(1, 100) <= 5) {
-        // Apaga dados mais antigos que 15 dias usando comparação DATETIME nativa do MySQL
-        $conn->query("DELETE FROM telemetria WHERE timestamp < DATE_SUB(NOW(), INTERVAL 15 DAY)");
+    // Executa a limpeza com 1% de chance em cada requisição mantendo 30 dias de histórico
+    if (mt_rand(1, 100) === 1) {
+        $conn->query("DELETE FROM telemetria WHERE timestamp < DATE_SUB(NOW(), INTERVAL 30 DAY)");
     }
     
     $resposta = ["status" => "ok", "inseridos" => $successCount];
@@ -183,9 +183,15 @@ if ($method === 'POST') {
         }
     }
     
-    // Auto-Update: Usa a data de modificação real do arquivo no servidor
-    // Suporta build tanto na raiz quanto na pasta do subdomínio para ESP32-S3 e ESP32-C3
-    $candidatos_bin = [
+    // Auto-Update: Usa a data de modificação real do arquivo correspondente ao modelo da placa ativa
+    $boardModel = file_exists(__DIR__ . '/board_model.txt') ? file_get_contents(__DIR__ . '/board_model.txt') : 'ESP32-S3';
+    $isC3 = (stripos($boardModel, 'C3') !== false);
+    $candidatos_bin = $isC3 ? [
+        __DIR__ . '/../../build/esp32.esp32.esp32c3/esp32c3.ino.bin',
+        __DIR__ . '/../build/esp32.esp32.esp32c3/esp32c3.ino.bin',
+        __DIR__ . '/../../build/esp32.esp32.esp32s3/esp32c3.ino.bin',
+        __DIR__ . '/../build/esp32.esp32.esp32s3/esp32c3.ino.bin'
+    ] : [
         __DIR__ . '/../../build/esp32.esp32.esp32s3/esp32c3.ino.bin',
         __DIR__ . '/../build/esp32.esp32.esp32s3/esp32c3.ino.bin',
         __DIR__ . '/../../build/esp32.esp32.esp32c3/esp32c3.ino.bin',
@@ -227,7 +233,14 @@ elseif ($method === 'GET') {
     
     // Headers de Versão
     $fwPlaca = file_exists(__DIR__ . '/fw_status.txt') ? file_get_contents(__DIR__ . '/fw_status.txt') : '0';
-    $candidatos_bin = [
+    $boardModel = file_exists(__DIR__ . '/board_model.txt') ? file_get_contents(__DIR__ . '/board_model.txt') : 'ESP32-S3';
+    $isC3 = (stripos($boardModel, 'C3') !== false);
+    $candidatos_bin = $isC3 ? [
+        __DIR__ . '/../../build/esp32.esp32.esp32c3/esp32c3.ino.bin',
+        __DIR__ . '/../build/esp32.esp32.esp32c3/esp32c3.ino.bin',
+        __DIR__ . '/../../build/esp32.esp32.esp32s3/esp32c3.ino.bin',
+        __DIR__ . '/../build/esp32.esp32.esp32s3/esp32c3.ino.bin'
+    ] : [
         __DIR__ . '/../../build/esp32.esp32.esp32s3/esp32c3.ino.bin',
         __DIR__ . '/../build/esp32.esp32.esp32s3/esp32c3.ino.bin',
         __DIR__ . '/../../build/esp32.esp32.esp32c3/esp32c3.ino.bin',
