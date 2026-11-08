@@ -4,6 +4,10 @@ header('Content-Type: application/json');
 header('Access-Control-Allow-Origin: *');
 header('Access-Control-Expose-Headers: X-Fw-Placa, X-Fw-Nuvem');
 require_once __DIR__ . '/../config.php';
+if (!defined('DB_HOST') || !defined('DB_USER') || !defined('DB_PASS') || !defined('DB_NAME') || !defined('API_KEY')) {
+    http_response_code(500);
+    die(json_encode(["error" => "Arquivo config.php ausente ou incompleto. Copie de config.example.php."]));
+}
 
 $conn = new mysqli(DB_HOST, DB_USER, DB_PASS, DB_NAME);
 if ($conn->connect_error) {

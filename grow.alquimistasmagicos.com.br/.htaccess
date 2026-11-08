@@ -1,0 +1,15 @@
+# Bloqueia acesso direto a arquivos sensíveis no subdomínio
+<FilesMatch "\.(ino|sql|zip|log|ini|bak|old)$">
+    Require all denied
+</FilesMatch>
+
+# Bloqueia config.php de leitura direta
+<Files "config.php">
+    Require all denied
+</Files>
+
+# Bloqueia visualizacao de diretorios
+Options -Indexes
+
+# Prioridade de index
+DirectoryIndex index.html index.php

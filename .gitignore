@@ -1,12 +1,21 @@
-# Arquivos temporários
+# Arquivos temporários e backups
 *.zip
+*.tar.gz
+*.bak
+*.old
 esp32c3/
 
-# SEGURANÇA: Nunca versionar credenciais reais de banco de dados e chaves de API
+# SEGURANÇA: NUNCA versionar credenciais reais de banco de dados e chaves de API
+**/config.php
+config.php
 grow.alquimistasmagicos.com.br/config.php
+grow.alquimistasmagicos.com.br/test_db.php
 
 # Arquivos gerados em tempo de execução pela API no servidor
 grow.alquimistasmagicos.com.br/api/config_clima.json
 grow.alquimistasmagicos.com.br/api/comando_pendente.json
 grow.alquimistasmagicos.com.br/api/fw_status.txt
 grow.alquimistasmagicos.com.br/api/fw_error.txt
+grow.alquimistasmagicos.com.br/api/vFirmware.txt
+grow.alquimistasmagicos.com.br/api/modo_luz.txt
+grow.alquimistasmagicos.com.br/api/board_model.txt
