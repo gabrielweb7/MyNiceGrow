@@ -618,13 +618,33 @@ void atualizarFiltroInt(float tI, float hI) {
   idxFiltroInt = (idxFiltroInt + 1) % FILTRO_N;
   if (idxFiltroInt == 0) filtroIntPreenchido = true;
   int n = filtroIntPreenchido ? FILTRO_N : (idxFiltroInt == 0 ? 1 : idxFiltroInt);
-  float sT = 0, sH = 0;
-  for (int i = 0; i < n; i++) {
-    sT += bufTempInt[i];
-    sH += bufHumInt[i];
+
+  if (n >= 5) {
+    // Filtro de Média Aparada (Trimmed Mean): descarta ruídos extremos (mínimo e máximo)
+    // Elimina picos isolados de gotículas de névoa ou interferências de chaveamento de relé
+    float minT = bufTempInt[0], maxT = bufTempInt[0], sumT = 0;
+    float minH = bufHumInt[0], maxH = bufHumInt[0], sumH = 0;
+    for (int i = 0; i < 5; i++) {
+      float vt = bufTempInt[i];
+      float vh = bufHumInt[i];
+      if (vt < minT) minT = vt;
+      if (vt > maxT) maxT = vt;
+      if (vh < minH) minH = vh;
+      if (vh > maxH) maxH = vh;
+      sumT += vt;
+      sumH += vh;
+    }
+    tempInt = (sumT - minT - maxT) / 3.0f;
+    humInt  = (sumH - minH - maxH) / 3.0f;
+  } else {
+    float sT = 0, sH = 0;
+    for (int i = 0; i < n; i++) {
+      sT += bufTempInt[i];
+      sH += bufHumInt[i];
+    }
+    tempInt = sT / n;
+    humInt = sH / n;
   }
-  tempInt = sT / n;
-  humInt = sH / n;
 }
 
 void atualizarFiltroExt(float tE, float hE) {
@@ -938,8 +958,13 @@ void setup() {
   prefs.end();
 
   Wire.begin(PIN_SDA, PIN_SCL);
-  if (sht30.begin(0x44)) Serial.println("[OK] SHT30");
-  else statusSis = SIS_ERRO_SENSOR;
+  Wire.setClock(100000);
+  if (sht30.begin(0x44)) {
+    sht30.heater(false);
+    Serial.println("[OK] SHT30");
+  } else {
+    statusSis = SIS_ERRO_SENSOR;
+  }
   dht.begin();
   Serial.println("[OK] DHT11");
   // ANTI-BRICK AVANCADO (Deteccao de Bootloop)
@@ -1046,10 +1071,11 @@ void loop() {
 
   if (agora - ultimaLeitura >= 2000) {
     ultimaLeitura = agora;
-    float tI = sht30.readTemperature(), hI = sht30.readHumidity();
+    float tI = 0.0f, hI = 0.0f;
+    bool leuOk = sht30.readBoth(&tI, &hI);
 
     // Filtro de Sanidade Físico para SHT30 (Sensor Crítico Interno)
-    bool shtFisicoOk = !isnan(tI) && !isnan(hI) && tI != 0.0 && hI != 0.0 && tI > -10.0 && tI < 60.0 && hI > 0.0 && hI <= 100.0;
+    bool shtFisicoOk = leuOk && !isnan(tI) && !isnan(hI) && tI != 0.0f && hI != 0.0f && tI > -10.0f && tI < 60.0f && hI > 0.0f && hI <= 100.0f;
     static int shtFalhasFisicas = 0;
     if (shtFisicoOk) {
       shtFalhasFisicas = 0;
@@ -1067,7 +1093,10 @@ void loop() {
         if (shtFalhasFisicas % 6 == 0) {
           Serial.println("[RECUPERACAO] Reiniciando barramento I2C do SHT30...");
           Wire.begin(PIN_SDA, PIN_SCL);
-          sht30.begin(0x44);
+          Wire.setClock(100000);
+          if (sht30.begin(0x44)) {
+            sht30.heater(false);
+          }
         }
       }
     }
