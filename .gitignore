@@ -5,6 +5,10 @@
 *.old
 esp32c3/
 
+# SEGURANÇA: Arquivo local privado com as credenciais reais do servidor (NUNCA vai para o Git)
+**/config.local.php
+config.local.php
+
 # Arquivos gerados em tempo de execução pela API no servidor
 grow.alquimistasmagicos.com.br/api/config_clima.json
 grow.alquimistasmagicos.com.br/api/comando_pendente.json

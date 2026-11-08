@@ -3,15 +3,24 @@ ob_start("ob_gzhandler"); // Compressão GZIP ativa: reduz o payload do painel e
 header('Content-Type: application/json');
 header('Access-Control-Allow-Origin: *');
 header('Access-Control-Expose-Headers: X-Fw-Placa, X-Fw-Nuvem');
-if (file_exists(__DIR__ . '/../config.php')) {
-    require_once __DIR__ . '/../config.php';
+$localConfig = __DIR__ . '/../config.local.php';
+$mainConfig  = __DIR__ . '/../config.php';
+
+// Auto-cria config.local.php no servidor na primeira execução para manter as credenciais fora do Git
+if (!file_exists($localConfig)) {
+    if (file_exists($mainConfig)) {
+        $conteudo = @file_get_contents($mainConfig);
+        if ($conteudo && strpos($conteudo, 'poder692_grow_ia') !== false) {
+            @file_put_contents($localConfig, $conteudo);
+        }
+    }
 }
-if (!defined('DB_HOST')) define('DB_HOST', 'localhost');
-if (!defined('DB_USER')) define('DB_USER', 'poder692_grow_ia');
-if (!defined('DB_PASS')) define('DB_PASS', '[jkV+Yjm=bK1x.eP');
-if (!defined('DB_NAME')) define('DB_NAME', 'poder692_grow_ia');
-if (!defined('API_KEY')) define('API_KEY', 'GrowIA_V4_SuperSecreta!');
-if (!defined('ADMIN_KEY')) define('ADMIN_KEY', '@Fenix.777!');
+
+if (file_exists($localConfig)) {
+    require_once $localConfig;
+} elseif (file_exists($mainConfig)) {
+    require_once $mainConfig;
+}
 
 $conn = new mysqli(DB_HOST, DB_USER, DB_PASS, DB_NAME);
 if ($conn->connect_error) {

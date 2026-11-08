@@ -1880,7 +1880,8 @@
 
             let glow = 'glow-green', border = 'border-emerald-500/20', txt = 'text-emerald-400', desc = '✨ Transpiração Ideal';
             if (vpd < 0.15) {
-                glow = 'glow-blue'; border = 'border-blue-500/30'; txt = 'text-sky-300'; desc = '💧 Evaporação Lenta (Estagnação)';
+                glow = 'glow-blue'; border = 'border-blue-500/30'; txt = 'text-sky-300'; 
+                desc = (ui >= 99) ? '💧 Saturação Total (Umidade 100%)' : '💧 Evaporação Lenta (Estagnação)';
             } else if (vpd <= 0.45) {
                 glow = 'glow-green'; border = 'border-emerald-500/30'; txt = 'text-emerald-400'; desc = '✨ Transpiração Ideal (Vigor)';
             } else if (vpd <= 0.60) {
