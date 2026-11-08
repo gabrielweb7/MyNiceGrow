@@ -40,8 +40,7 @@ function garantirTabelaConfig($conn) {
     if ($check && $check->num_rows === 0) {
         $padrao = json_encode([
             "1" => ["tX" => 28.0, "uA" => 95.0, "uN" => 95.0, "uX" => 95.0, "fO" => 1, "fF" => 40, "vO" => 1, "vF" => 2, "vU" => 1],
-            "2" => ["tX" => 29.0, "uA" => 92.0, "uN" => 92.0, "uX" => 92.0, "fO" => 2, "fF" => 25, "vO" => 1, "vF" => 2, "vU" => 1],
-            "3" => ["tX" => 28.0, "uA" => 95.0, "uN" => 95.0, "uX" => 95.0, "fO" => 1, "fF" => 40, "vO" => 1, "vF" => 2, "vU" => 1]
+            "2" => ["tX" => 29.0, "uA" => 92.0, "uN" => 92.0, "uX" => 92.0, "fO" => 2, "fF" => 25, "vO" => 1, "vF" => 2, "vU" => 1]
         ]);
         $t = time();
         $conn->query("INSERT INTO config_sistema (chave, valor, atualizado_em) VALUES ('clima', '$padrao', $t)");

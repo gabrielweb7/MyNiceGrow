@@ -136,7 +136,6 @@ O algoritmo implementa perfis climáticos autônomos por fase. As configuraçõe
 | **Standby** | ⏸️ | Desligado | Desligado | Desligado | Desligado | Higienização, manutenção ou repouso entre safras. |
 | **Pinagem** | 🍄 | Máx 28.0 °C | Alvo 95% | 1 min ON / 40 min OFF | 1 min ON / 2 min OFF (`vU=1`) | Estimula primórdios por alta umidade, micro-orvalho e ar rico. |
 | **Frutificação**| 🌳 | Máx 29.0 °C | Alvo 92% | 2 min ON / 25 min OFF | 1 min ON / 2 min OFF (`vU=1`) | Transpiração controlada para crescimento vigoroso dos frutos. |
-| **Segundo Flush**| 🔄 | Máx 28.0 °C | Alvo 95% | 1 min ON / 40 min OFF | 1 min ON / 2 min OFF (`vU=1`) | Hidratação profunda e recuperação do bolo pós-colheita. |
 | **Secagem Total**| 🏜️ | Ambiente | Mínima (0%) | 100% LIGADO (Direto) | 100% LIGADO (Direto) | Umidificador travado e fluxo máximo para desidratar colheita. |
 
 ---

@@ -66,7 +66,6 @@ const uint8_t LED_BRILHO = 20;
 // --- Progressão Automática (dias, 0 = manual) ---
 const int DIAS_PINANDO = 0;
 const int DIAS_FRUTIFICACAO = 0;
-const int DIAS_SEGUNDO_FLUSH = 0;
 
 // ============================================================
 //  PINOS & SUPORTE DE HARDWARE (ESP32-S3 DUAL USB & ESP32-C3)
@@ -105,11 +104,10 @@ const int DIAS_SEGUNDO_FLUSH = 0;
 // ============================================================
 //  ENUMS E STRUCTS
 // ============================================================
-enum FaseCultivo { FASE_STANDBY,
-                   FASE_PINANDO,
-                   FASE_FRUTIFICACAO,
-                   FASE_SEGUNDO_FLUSH,
-                   FASE_SECAGEM };
+enum FaseCultivo { FASE_STANDBY = 0,
+                   FASE_PINANDO = 1,
+                   FASE_FRUTIFICACAO = 2,
+                   FASE_SECAGEM = 4 };
 enum ModoLuz { LUZ_AUTO,
                LUZ_FORCADA_ON,
                LUZ_FORCADA_OFF };
@@ -206,7 +204,6 @@ const char* nomeFase(int f) {
     case 0: return "Standby";
     case 1: return "Pinagem";
     case 2: return "Frutificacao";
-    case 3: return "Segundo Flush";
     case 4: return "Secagem Total";
     default: return "Desconhecida";
   }
@@ -220,8 +217,8 @@ PerfilClimatico perfis[5] = {
   { TEMP_ALVO_MAX, 95.0, 95.0, 1UL * 60000, FAE_OFF_MS, 1UL * 60000, 2UL * 60000, 2UL * 60000, 8UL * 60000, false },  // 0: Standby (padrão)
   { 28.0, 95.0, 95.0, 1UL * 60000, 40UL * 60000, 1UL * 60000, 2UL * 60000, 2UL * 60000, 8UL * 60000, true },          // 1: Pinagem (Umidade Alvo 95%)
   { 29.0, 92.0, 92.0, 2UL * 60000, 25UL * 60000, 1UL * 60000, 2UL * 60000, 2UL * 60000, 8UL * 60000, true },          // 2: Frutificacao (Umidade Alvo 92%)
-  { 28.0, 95.0, 95.0, 1UL * 60000, 40UL * 60000, 1UL * 60000, 2UL * 60000, 2UL * 60000, 8UL * 60000, true },          // 3: Segundo Flush (Umidade Alvo 95%)
-  { TEMP_ALVO_MAX, 95.0, 95.0, 1UL * 60000, FAE_OFF_MS, 1UL * 60000, 2UL * 60000, 2UL * 60000, 8UL * 60000, false }   // 4: Secagem
+  { 28.0, 95.0, 95.0, 1UL * 60000, 40UL * 60000, 1UL * 60000, 2UL * 60000, 2UL * 60000, 8UL * 60000, false },         // 3: Reservado / Inativo
+  { TEMP_ALVO_MAX, 95.0, 95.0, 1UL * 60000, FAE_OFF_MS, 1UL * 60000, 2UL * 60000, 2UL * 60000, 8UL * 60000, false }   // 4: Secagem Total
 };
 
 void salvarPerfisNVS() {
@@ -454,7 +451,7 @@ void enviarNuvem(unsigned long agora) {
           if (versaoNuvem > 0 && versaoNuvem != versaoLocal) {
             JsonObject cfg = docRes["config_clima"];
             bool configAlterada = false;
-            for (int i = 1; i <= 3; i++) {
+            for (int i = 1; i <= 2; i++) {
               String key = String(i);
               if (cfg.containsKey(key)) {
                 perfis[i].tempMax = cfg[key]["tX"].as<float>();
@@ -705,8 +702,6 @@ void verificarProgressao() {
   if (faseAtual == FASE_PINANDO && DIAS_PINANDO > 0 && dias >= (unsigned long)DIAS_PINANDO) {
     setNovaFase(FASE_FRUTIFICACAO);
   } else if (faseAtual == FASE_FRUTIFICACAO && DIAS_FRUTIFICACAO > 0 && dias >= (unsigned long)DIAS_FRUTIFICACAO) {
-    setNovaFase(FASE_SEGUNDO_FLUSH);
-  } else if (faseAtual == FASE_SEGUNDO_FLUSH && DIAS_SEGUNDO_FLUSH > 0 && dias >= (unsigned long)DIAS_SEGUNDO_FLUSH) {
     setNovaFase(FASE_STANDBY);
   }
 }
@@ -885,7 +880,6 @@ void webApiCmd() {
     if (v == "0") nova = FASE_STANDBY;
     else if (v == "P") nova = FASE_PINANDO;
     else if (v == "F") nova = FASE_FRUTIFICACAO;
-    else if (v == "S") nova = FASE_SEGUNDO_FLUSH;
     else if (v == "D") nova = FASE_SECAGEM;
     setNovaFase(nova);
   }
