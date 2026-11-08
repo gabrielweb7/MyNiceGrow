@@ -169,11 +169,11 @@
                     <span id="iaTempoAcao" class="text-slate-300 font-medium">Sincronizando...</span>
                 </div>
                 <div class="flex items-center gap-1.5 bg-slate-800/80 px-2.5 py-1 rounded-md border border-slate-700/50">
-                    <span class="text-teal-400 font-bold">💨 Próximo FAE:</span>
+                    <span id="lblFae" class="text-teal-400 font-bold">💨 Próximo FAE:</span>
                     <span id="iaProximoFae" class="text-white font-bold">--</span>
                 </div>
                 <div class="flex items-center gap-1.5 bg-slate-800/80 px-2.5 py-1 rounded-md border border-slate-700/50">
-                    <span class="text-indigo-400 font-bold">🌀 Próxima Brisa:</span>
+                    <span id="lblBrisa" class="text-indigo-400 font-bold">🌀 Próxima Brisa:</span>
                     <span id="iaProximaBrisa" class="text-white font-bold">--</span>
                 </div>
             </div>
@@ -1919,46 +1919,50 @@
             const ventoOffSec = Math.max(1, (cfg.vF || 2) * 60);
             const cicloVentoSec = ventoOnSec + ventoOffSec;
 
-            const agoraSeg = Math.floor(Date.now() / 1000);
-
-            // Sincronia com algoritmo FAE do ESP32 (agora % ciclo)
-            const momentoFae = cicloFaeSec > 0 ? (agoraSeg % cicloFaeSec) : 0;
-            const faeAtivo = momentoFae < faeOnSec;
-            if (faeAtivo) {
-                const restanteFae = faeOnSec - momentoFae;
-                elFae.innerHTML = `<span class="text-emerald-400 font-bold animate-pulse">● Ativo (~${formatarMinSeg(restanteFae)})</span>`;
-            } else {
-                const proxFae = cicloFaeSec - momentoFae;
-                elFae.textContent = `em ~${formatarMinSeg(proxFae)}`;
-            }
-
-            // Sincronia com algoritmo Brisa do ESP32 (agora % ciclo)
-            const momentoVento = cicloVentoSec > 0 ? (agoraSeg % cicloVentoSec) : 0;
-            const ventoAtivo = momentoVento < ventoOnSec;
-            if (ventoAtivo) {
-                const restanteVento = ventoOnSec - momentoVento;
-                elBri.innerHTML = `<span class="text-cyan-400 font-bold animate-pulse">● Soprando (~${formatarMinSeg(restanteVento)})</span>`;
-            } else {
-                const proxVento = cicloVentoSec - momentoVento;
-                elBri.textContent = `em ~${formatarMinSeg(proxVento)}`;
-            }
-
-            // Ação Geral Atual do Cabeçalho
+            // Telemetria real dos relés confirmada diretamente pela placa ESP32
             const rExaust = parseInt(ultimo.rele_exaust);
             const rVento = parseInt(ultimo.rele_vento);
             const rUmid = parseInt(ultimo.rele_umid);
 
+            const lblFae = document.getElementById('lblFae');
+            const lblBrisa = document.getElementById('lblBrisa');
+
+            const agoraSeg = Math.floor(Date.now() / 1000);
+
+            // Sincronia de Renovação de Ar (FAE)
+            const momentoFae = cicloFaeSec > 0 ? (agoraSeg % cicloFaeSec) : 0;
             if (rExaust === 1) {
-                const rest = faeOnSec > momentoFae ? (faeOnSec - momentoFae) : 30;
-                elAcao.innerHTML = `<span class="text-teal-300 font-bold">Renovação de Ar</span> (~${formatarMinSeg(rest)})`;
-            } else if (rVento === 1) {
-                const rest = ventoOnSec > momentoVento ? (ventoOnSec - momentoVento) : 30;
-                const msg = (rUmid === 1) ? 'Brisa com Névoa' : 'Brisa Preventiva';
-                elAcao.innerHTML = `<span class="text-cyan-300 font-bold">${msg}</span> (~${formatarMinSeg(rest)})`;
-            } else if (rUmid === 1) {
-                elAcao.innerHTML = `<span class="text-blue-300 font-bold">Injeção de névoa viva</span>`;
+                if (lblFae) lblFae.textContent = '💨 FAE Ativo:';
+                const restFae = (faeOnSec > momentoFae) ? (faeOnSec - momentoFae) : 30;
+                elFae.innerHTML = `<span class="text-emerald-400 font-bold animate-pulse">● Renovando Ar (~${formatarMinSeg(restFae)})</span>`;
             } else {
-                elAcao.innerHTML = `<span class="text-emerald-400 font-medium">Repouso • Clima Equilibrado</span>`;
+                if (lblFae) lblFae.textContent = '💨 Próximo FAE:';
+                const proxFae = cicloFaeSec - momentoFae;
+                elFae.textContent = `em ~${formatarMinSeg(proxFae)}`;
+            }
+
+            // Sincronia da Brisa Interna (Ventilador)
+            const momentoVento = cicloVentoSec > 0 ? (agoraSeg % cicloVentoSec) : 0;
+            if (rVento === 1) {
+                if (lblBrisa) lblBrisa.textContent = '🌀 Brisa Ativa:';
+                const restVento = (ventoOnSec > momentoVento) ? (ventoOnSec - momentoVento) : 30;
+                elBri.innerHTML = `<span class="text-cyan-400 font-bold animate-pulse">● Soprando (~${formatarMinSeg(restVento)})</span>`;
+            } else {
+                if (lblBrisa) lblBrisa.textContent = '🌀 Próxima Brisa:';
+                const proxVento = cicloVentoSec - momentoVento;
+                elBri.textContent = `em ~${formatarMinSeg(proxVento)}`;
+            }
+
+            // Ação Geral em Tempo Real (Pill 1)
+            if (rExaust === 1) {
+                elAcao.innerHTML = `<span class="text-teal-300 font-bold">Troca de Ar (FAE)</span>`;
+            } else if (rVento === 1) {
+                const msg = (rUmid === 1) ? 'Brisa com Névoa' : 'Brisa Preventiva';
+                elAcao.innerHTML = `<span class="text-cyan-300 font-bold">${msg}</span>`;
+            } else if (rUmid === 1) {
+                elAcao.innerHTML = `<span class="text-blue-300 font-bold">Injeção de Névoa</span>`;
+            } else {
+                elAcao.innerHTML = `<span class="text-emerald-400 font-medium">Clima Equilibrado</span>`;
             }
         }
 

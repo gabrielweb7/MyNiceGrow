@@ -1075,9 +1075,11 @@ void loop() {
     bool leuOk = sht30.readBoth(&tI, &hI);
 
     // Filtro de Sanidade Físico para SHT30 (Sensor Crítico Interno)
-    bool shtFisicoOk = leuOk && !isnan(tI) && !isnan(hI) && tI != 0.0f && hI != 0.0f && tI > -10.0f && tI < 60.0f && hI > 0.0f && hI <= 100.0f;
+    // Permite leitura até 108% para aceitar leituras no topo da escala e faz clamp em 100.0%
+    bool shtFisicoOk = leuOk && !isnan(tI) && !isnan(hI) && tI > -10.0f && tI < 60.0f && hI >= 0.0f && hI <= 108.0f;
     static int shtFalhasFisicas = 0;
     if (shtFisicoOk) {
+      if (hI > 100.0f) hI = 100.0f;
       shtFalhasFisicas = 0;
       if (!sensorIntOk) {
         sensorIntOk = true;
