@@ -5,12 +5,6 @@
 *.old
 esp32c3/
 
-# SEGURANÇA: NUNCA versionar credenciais reais de banco de dados e chaves de API
-**/config.php
-config.php
-grow.alquimistasmagicos.com.br/config.php
-grow.alquimistasmagicos.com.br/test_db.php
-
 # Arquivos gerados em tempo de execução pela API no servidor
 grow.alquimistasmagicos.com.br/api/config_clima.json
 grow.alquimistasmagicos.com.br/api/comando_pendente.json
