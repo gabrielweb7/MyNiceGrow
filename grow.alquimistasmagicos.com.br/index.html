@@ -73,20 +73,27 @@
     <header class="sticky top-0 z-50 glass border-b border-slate-700/50 px-4 md:px-8 py-3">
         <div class="max-w-7xl mx-auto flex flex-col sm:flex-row justify-between items-center gap-3">
             <div class="flex items-center gap-3">
-                <div class="text-3xl">🍄</div>
+                <div class="text-3xl cursor-pointer" onclick="navegarView('dashboard')" title="Ir para o Painel">🍄</div>
                 <div>
-                    <h1 class="text-xl md:text-2xl font-bold bg-gradient-to-r from-emerald-400 to-cyan-400 bg-clip-text text-transparent">Grow do Txai</h1>
+                    <h1 class="text-xl md:text-2xl font-bold bg-gradient-to-r from-emerald-400 to-cyan-400 bg-clip-text text-transparent cursor-pointer" onclick="navegarView('dashboard')">Grow do Txai</h1>
                     <p class="text-[10px] md:text-xs text-slate-500 font-medium tracking-wider uppercase">Painel de Controle IoT</p>
                 </div>
                 <div id="statusDot" class="ml-3 flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-slate-800 text-[10px] font-semibold uppercase tracking-wider">
                     <span class="w-2 h-2 rounded-full bg-slate-500 pulse-dot" id="dotColor"></span>
                     <span id="statusText" class="text-slate-400">Aguardando...</span>
                 </div>
-                <button onclick="abrirConfig()" class="ml-2 px-2.5 py-1 text-[10px] bg-slate-800 hover:bg-slate-700 border border-slate-700 rounded text-slate-300 hover:text-white transition-all font-semibold uppercase tracking-wider flex items-center gap-1">
-                    <span>⚙️</span> <span class="hidden sm:inline">Configurações</span>
-                </button>
+                <!-- Alternador SPA de Telas (Painel vs Configurações) -->
+                <div class="flex items-center bg-slate-900/90 p-0.5 rounded-lg border border-slate-700/80 ml-2 shadow-sm">
+                    <button id="navBtnDashboard" onclick="navegarView('dashboard')" class="px-3 py-1 text-xs rounded-md font-semibold tracking-wide flex items-center gap-1.5 transition-all bg-emerald-600 text-white shadow">
+                        <span>📊</span> <span class="hidden sm:inline">Painel</span>
+                    </button>
+                    <button id="navBtnConfig" onclick="navegarView('config')" class="px-3 py-1 text-xs rounded-md font-semibold tracking-wide flex items-center gap-1.5 transition-all text-slate-400 hover:text-white hover:bg-slate-800">
+                        <span>⚙️</span> <span class="hidden sm:inline">Configurações</span>
+                    </button>
+                </div>
             </div>
-            <div class="flex items-center gap-2">
+            <!-- Controles do Header (Monitoramento) -->
+            <div id="headerDashboardControls" class="flex items-center gap-2">
                 <button onclick="filtrar(1440, this)"  class="btn-filter px-3 py-1.5 rounded-lg text-xs font-bold bg-slate-800 hover:bg-slate-700 active">24h</button>
                 <button onclick="filtrar(10080, this)" class="btn-filter px-3 py-1.5 rounded-lg text-xs font-bold bg-slate-800 hover:bg-slate-700">7 Dias</button>
                 <button onclick="exportarCSV()" class="px-2.5 py-1.5 rounded-lg text-xs font-bold bg-slate-800 hover:bg-slate-700 border border-slate-700/60 text-slate-300 hover:text-white flex items-center gap-1.5 transition shadow-sm" title="Exportar dados do gráfico em formato CSV">
@@ -99,10 +106,19 @@
                     <svg class="w-4 h-4 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg>
                 </button>
             </div>
+            <!-- Controles do Header (quando na tela de Configurações) -->
+            <div id="headerConfigControls" class="hidden flex items-center gap-2">
+                <button onclick="navegarView('dashboard')" class="px-3.5 py-1.5 rounded-lg text-xs font-bold bg-emerald-600/20 text-emerald-300 border border-emerald-500/30 hover:bg-emerald-600 hover:text-white flex items-center gap-1.5 transition shadow-sm">
+                    <span>←</span> <span>Voltar ao Painel</span>
+                </button>
+            </div>
         </div>
     </header>
 
-    <main class="max-w-7xl mx-auto px-4 md:px-8 py-6 space-y-6">
+    <main class="max-w-7xl mx-auto px-4 md:px-8 py-6">
+
+        <!-- VIEW 1: PAINEL DE MONITORAMENTO (DASHBOARD) -->
+        <div id="viewDashboard" class="space-y-6">
 
         <!-- CARDS PRINCIPAIS -->
         <section class="grid grid-cols-2 lg:grid-cols-4 gap-3 md:gap-4 fade-in">
@@ -388,138 +404,412 @@
             <div style="position:relative; height:210px;"><canvas id="canvasReles"></canvas></div>
         </section>
 
-        <!-- FOOTER -->
-        <footer class="text-center text-[10px] text-slate-500 py-4 space-y-1">
-            <div>Grow do Txai — IoT Cloud System — Dados atualizados a cada 60 segundos</div>
-            <div id="txtGitHash" class="text-emerald-400 font-bold tracking-widest text-xs drop-shadow-[0_0_8px_rgba(52,211,153,0.7)]">Versão: 1.5.0</div>
-        </footer>
-    </main>
+        </div> <!-- /#viewDashboard -->
 
-    <!-- Modal Configurações Responsivo -->
-    <div id="modalConfig" onclick="if(event.target === this) fecharConfig()" class="fixed inset-0 bg-black/80 backdrop-blur-sm z-[100] hidden flex items-center justify-center p-3 sm:p-4">
-        <div class="bg-slate-900 border border-slate-700/80 rounded-2xl w-full max-w-lg max-h-[92vh] sm:max-h-[88vh] flex flex-col overflow-hidden shadow-2xl">
-            <!-- Header Fixo -->
-            <div class="px-4 py-3 sm:px-5 sm:py-4 border-b border-slate-800 flex justify-between items-center bg-slate-900/95 backdrop-blur shrink-0">
-                <h2 class="text-xs sm:text-sm font-bold text-slate-200 uppercase tracking-wider flex items-center gap-2">
-                    <span>⚙️</span> Configurações do Sistema
-                </h2>
-                <button onclick="fecharConfig()" class="w-8 h-8 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-white flex items-center justify-center text-xl transition-all" aria-label="Fechar">&times;</button>
+        <!-- VIEW 2: PÁGINA COMPLETA DE CONFIGURAÇÕES COM ABAS RESPONSIVAS -->
+        <div id="viewConfig" class="space-y-6 hidden fade-in">
+            <!-- Header Banner de Configurações -->
+            <div class="glass rounded-2xl p-5 md:p-6 border border-slate-700/60 shadow-xl flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+                <div class="flex items-center gap-3.5">
+                    <div class="w-12 h-12 rounded-xl bg-gradient-to-br from-emerald-500/20 via-cyan-500/20 to-amber-500/20 border border-emerald-500/40 flex items-center justify-center text-2xl shadow-inner shrink-0">
+                        ⚙️
+                    </div>
+                    <div>
+                        <div class="flex flex-wrap items-center gap-2">
+                            <h2 class="text-lg md:text-xl font-extrabold text-white tracking-tight">Configurações do Sistema</h2>
+                            <span id="cfgFaseBanner" class="bg-amber-500/15 text-amber-300 text-[10px] font-bold px-2.5 py-0.5 rounded-full border border-amber-500/30">Fase: --</span>
+                            <span class="bg-emerald-500/15 text-emerald-300 text-[10px] font-bold px-2.5 py-0.5 rounded-full border border-emerald-500/30 flex items-center gap-1">
+                                <span class="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span> ESP32-S3
+                            </span>
+                        </div>
+                        <p class="text-xs text-slate-400 mt-0.5">Parâmetros climáticos, ciclos de aeração, iluminação, firmware OTA e credenciais</p>
+                    </div>
+                </div>
+                <button onclick="navegarView('dashboard')" class="w-full sm:w-auto px-4 py-2.5 rounded-xl text-xs font-bold bg-slate-800/90 hover:bg-slate-700 text-slate-200 hover:text-white border border-slate-700 flex items-center justify-center gap-2 transition shadow-sm active:scale-95 shrink-0">
+                    <span>←</span> <span>Voltar ao Monitoramento</span>
+                </button>
             </div>
 
-            <!-- Corpo com Scroll Suave -->
-            <div class="p-4 sm:p-5 overflow-y-auto space-y-5">
-                <!-- Seção OTA -->
-                <div>
-                    <div class="flex flex-wrap justify-between items-center gap-1.5 mb-1.5">
-                        <h3 class="text-emerald-400 font-bold text-xs uppercase flex items-center gap-1.5">
-                            <span>🚀</span> Sincronização de Firmware (OTA)
-                        </h3>
-                        <div id="otaStatusBadge"></div>
-                    </div>
-                    <p class="text-[10px] sm:text-xs text-slate-400 mb-3 leading-relaxed">O sistema compara a data do arquivo <span class="text-slate-300 font-mono bg-slate-800 px-1 py-0.5 rounded">.bin</span> rodando na placa com a do servidor.</p>
-                    
-                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-2.5 mb-3">
-                        <div class="bg-slate-800/90 p-3 rounded-lg border border-slate-700/70">
-                            <span class="text-[10px] text-slate-400 uppercase tracking-wider font-semibold block mb-1">Instalada na Estufa</span>
-                            <div id="uiFwPlaca" class="text-xs sm:text-sm font-bold text-slate-200">--</div>
-                        </div>
-                        <div class="bg-slate-800/90 p-3 rounded-lg border border-slate-700/70">
-                            <span class="text-[10px] text-slate-400 uppercase tracking-wider font-semibold block mb-1">Disponível na Nuvem</span>
-                            <div id="uiFwNuvem" class="text-xs sm:text-sm font-bold text-slate-200">--</div>
-                        </div>
-                    </div>
+            <!-- Barra de Abas Responsiva (Scroll horizontal suave no celular) -->
+            <div class="flex items-center gap-2 border-b border-slate-800/80 pb-2 overflow-x-auto no-scrollbar">
+                <button onclick="trocarAbaConfig('clima')" id="tabBtnClima" class="px-4 py-2.5 rounded-xl text-xs md:text-sm font-bold flex items-center gap-2 transition-all bg-emerald-500/20 text-emerald-300 border border-emerald-500/50 shadow-md shrink-0">
+                    <span>🌡️</span> <span>Clima & Timers</span>
+                </button>
+                <button onclick="trocarAbaConfig('luz')" id="tabBtnLuz" class="px-4 py-2.5 rounded-xl text-xs md:text-sm font-bold flex items-center gap-2 transition-all text-slate-400 hover:text-white hover:bg-slate-800/80 border border-transparent shrink-0">
+                    <span>💡</span> <span>Fotoperíodo & Luz</span>
+                </button>
+                <button onclick="trocarAbaConfig('ota')" id="tabBtnOta" class="px-4 py-2.5 rounded-xl text-xs md:text-sm font-bold flex items-center gap-2 transition-all text-slate-400 hover:text-white hover:bg-slate-800/80 border border-transparent shrink-0">
+                    <span>🚀</span> <span>Firmware & OTA</span>
+                </button>
+                <button onclick="trocarAbaConfig('admin')" id="tabBtnAdmin" class="px-4 py-2.5 rounded-xl text-xs md:text-sm font-bold flex items-center gap-2 transition-all text-slate-400 hover:text-white hover:bg-slate-800/80 border border-transparent shrink-0">
+                    <span>🔑</span> <span>Chave Admin</span>
+                </button>
+                <button onclick="trocarAbaConfig('sistema')" id="tabBtnSistema" class="px-4 py-2.5 rounded-xl text-xs md:text-sm font-bold flex items-center gap-2 transition-all text-slate-400 hover:text-white hover:bg-slate-800/80 border border-transparent shrink-0">
+                    <span>🛠️</span> <span>Hardware & Sistema</span>
+                </button>
+            </div>
 
-                    <button onclick="enviarOTA()" id="btnEnviarOta" class="w-full bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs sm:text-sm py-2.5 sm:py-3 rounded-lg transition-all shadow-[0_0_15px_rgba(16,185,129,0.2)] flex items-center justify-center gap-2 active:scale-[0.99]">
-                        <span>Instalar Versão da Nuvem na Placa</span>
-                    </button>
-                </div>
-
-                <hr class="border-slate-800/80">
-
-                <!-- Seção Clima por Fase -->
-                <div>
-                    <h3 class="text-amber-400 font-bold text-xs uppercase mb-3 flex items-center gap-1.5">
-                        <span>🌡️</span> Ajuste de Clima por Fase
-                    </h3>
-                    <div class="mb-3">
-                        <label class="text-[10px] sm:text-xs text-slate-400 uppercase tracking-wider font-semibold block mb-1">Selecione a Fase</label>
-                        <select id="selConfigFase" class="w-full bg-slate-800 text-slate-200 text-xs sm:text-sm border border-slate-700 rounded-lg p-2.5 outline-none focus:border-amber-500" onchange="carregarFormClima()">
-                            <option value="1">🍄 Pinagem</option>
-                            <option value="2">🍄 Frutificação</option>
-                        </select>
-                    </div>
-
-                    <!-- Metas de Temp e Umidade (2 colunas claras: Temp Máxima e Umidade Alvo) -->
-                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-2 mb-3">
-                        <div class="bg-slate-800/60 p-2.5 rounded-lg border border-slate-700/60">
-                            <label class="text-[9px] sm:text-[10px] text-slate-400 block mb-1 font-medium truncate">Temp Máxima (°C)</label>
-                            <input type="number" step="0.1" id="cfgTx" class="w-full bg-slate-800 text-slate-200 text-xs sm:text-sm font-bold border border-slate-700 rounded p-1.5 sm:p-2 text-center outline-none focus:border-amber-500">
-                        </div>
-                        <div class="bg-slate-800/60 p-2.5 rounded-lg border border-slate-700/60">
-                            <label class="text-[9px] sm:text-[10px] text-slate-400 block mb-1 font-medium truncate">Umidade Alvo (%)</label>
-                            <input type="number" step="0.1" id="cfgUa" class="w-full bg-slate-800 text-slate-200 text-xs sm:text-sm font-bold border border-slate-700 rounded p-1.5 sm:p-2 text-center outline-none focus:border-cyan-500">
-                        </div>
-                    </div>
-
-                    <!-- Renovação de Ar (FAE) -->
-                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-2 mb-3">
-                        <div class="bg-slate-800/60 p-2.5 rounded-lg border border-slate-700/60">
-                            <label class="text-[10px] text-slate-400 block mb-1 font-medium">Exaustor LIGADO (min)</label>
-                            <input type="number" id="cfgFo" class="w-full bg-slate-800 text-slate-200 text-xs sm:text-sm font-bold border border-slate-700 rounded p-2 text-center outline-none focus:border-amber-500">
-                        </div>
-                        <div class="bg-slate-800/60 p-2.5 rounded-lg border border-slate-700/60">
-                            <label class="text-[10px] text-slate-400 block mb-1 font-medium">Exaustor DESLIG. (min)</label>
-                            <input type="number" id="cfgFf" class="w-full bg-slate-800 text-slate-200 text-xs sm:text-sm font-bold border border-slate-700 rounded p-2 text-center outline-none focus:border-amber-500">
-                        </div>
-                    </div>
-
-                    <!-- Circulação Interna (Brisa) -->
-                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-2 mb-2.5">
-                        <div class="bg-slate-800/60 p-2.5 rounded-lg border border-slate-700/60">
-                            <label class="text-[10px] text-slate-400 block mb-1 font-medium">Ventilador Int. LIGADO (min)</label>
-                            <input type="number" id="cfgVo" class="w-full bg-slate-800 text-slate-200 text-xs sm:text-sm font-bold border border-slate-700 rounded p-2 text-center outline-none focus:border-amber-500">
-                        </div>
-                        <div class="bg-slate-800/60 p-2.5 rounded-lg border border-slate-700/60">
-                            <label class="text-[10px] text-slate-400 block mb-1 font-medium">Ventilador Int. DESLIG. (min)</label>
-                            <input type="number" id="cfgVf" class="w-full bg-slate-800 text-slate-200 text-xs sm:text-sm font-bold border border-slate-700 rounded p-2 text-center outline-none focus:border-amber-500">
-                        </div>
-                    </div>
-
-                    <!-- Injetar Névoa na Brisa (Compacto, alinhado aos inputs acima) -->
-                    <div class="bg-slate-800/60 p-2.5 rounded-lg border border-slate-700/60 flex items-center justify-between gap-3 mb-3 cursor-pointer hover:bg-slate-800/80 transition-all" onclick="const cb = document.getElementById('cfgVu'); cb.checked = !cb.checked;">
+            <!-- ABA 1: CLIMA & TIMERS -->
+            <div id="tabContentClima" class="space-y-6">
+                <div class="glass rounded-2xl p-5 md:p-8 border border-slate-700/60 shadow-xl space-y-6">
+                    <div class="flex flex-col md:flex-row md:items-center justify-between gap-4 pb-5 border-b border-slate-800/80">
                         <div>
-                            <label class="text-[10px] text-slate-300 font-medium block cursor-pointer">Injetar Névoa na Brisa</label>
-                            <span class="text-[9px] text-slate-400 block mt-0.5 leading-tight">Liga o umidificador durante a circulação para vapor vivo</span>
+                            <h3 class="text-base md:text-lg font-bold text-amber-400 flex items-center gap-2">
+                                <span>🌡️</span> Metas Climáticas por Fase de Cultivo
+                            </h3>
+                            <p class="text-xs text-slate-400 mt-1 max-w-2xl">
+                                Selecione a fase micológica abaixo para carregar os parâmetros ativos na placa. Ao salvar, as alterações são enviadas e gravadas diretamente na memória do ESP32-S3.
+                            </p>
                         </div>
-                        <label class="relative inline-flex items-center cursor-pointer shrink-0" onclick="event.stopPropagation()">
-                            <input type="checkbox" id="cfgVu" class="sr-only peer">
-                            <div class="w-9 h-5 bg-slate-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-emerald-500 shadow-inner"></div>
-                        </label>
+                        <div class="w-full md:w-72 bg-slate-800/60 p-3 rounded-xl border border-slate-700/70">
+                            <label class="text-[10px] text-slate-400 uppercase tracking-wider font-semibold block mb-1.5">Fase de Trabalho</label>
+                            <select id="selConfigFase" class="w-full bg-slate-900 text-slate-100 text-sm font-bold border border-slate-700 rounded-lg p-2.5 outline-none focus:border-amber-500 transition shadow-inner cursor-pointer" onchange="carregarFormClima()">
+                                <option value="1">🍄 Fase 1: Pinagem (Alta Umidade 95%+)</option>
+                                <option value="2">🍄 Fase 2: Frutificação (Maior FAE 92%)</option>
+                            </select>
+                        </div>
                     </div>
 
-                    <button onclick="salvarFormClima()" id="btnSalvarClima" class="w-full bg-amber-600 hover:bg-amber-500 text-white font-bold text-xs sm:text-sm py-2.5 sm:py-3 rounded-lg transition-all shadow-[0_0_15px_rgba(217,119,6,0.2)] active:scale-[0.99]">
-                        Salvar e Enviar para Placa
-                    </button>
-                </div>
+                    <!-- Grid dos Grupos de Parâmetros -->
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-6">
+                        <!-- Grupo 1: Temperatura & Umidade -->
+                        <div class="bg-slate-800/40 p-4 md:p-5 rounded-xl border border-slate-700/60 space-y-4">
+                            <div class="flex items-center justify-between text-slate-200 font-bold text-xs uppercase tracking-wider">
+                                <span class="flex items-center gap-1.5"><span>🎯</span> Metas de Ambiente</span>
+                                <span class="text-[10px] text-slate-500 font-normal">Controle térmico e higrométrico</span>
+                            </div>
+                            <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                                <div>
+                                    <label class="text-[11px] text-slate-400 block mb-1 font-medium">Temp. Máxima (°C)</label>
+                                    <div class="relative">
+                                        <input type="number" step="0.1" id="cfgTx" class="w-full bg-slate-900/90 text-amber-400 text-base font-extrabold border border-slate-700 rounded-lg p-2.5 text-center outline-none focus:border-amber-500 transition shadow-inner">
+                                        <span class="absolute right-3 top-2.5 text-xs text-slate-500 font-bold">°C</span>
+                                    </div>
+                                    <span class="text-[10px] text-slate-500 mt-1 block">Acima liga ventilação de alívio</span>
+                                </div>
+                                <div>
+                                    <label class="text-[11px] text-slate-400 block mb-1 font-medium">Umidade Alvo (%)</label>
+                                    <div class="relative">
+                                        <input type="number" step="0.1" id="cfgUa" class="w-full bg-slate-900/90 text-cyan-400 text-base font-extrabold border border-slate-700 rounded-lg p-2.5 text-center outline-none focus:border-cyan-500 transition shadow-inner">
+                                        <span class="absolute right-3 top-2.5 text-xs text-slate-500 font-bold">%</span>
+                                    </div>
+                                    <span class="text-[10px] text-slate-500 mt-1 block">Mantém a névoa ultrassônica</span>
+                                </div>
+                            </div>
+                        </div>
 
-                <hr class="border-slate-800/80">
+                        <!-- Grupo 2: Renovação de Ar (FAE - Exaustor) -->
+                        <div class="bg-slate-800/40 p-4 md:p-5 rounded-xl border border-slate-700/60 space-y-4">
+                            <div class="flex items-center justify-between text-slate-200 font-bold text-xs uppercase tracking-wider">
+                                <span class="flex items-center gap-1.5"><span>🌬️</span> Renovação de Ar (FAE)</span>
+                                <span class="text-[10px] text-slate-500 font-normal">Exaustor / Troca gasosa</span>
+                            </div>
+                            <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                                <div>
+                                    <label class="text-[11px] text-slate-400 block mb-1 font-medium">Ligado (minutos)</label>
+                                    <input type="number" id="cfgFo" class="w-full bg-slate-900/90 text-slate-200 text-base font-extrabold border border-slate-700 rounded-lg p-2.5 text-center outline-none focus:border-amber-500 transition shadow-inner">
+                                    <span class="text-[10px] text-slate-500 mt-1 block">Expulsão ativa de CO2 acumulado</span>
+                                </div>
+                                <div>
+                                    <label class="text-[11px] text-slate-400 block mb-1 font-medium">Desligado (minutos)</label>
+                                    <input type="number" id="cfgFf" class="w-full bg-slate-900/90 text-slate-200 text-base font-extrabold border border-slate-700 rounded-lg p-2.5 text-center outline-none focus:border-amber-500 transition shadow-inner">
+                                    <span class="text-[10px] text-slate-500 mt-1 block">Pausa entre renovações de ar</span>
+                                </div>
+                            </div>
+                        </div>
 
-                <!-- Seção Chave Admin -->
-                <div>
-                    <h3 class="text-slate-300 font-bold text-xs uppercase mb-1.5 flex items-center gap-1.5">
-                        <span>🔑</span> Chave de Acesso Admin
-                    </h3>
-                    <p class="text-[10px] sm:text-xs text-slate-400 mb-2.5 leading-relaxed">Senha para autorizar comandos de fase, iluminação forçada e updates.</p>
-                    <div class="flex flex-col sm:flex-row gap-2">
-                        <input type="password" id="inputAdminPass" placeholder="Digite a chave admin..." class="flex-1 bg-slate-800 text-slate-200 text-xs sm:text-sm border border-slate-700 rounded-lg p-2.5 outline-none focus:border-emerald-500">
-                        <button onclick="salvarChaveAdmin()" class="bg-emerald-600 hover:bg-emerald-500 text-white text-xs sm:text-sm font-bold px-4 py-2.5 rounded-lg transition-all shrink-0 active:scale-[0.99]">
-                            Salvar Chave
+                        <!-- Grupo 3: Circulação Interna (Brisa) -->
+                        <div class="bg-slate-800/40 p-4 md:p-5 rounded-xl border border-slate-700/60 space-y-4">
+                            <div class="flex items-center justify-between text-slate-200 font-bold text-xs uppercase tracking-wider">
+                                <span class="flex items-center gap-1.5"><span>🌀</span> Circulação Interna (Brisa)</span>
+                                <span class="text-[10px] text-slate-500 font-normal">Ventilador interno</span>
+                            </div>
+                            <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                                <div>
+                                    <label class="text-[11px] text-slate-400 block mb-1 font-medium">Ligado (minutos)</label>
+                                    <input type="number" id="cfgVo" class="w-full bg-slate-900/90 text-slate-200 text-base font-extrabold border border-slate-700 rounded-lg p-2.5 text-center outline-none focus:border-amber-500 transition shadow-inner">
+                                    <span class="text-[10px] text-slate-500 mt-1 block">Tempo de movimentação da brisa</span>
+                                </div>
+                                <div>
+                                    <label class="text-[11px] text-slate-400 block mb-1 font-medium">Desligado (minutos)</label>
+                                    <input type="number" id="cfgVf" class="w-full bg-slate-900/90 text-slate-200 text-base font-extrabold border border-slate-700 rounded-lg p-2.5 text-center outline-none focus:border-amber-500 transition shadow-inner">
+                                    <span class="text-[10px] text-slate-500 mt-1 block">Pausa da brisa interna</span>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Grupo 4: Névoa na Brisa -->
+                        <div class="bg-slate-800/40 p-4 md:p-5 rounded-xl border border-slate-700/60 flex flex-col justify-between">
+                            <div class="space-y-2">
+                                <div class="flex items-center justify-between text-slate-200 font-bold text-xs uppercase tracking-wider">
+                                    <span class="flex items-center gap-1.5"><span>🌫️</span> Injetar Névoa na Brisa</span>
+                                    <span class="text-[10px] text-emerald-400 font-bold">Vapor Vivo</span>
+                                </div>
+                                <p class="text-xs text-slate-400 leading-relaxed">
+                                    Quando ativado, sempre que o ventilador interno ligar para circular o ar, o umidificador é acionado junto, preenchendo a câmara com uma fina névoa homogênea sem condensação pesada nos chapéus.
+                                </p>
+                            </div>
+                            <div class="mt-4 pt-3 border-t border-slate-700/60 flex items-center justify-between cursor-pointer" onclick="const cb = document.getElementById('cfgVu'); cb.checked = !cb.checked;">
+                                <span class="text-xs font-semibold text-slate-200">Ativar injeção combinada névoa + brisa</span>
+                                <label class="relative inline-flex items-center cursor-pointer shrink-0" onclick="event.stopPropagation()">
+                                    <input type="checkbox" id="cfgVu" class="sr-only peer">
+                                    <div class="w-11 h-6 bg-slate-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-emerald-500 shadow-inner"></div>
+                                </label>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Botão de Ação Salvar Clima -->
+                    <div class="pt-4 border-t border-slate-800 flex flex-col sm:flex-row items-center justify-between gap-3">
+                        <div class="text-[11px] text-slate-400 flex items-center gap-1.5">
+                            <span>ℹ️</span> <span>Os dados são validados e aplicados imediatamente na estufa.</span>
+                        </div>
+                        <button onclick="salvarFormClima()" id="btnSalvarClima" class="w-full sm:w-auto px-8 py-3.5 bg-gradient-to-r from-amber-600 to-amber-500 hover:from-amber-500 hover:to-amber-400 text-white font-bold text-xs sm:text-sm rounded-xl transition-all shadow-[0_0_20px_rgba(245,158,11,0.25)] active:scale-[0.99] flex items-center justify-center gap-2">
+                            <span>💾</span> <span>Salvar e Enviar para Placa</span>
                         </button>
                     </div>
                 </div>
             </div>
+
+            <!-- ABA 2: FOTOPERÍODO & LUZ -->
+            <div id="tabContentLuz" class="space-y-6 hidden">
+                <div class="glass rounded-2xl p-5 md:p-8 border border-slate-700/60 shadow-xl space-y-6">
+                    <div class="pb-4 border-b border-slate-800/80">
+                        <h3 class="text-base md:text-lg font-bold text-amber-300 flex items-center gap-2">
+                            <span>💡</span> Fotoperíodo & Gestão de Iluminação (Relé 1 - GPIO 0)
+                        </h3>
+                        <p class="text-xs text-slate-400 mt-1 max-w-2xl">
+                            A iluminação no cultivo micológico orienta o geotropismo (direção de crescimento) e auxilia na formação e diferenciação dos primórdios (pins).
+                        </p>
+                    </div>
+
+                    <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                        <div class="bg-slate-800/40 p-4 rounded-xl border border-slate-700/60 space-y-2">
+                            <span class="text-[11px] text-slate-400 uppercase tracking-wider font-semibold block">Regra do Fotoperíodo</span>
+                            <div class="text-base font-bold text-amber-400 flex items-center gap-1.5">
+                                <span>☀️</span> <span>12h Dia / 12h Noite</span>
+                            </div>
+                            <p class="text-[11px] text-slate-400 leading-relaxed">
+                                No modo automático, a luz acende pontualmente às <strong>08:00</strong> e apaga às <strong>20:00</strong> pelo relógio RTC sincronizado via NTP.
+                            </p>
+                        </div>
+                        <div class="bg-slate-800/40 p-4 rounded-xl border border-slate-700/60 space-y-2">
+                            <span class="text-[11px] text-slate-400 uppercase tracking-wider font-semibold block">Proteção Térmica</span>
+                            <div class="text-base font-bold text-emerald-400 flex items-center gap-1.5">
+                                <span>🛡️</span> <span>Zero Aquecimento Noturno</span>
+                            </div>
+                            <p class="text-[11px] text-slate-400 leading-relaxed">
+                                A placa possui proteção dupla de hardware: no modo AUTO a luz nunca acende fora do horário diurno, mantendo a temperatura noturna estável.
+                            </p>
+                        </div>
+                        <div class="bg-slate-800/40 p-4 rounded-xl border border-slate-700/60 space-y-2">
+                            <span class="text-[11px] text-slate-400 uppercase tracking-wider font-semibold block">Estado do Relé 1</span>
+                            <div class="text-base font-bold text-cyan-400 flex items-center gap-1.5" id="cfgStatusLuzTexto">
+                                <span>⚡</span> <span>GPIO 0: SSR Ativo LOW</span>
+                            </div>
+                            <p class="text-[11px] text-slate-400 leading-relaxed">
+                                Módulo de relé de estado sólido silencioso, sem estalo mecânico e sem interferência eletromagnética no barramento I2C.
+                            </p>
+                        </div>
+                    </div>
+
+                    <!-- Controle Direto de Modo de Luz -->
+                    <div class="bg-slate-800/50 p-5 rounded-xl border border-slate-700/70 space-y-3">
+                        <div class="flex items-center justify-between">
+                            <span class="text-xs font-bold text-slate-200 uppercase tracking-wider">Alternar Modo de Luz da Estufa</span>
+                            <span class="text-[11px] text-slate-400">Requer autenticação de administrador</span>
+                        </div>
+                        <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                            <button onclick="mudarLuz(0)" class="p-3 rounded-xl bg-slate-900 hover:bg-slate-800 border border-amber-500/40 hover:border-amber-400 text-amber-300 font-bold text-xs transition-all flex flex-col items-center justify-center gap-1 shadow-sm">
+                                <span class="text-lg">🤖</span>
+                                <span>Modo Automático</span>
+                                <span class="text-[10px] text-slate-400 font-normal">Ciclo 12h Dia / 12h Noite</span>
+                            </button>
+                            <button onclick="mudarLuz(1)" class="p-3 rounded-xl bg-slate-900 hover:bg-slate-800 border border-emerald-500/40 hover:border-emerald-400 text-emerald-300 font-bold text-xs transition-all flex flex-col items-center justify-center gap-1 shadow-sm">
+                                <span class="text-lg">💡</span>
+                                <span>Forçar Ligado</span>
+                                <span class="text-[10px] text-slate-400 font-normal">Manter relé ligado 24h</span>
+                            </button>
+                            <button onclick="mudarLuz(2)" class="p-3 rounded-xl bg-slate-900 hover:bg-slate-800 border border-rose-500/40 hover:border-rose-400 text-rose-300 font-bold text-xs transition-all flex flex-col items-center justify-center gap-1 shadow-sm">
+                                <span class="text-lg">🌑</span>
+                                <span>Forçar Desligado</span>
+                                <span class="text-[10px] text-slate-400 font-normal">Manter relé desligado 24h</span>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- ABA 3: FIRMWARE & OTA -->
+            <div id="tabContentOta" class="space-y-6 hidden">
+                <div class="glass rounded-2xl p-5 md:p-8 border border-slate-700/60 shadow-xl space-y-6">
+                    <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-4 border-b border-slate-800/80">
+                        <div>
+                            <h3 class="text-base md:text-lg font-bold text-emerald-400 flex items-center gap-2">
+                                <span>🚀</span> Sincronização de Firmware Over-the-Air (OTA)
+                            </h3>
+                            <p class="text-xs text-slate-400 mt-1">O ESP32 compara a versão em flash com o binário na nuvem e faz o update seguro via Wi-Fi.</p>
+                        </div>
+                        <div id="otaStatusBadge"></div>
+                    </div>
+
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div class="bg-slate-800/50 p-5 rounded-xl border border-slate-700/70 space-y-2">
+                            <span class="text-[11px] text-slate-400 uppercase tracking-wider font-semibold block">Versão Instalada na Estufa</span>
+                            <div id="uiFwPlaca" class="text-base md:text-lg font-mono font-bold text-emerald-400">--</div>
+                            <p class="text-[11px] text-slate-500">Timestamp de compilação reportado pelo microcontrolador.</p>
+                        </div>
+                        <div class="bg-slate-800/50 p-5 rounded-xl border border-slate-700/70 space-y-2">
+                            <span class="text-[11px] text-slate-400 uppercase tracking-wider font-semibold block">Versão Disponível na Nuvem</span>
+                            <div id="uiFwNuvem" class="text-base md:text-lg font-mono font-bold text-cyan-400">--</div>
+                            <p class="text-[11px] text-slate-500">Último binário compilado e sincronizado no servidor web.</p>
+                        </div>
+                    </div>
+
+                    <div class="bg-slate-800/30 p-4 rounded-xl border border-slate-700/50 text-xs text-slate-300 space-y-2 leading-relaxed">
+                        <div class="font-bold text-slate-200 flex items-center gap-1.5">
+                            <span>🛡️</span> Mecanismo Anti-Brick Dual-Bank OTA
+                        </div>
+                        <p class="text-slate-400 text-[11px]">
+                            O sistema utiliza partições OTA duplas (<span class="text-slate-300 font-mono">ota_0</span> e <span class="text-slate-300 font-mono">ota_1</span>) com rollback automático no ESP32-S3. Se houver falha de rede ou corrupção de download, a placa reverte de forma autônoma para a versão anterior estável sem intervenção manual.
+                        </p>
+                    </div>
+
+                    <div class="pt-2">
+                        <button onclick="enviarOTA()" id="btnEnviarOta" class="w-full bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white font-bold text-xs sm:text-sm py-3.5 rounded-xl transition-all shadow-[0_0_20px_rgba(16,185,129,0.25)] flex items-center justify-center gap-2 active:scale-[0.99]">
+                            <span>⚡</span> <span>Instalar Versão da Nuvem na Placa</span>
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- ABA 4: CHAVE ADMIN & SEGURANÇA -->
+            <div id="tabContentAdmin" class="space-y-6 hidden">
+                <div class="glass rounded-2xl p-5 md:p-8 border border-slate-700/60 shadow-xl space-y-6">
+                    <div class="pb-4 border-b border-slate-800/80">
+                        <h3 class="text-base md:text-lg font-bold text-slate-200 flex items-center gap-2">
+                            <span>🔑</span> Chave de Acesso do Administrador
+                        </h3>
+                        <p class="text-xs text-slate-400 mt-1 max-w-2xl">
+                            A chave é exigida para autorizar ações críticas: modificações nos modos manuais de relé, troca de fase micológica, alteração de parâmetros climáticos e disparo de update OTA.
+                        </p>
+                    </div>
+
+                    <div class="max-w-xl space-y-4">
+                        <div>
+                            <label class="text-xs font-semibold text-slate-300 block mb-1.5">Senha de Autenticação</label>
+                            <div class="flex flex-col sm:flex-row gap-2.5">
+                                <div class="relative flex-1">
+                                    <input type="password" id="inputAdminPass" placeholder="Digite a chave admin..." class="w-full bg-slate-900/90 text-slate-100 text-sm border border-slate-700 rounded-xl px-4 py-3 pr-10 outline-none focus:border-emerald-500 transition shadow-inner">
+                                    <button type="button" onclick="const i = document.getElementById('inputAdminPass'); i.type = i.type === 'password' ? 'text' : 'password';" class="absolute right-3 top-3 text-slate-500 hover:text-slate-300 transition" title="Mostrar/Ocultar Senha">
+                                        👁️
+                                    </button>
+                                </div>
+                                <button onclick="salvarChaveAdmin()" class="bg-emerald-600 hover:bg-emerald-500 text-white text-xs sm:text-sm font-bold px-6 py-3 rounded-xl transition-all shadow-md active:scale-[0.99] flex items-center justify-center gap-2 shrink-0">
+                                    <span>💾</span> <span>Salvar Chave</span>
+                                </button>
+                            </div>
+                        </div>
+
+                        <div id="adminPassFeedback" class="text-xs text-emerald-400 hidden flex items-center gap-1.5 font-medium bg-emerald-950/30 p-2.5 rounded-lg border border-emerald-500/30">
+                            <span>✓</span> <span>Chave ativa salva localmente neste dispositivo.</span>
+                        </div>
+
+                        <div class="bg-slate-800/40 p-4 rounded-xl border border-slate-700/50 text-xs text-slate-400 space-y-2 leading-relaxed">
+                            <div class="font-bold text-slate-300">Como funciona a autenticação:</div>
+                            <ul class="list-disc list-inside space-y-1 text-[11px]">
+                                <li>A chave fica guardada no <span class="text-slate-300 font-mono">localStorage</span> deste dispositivo com total privacidade.</li>
+                                <li>Toda solicitação enviada à API <span class="text-slate-300 font-mono">api/comando.php</span> valida o hash SHA da chave antes de autorizar comandos.</li>
+                                <li>Caso a chave esteja incorreta ou ausente, a requisição é rejeitada sem afetar a estufa.</li>
+                            </ul>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- ABA 5: HARDWARE, DIAGNÓSTICO & SISTEMA -->
+            <div id="tabContentSistema" class="space-y-6 hidden">
+                <div class="glass rounded-2xl p-5 md:p-8 border border-slate-700/60 shadow-xl space-y-6">
+                    <div class="pb-4 border-b border-slate-800/80">
+                        <h3 class="text-base md:text-lg font-bold text-cyan-400 flex items-center gap-2">
+                            <span>🛠️</span> Arquitetura de Hardware & Diagnóstico
+                        </h3>
+                        <p class="text-xs text-slate-400 mt-1 max-w-2xl">
+                            Mapeamento físico dos pinos soldados na placa e ferramentas de verificação do sistema em tempo real.
+                        </p>
+                    </div>
+
+                    <!-- Mapeamento Físico de Pinos -->
+                    <div>
+                        <h4 class="text-xs font-bold uppercase tracking-wider text-slate-300 mb-3 flex items-center gap-1.5">
+                            <span>🔌</span> Pinagem Física Soldada (ESP32-S3 Dual-Core)
+                        </h4>
+                        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+                            <div class="bg-slate-800/50 p-3.5 rounded-xl border border-slate-700/60">
+                                <div class="text-[10px] text-amber-400 font-bold uppercase tracking-wide">Sensor Industrial</div>
+                                <div class="text-sm font-extrabold text-white mt-1">SHT30 (I2C)</div>
+                                <div class="text-[11px] text-slate-400 mt-1.5 space-y-0.5">
+                                    <div><strong class="text-amber-300">GPIO 5:</strong> SCL (Fio Amarelo)</div>
+                                    <div><strong class="text-emerald-300">GPIO 4:</strong> SDA (Fio Verde)</div>
+                                </div>
+                            </div>
+                            <div class="bg-slate-800/50 p-3.5 rounded-xl border border-slate-700/60">
+                                <div class="text-[10px] text-rose-400 font-bold uppercase tracking-wide">Sensor Backup</div>
+                                <div class="text-sm font-extrabold text-white mt-1">DHT11 Auxiliar</div>
+                                <div class="text-[11px] text-slate-400 mt-1.5 space-y-0.5">
+                                    <div><strong class="text-rose-300">GPIO 10:</strong> Data (Fio Vermelho)</div>
+                                    <div class="text-slate-500">Monitor de ambiente externo</div>
+                                </div>
+                            </div>
+                            <div class="bg-slate-800/50 p-3.5 rounded-xl border border-slate-700/60">
+                                <div class="text-[10px] text-cyan-400 font-bold uppercase tracking-wide">Atuadores SSR</div>
+                                <div class="text-sm font-extrabold text-white mt-1">Relés Estado Sólido</div>
+                                <div class="text-[11px] text-slate-400 mt-1.5 space-y-0.5">
+                                    <div><strong>GPIO 0:</strong> Relé 1 (Luz - Roxo)</div>
+                                    <div><strong>GPIO 1:</strong> Relé 2 (Umidificador)</div>
+                                    <div><strong>GPIO 2:</strong> Relé 3 (Vent. Brisa)</div>
+                                    <div><strong>GPIO 3:</strong> Relé 4 (Exaustor FAE)</div>
+                                </div>
+                            </div>
+                            <div class="bg-slate-800/50 p-3.5 rounded-xl border border-slate-700/60">
+                                <div class="text-[10px] text-purple-400 font-bold uppercase tracking-wide">Status Visual</div>
+                                <div class="text-sm font-extrabold text-white mt-1">LED RGB WS2812</div>
+                                <div class="text-[11px] text-slate-400 mt-1.5 space-y-0.5">
+                                    <div><strong class="text-purple-300">GPIO 48:</strong> LED Integrado</div>
+                                    <div class="text-slate-500">Feedback de Wi-Fi e Heartbeat</div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Diagnóstico de Rede & Ferramentas -->
+                    <div class="bg-slate-800/40 p-4 rounded-xl border border-slate-700/50 space-y-3">
+                        <div class="text-xs font-bold uppercase tracking-wider text-slate-300 flex items-center gap-1.5">
+                            <span>📡</span> Ferramentas de Teste do Navegador
+                        </div>
+                        <div class="flex flex-wrap gap-2.5">
+                            <button onclick="tocarBipeAlerta('alerta')" class="px-3.5 py-2 rounded-lg bg-slate-800 hover:bg-slate-700 text-xs font-bold text-slate-300 hover:text-white border border-slate-700 transition flex items-center gap-1.5 shadow-sm">
+                                <span>🔊</span> <span>Testar Bipe Alerta</span>
+                            </button>
+                            <button onclick="tocarBipeAlerta('critico')" class="px-3.5 py-2 rounded-lg bg-rose-950/40 hover:bg-rose-900/50 text-xs font-bold text-rose-300 hover:text-rose-200 border border-rose-500/30 transition flex items-center gap-1.5 shadow-sm">
+                                <span>🚨</span> <span>Testar Alarme Crítico</span>
+                            </button>
+                            <button onclick="exportarCSV()" class="px-3.5 py-2 rounded-lg bg-slate-800 hover:bg-slate-700 text-xs font-bold text-emerald-400 hover:text-white border border-slate-700 transition flex items-center gap-1.5 shadow-sm">
+                                <span>📥</span> <span>Baixar CSV de Telemetria</span>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
         </div>
-    </div>
+
+    </main>
+
+    <!-- FOOTER FIXO (SEMPRE PRESENTE NAS DUAS VIEWS) -->
+    <footer class="text-center text-[10px] text-slate-500 py-6 border-t border-slate-800/40 space-y-1">
+        <div>Grow do Txai — IoT Cloud System — Dados atualizados a cada 60 segundos</div>
+        <div id="txtGitHash" class="text-emerald-400 font-bold tracking-widest text-xs drop-shadow-[0_0_8px_rgba(52,211,153,0.7)]">Versão: 1.5.0</div>
+    </footer>
 
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns@3.0.0/dist/chartjs-adapter-date-fns.bundle.min.js"></script>
@@ -670,9 +960,19 @@
 
         function salvarChaveAdmin() {
             const input = document.getElementById('inputAdminPass');
+            const fbPass = document.getElementById('adminPassFeedback');
             if (input && input.value.trim()) {
-                localStorage.setItem('adminPass', input.value.trim());
+                const pass = input.value.trim();
+                localStorage.setItem('adminPass', pass);
+                if (fbPass) {
+                    fbPass.classList.remove('hidden');
+                    fbPass.innerHTML = '<span>✓</span> <span>Chave ativa salva com sucesso no navegador!</span>';
+                }
                 alert("✅ Chave de Administrador salva com sucesso no navegador!");
+            } else if (input && !input.value.trim()) {
+                localStorage.removeItem('adminPass');
+                if (fbPass) fbPass.classList.add('hidden');
+                alert("ℹ️ Chave de Administrador removida do navegador.");
             }
         }
         
@@ -857,7 +1157,90 @@
             return d.toLocaleString('pt-BR');
         }
 
-        function abrirConfig() { 
+        function navegarView(view) {
+            const viewDash = document.getElementById('viewDashboard');
+            const viewCfg = document.getElementById('viewConfig');
+            const navBtnDash = document.getElementById('navBtnDashboard');
+            const navBtnCfg = document.getElementById('navBtnConfig');
+            const hdrDashCtrl = document.getElementById('headerDashboardControls');
+            const hdrCfgCtrl = document.getElementById('headerConfigControls');
+
+            if (view === 'config') {
+                if (viewDash) viewDash.classList.add('hidden');
+                if (viewCfg) {
+                    viewCfg.classList.remove('hidden');
+                    viewCfg.classList.remove('fade-in');
+                    void viewCfg.offsetWidth; // re-trigger animation
+                    viewCfg.classList.add('fade-in');
+                }
+                if (navBtnDash) {
+                    navBtnDash.className = "px-3 py-1 text-xs rounded-md font-semibold tracking-wide flex items-center gap-1.5 transition-all text-slate-400 hover:text-white hover:bg-slate-800";
+                }
+                if (navBtnCfg) {
+                    navBtnCfg.className = "px-3 py-1 text-xs rounded-md font-semibold tracking-wide flex items-center gap-1.5 transition-all bg-emerald-600 text-white shadow";
+                }
+                if (hdrDashCtrl) hdrDashCtrl.classList.add('hidden');
+                if (hdrCfgCtrl) hdrCfgCtrl.classList.remove('hidden');
+
+                atualizarDadosViewConfig();
+                fetchConfigClima();
+                window.scrollTo({ top: 0, behavior: 'smooth' });
+                try { history.replaceState(null, '', '#config'); } catch(e){}
+            } else {
+                if (viewCfg) viewCfg.classList.add('hidden');
+                if (viewDash) viewDash.classList.remove('hidden');
+                if (navBtnDash) {
+                    navBtnDash.className = "px-3 py-1 text-xs rounded-md font-semibold tracking-wide flex items-center gap-1.5 transition-all bg-emerald-600 text-white shadow";
+                }
+                if (navBtnCfg) {
+                    navBtnCfg.className = "px-3 py-1 text-xs rounded-md font-semibold tracking-wide flex items-center gap-1.5 transition-all text-slate-400 hover:text-white hover:bg-slate-800";
+                }
+                if (hdrDashCtrl) hdrDashCtrl.classList.remove('hidden');
+                if (hdrCfgCtrl) hdrCfgCtrl.classList.add('hidden');
+
+                try { history.replaceState(null, '', '#painel'); } catch(e){}
+                setTimeout(() => {
+                    if (chartUmid) chartUmid.resize();
+                    if (chartTemp) chartTemp.resize();
+                    if (chartReles) chartReles.resize();
+                }, 50);
+            }
+        }
+
+        function abrirConfig(aba = null) {
+            navegarView('config');
+            if (aba) trocarAbaConfig(aba);
+        }
+
+        function fecharConfig() {
+            navegarView('dashboard');
+        }
+
+        const abasConfig = ['clima', 'luz', 'ota', 'admin', 'sistema'];
+        function trocarAbaConfig(abaAlvo) {
+            abasConfig.forEach(aba => {
+                const btn = document.getElementById('tabBtn' + aba.charAt(0).toUpperCase() + aba.slice(1));
+                const content = document.getElementById('tabContent' + aba.charAt(0).toUpperCase() + aba.slice(1));
+                if (aba === abaAlvo) {
+                    if (content) {
+                        content.classList.remove('hidden');
+                        content.classList.remove('fade-in');
+                        void content.offsetWidth;
+                        content.classList.add('fade-in');
+                    }
+                    if (btn) {
+                        btn.className = "px-4 py-2.5 rounded-xl text-xs md:text-sm font-bold flex items-center gap-2 transition-all bg-emerald-500/20 text-emerald-300 border border-emerald-500/50 shadow-md shrink-0";
+                    }
+                } else {
+                    if (content) content.classList.add('hidden');
+                    if (btn) {
+                        btn.className = "px-4 py-2.5 rounded-xl text-xs md:text-sm font-bold flex items-center gap-2 transition-all text-slate-400 hover:text-white hover:bg-slate-800/80 border border-transparent shrink-0";
+                    }
+                }
+            });
+        }
+
+        function atualizarDadosViewConfig() {
             let p = window.fwPlaca;
             let n = window.fwNuvem;
             let err = window.fwError;
@@ -865,30 +1248,53 @@
             
             let strPlaca = formatarDataFW(p);
             if (vFw && vFw !== '') {
-                strPlaca += ` <span class="text-emerald-400">(${vFw})</span>`;
+                strPlaca += ` <span class="text-emerald-400 font-bold">(${vFw})</span>`;
             }
-            document.getElementById('uiFwPlaca').innerHTML = strPlaca;
-            document.getElementById('uiFwNuvem').textContent = formatarDataFW(n);
+            const uiPlaca = document.getElementById('uiFwPlaca');
+            const uiNuvem = document.getElementById('uiFwNuvem');
+            if (uiPlaca) uiPlaca.innerHTML = strPlaca;
+            if (uiNuvem) uiNuvem.textContent = formatarDataFW(n);
             
             let statusBadge = document.getElementById('otaStatusBadge');
-            if (err === '1') {
-                statusBadge.innerHTML = '<span class="bg-rose-500/20 text-rose-400 text-[9px] px-2 py-1 rounded-full font-bold animate-pulse">❌ OTA FALHOU (REVERTIDO)</span>';
-            } else if (p === n && p !== '0') {
-                statusBadge.innerHTML = '<span class="bg-emerald-500/20 text-emerald-400 text-[10px] px-2 py-1 rounded-full font-bold">✓ ATUALIZADO</span>';
-            } else if (p !== '0' && n !== '0' && p !== n) {
-                statusBadge.innerHTML = '<span class="bg-amber-500/20 text-amber-400 text-[10px] px-2 py-1 rounded-full font-bold animate-pulse">⚠️ NOVA ATUALIZAÇÃO</span>';
-            } else {
-                statusBadge.innerHTML = '';
+            if (statusBadge) {
+                if (err === '1') {
+                    statusBadge.innerHTML = '<span class="bg-rose-500/20 text-rose-400 text-[10px] px-2.5 py-1 rounded-full font-bold animate-pulse border border-rose-500/30">❌ OTA FALHOU (REVERTIDO)</span>';
+                } else if (p === n && p !== '0') {
+                    statusBadge.innerHTML = '<span class="bg-emerald-500/20 text-emerald-400 text-[10px] px-2.5 py-1 rounded-full font-bold border border-emerald-500/30">✓ ATUALIZADO</span>';
+                } else if (p !== '0' && n !== '0' && p !== n) {
+                    statusBadge.innerHTML = '<span class="bg-amber-500/20 text-amber-400 text-[10px] px-2.5 py-1 rounded-full font-bold animate-pulse border border-amber-500/30">⚠️ NOVA ATUALIZAÇÃO DISPONÍVEL</span>';
+                } else {
+                    statusBadge.innerHTML = '';
+                }
             }
             
             const savedPass = localStorage.getItem('adminPass') || '';
             const inputPass = document.getElementById('inputAdminPass');
             if (inputPass) inputPass.value = savedPass;
+            const fbPass = document.getElementById('adminPassFeedback');
+            if (fbPass) {
+                if (savedPass) {
+                    fbPass.classList.remove('hidden');
+                    fbPass.innerHTML = '<span>🔒</span> <span>Chave ativa salva localmente (' + savedPass.length + ' dígitos).</span>';
+                } else {
+                    fbPass.classList.add('hidden');
+                }
+            }
 
-            document.getElementById('modalConfig').classList.remove('hidden'); 
-            fetchConfigClima();
+            // Atualiza status do banner na página de config
+            const cfgFaseBanner = document.getElementById('cfgFaseBanner');
+            if (cfgFaseBanner) {
+                const faseTxt = document.getElementById('valFase')?.textContent || '--';
+                cfgFaseBanner.textContent = 'Fase: ' + faseTxt;
+            }
+
+            // Atualiza status do modo de luz na página de config
+            const cfgStatusLuz = document.getElementById('cfgStatusLuzTexto');
+            if (cfgStatusLuz) {
+                const modoLuz = (luzState === 0) ? "AUTO (12h/12h) ☀️" : ((luzState === 1) ? "FORÇADO LIGADO 💡" : "FORÇADO DESLIGADO 🌑");
+                cfgStatusLuz.innerHTML = `<span>⚡</span> <span>Modo: ${modoLuz}</span>`;
+            }
         }
-        function fecharConfig() { document.getElementById('modalConfig').classList.add('hidden'); }
         
         let configClima = {
             "1": { tX: 28.0, uA: 95.0, uN: 95.0, uX: 95.0, fO: 1, fF: 40, vO: 1, vF: 2, vU: 1 },
@@ -2314,6 +2720,19 @@
             initCosmicNetwork();
             atualizarBtnNotificacoes();
             setInterval(atualizarTimersProtocolo, 1000);
+            
+            // Navegação por Hash do navegador (ex: #config ou #painel)
+            window.addEventListener('popstate', () => {
+                if (window.location.hash.includes('config')) {
+                    navegarView('config');
+                } else {
+                    navegarView('dashboard');
+                }
+            });
+            if (window.location.hash.includes('config')) {
+                navegarView('config');
+            }
+
             fetchConfigClima().then(() => {
                 initCharts();
                 loopDados(); // Inicia o motor em tempo real
