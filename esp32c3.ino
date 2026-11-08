@@ -257,7 +257,12 @@ String formatUptime(unsigned long ms) {
   snprintf(buf, 20, "%dd %02dh %02dm", d, h, m);
   return String(buf);
 }
+bool faseValida(int f) {
+  return (f == FASE_STANDBY || f == FASE_PINANDO || f == FASE_FRUTIFICACAO || f == FASE_SECAGEM);
+}
+
 void setNovaFase(FaseCultivo nova) {
+  if (!faseValida((int)nova)) return;
   if (faseAtual == nova) return;
   faseAtual = nova;
   bypassDwellFase = true;  // Comuta relés imediatamente na troca de fase
@@ -311,12 +316,39 @@ void recuperarBarramentoI2C() {
 // ---------------------------------------------------------
 // OFFLINE DATALOGGER (ANTI-APAGÃO DE INTERNET)
 // ---------------------------------------------------------
+const unsigned long INTERVALO_OFFLINE_LOG_MS = 60UL * 1000;  // 1 registro/minuto quando sem internet (~22h em 80KB)
+unsigned long ultimoSaveOffline = 0;
+
 void salvarOffline(String jsonPayload) {
+  unsigned long agoraMs = millis();
+  if (ultimoSaveOffline != 0 && (agoraMs - ultimoSaveOffline < INTERVALO_OFFLINE_LOG_MS)) {
+    return;  // Throttling: evita lotar o LittleFS gravando a cada 10s
+  }
+  ultimoSaveOffline = agoraMs;
+
   File f = LittleFS.open("/offline.log", "r");
   if (f && f.size() > 80000) {
-    f.close();
-    LittleFS.remove("/offline.log");
-    Serial.println("[LITTLEFS] Overflow! Log apagado p/ seguranca.");
+    // Rotação FIFO: descarta a metade mais antiga e preserva os dados mais recentes
+    size_t metade = f.size() / 2;
+    f.seek(metade);
+    f.readStringUntil('\n');  // Alinha no próximo registro completo
+    File tmp = LittleFS.open("/offline.rot", "w");
+    if (tmp) {
+      uint8_t buf[256];
+      while (f.available()) {
+        size_t lidos = f.read(buf, sizeof(buf));
+        if (lidos > 0) tmp.write(buf, lidos);
+      }
+      tmp.close();
+      f.close();
+      LittleFS.remove("/offline.log");
+      LittleFS.rename("/offline.rot", "/offline.log");
+      Serial.println("[LITTLEFS] Log cheio: metade mais antiga rotacionada (FIFO).");
+    } else {
+      f.close();
+      LittleFS.remove("/offline.log");
+      Serial.println("[LITTLEFS] Overflow! Log apagado p/ seguranca.");
+    }
   } else if (f) {
     f.close();
   }
@@ -341,14 +373,20 @@ void enviarNuvem(unsigned long agora) {
   time(&ts);
   if (ts < 1600000000) ts = 0;  // NTP não sincronizou
 
-  // Monta JSON da leitura
+  // Monta JSON da leitura (se o DHT11 estiver offline, envia -99.0 para o servidor gravar NULL e não congelar o gráfico)
+  float tEEnvio = sensorExtOk ? tempExt : -99.0f;
+  float hEEnvio = sensorExtOk ? humExt : -99.0f;
   String json = "{";
   json += "\"timestamp\":" + String((uint32_t)ts) + ",";
   json += "\"tI\":" + String(tempInt, 1) + ",";
   json += "\"uI\":" + String(humInt, 1) + ",";
-  json += "\"tE\":" + String(tempExt, 1) + ",";
-  json += "\"uE\":" + String(humExt, 1) + ",";
-  json += "\"rLuz\":" + String(lastReleLuz ? 1 : 0) + ",";
+  json += "\"tE\":" + String(tEEnvio, 1) + ",";
+  json += "\"uE\":" + String(hEEnvio, 1) + ",";
+  // Se estiver em horário diurno confirmado no modo AUTO, o envio para a nuvem NUNCA pode reportar luz ligada
+  bool luzDiurnaBloqueada = (modoLuz == LUZ_AUTO && horaValida && (horaAtual >= LUZ_HORA_DESLIGA && horaAtual < LUZ_HORA_LIGA));
+  bool reportaLuzLigada = lastReleLuz && !luzDiurnaBloqueada;
+
+  json += "\"rLuz\":" + String(reportaLuzLigada ? 1 : 0) + ",";
   json += "\"modoLuz\":" + String((int)modoLuz) + ",";
   json += "\"rUmid\":" + String(lastReleUmidific ? 1 : 0) + ",";
   json += "\"rVento\":" + String(lastReleVento ? 1 : 0) + ",";
@@ -489,7 +527,7 @@ void enviarNuvem(unsigned long agora) {
       }
       prefs.end();
       String response = http.getString();
-      DynamicJsonDocument docRes(2048);
+      DynamicJsonDocument docRes(4096);
       if (!deserializeJson(docRes, response)) {
         bool recalcularMotorImediato = false;
         if (docRes.containsKey("config_clima")) {
@@ -502,19 +540,39 @@ void enviarNuvem(unsigned long agora) {
           if (versaoNuvem > 0 && versaoNuvem != versaoLocal) {
             JsonObject cfg = docRes["config_clima"];
             bool configAlterada = false;
+            auto clampF = [](float v, float mn, float mx, float def) -> float {
+              if (isnan(v) || v < mn || v > mx) return def;
+              return v;
+            };
+            auto clampMin = [](long m, unsigned long mx, unsigned long def) -> unsigned long {
+              if (m < 0) return 0UL;
+              if ((unsigned long)m > mx) return mx;
+              return (unsigned long)m;
+            };
             for (int i = 1; i <= 2; i++) {
               String key = String(i);
               if (cfg.containsKey(key)) {
-                perfis[i].tempMax = cfg[key]["tX"].as<float>();
-                float uAlvo = cfg[key].containsKey("uA") ? cfg[key]["uA"].as<float>() : (cfg[key].containsKey("uN") ? cfg[key]["uN"].as<float>() : 95.0);
+                float defTx = (i == 1) ? 28.0f : 29.0f;
+                float defUa = (i == 1) ? 95.0f : 92.0f;
+                unsigned long defFo = (i == 1) ? 1UL : 2UL;
+                unsigned long defFf = (i == 1) ? 40UL : 25UL;
+
+                float tX = cfg[key].containsKey("tX") ? cfg[key]["tX"].as<float>() : defTx;
+                perfis[i].tempMax = clampF(tX, 15.0f, 35.0f, defTx);
+
+                float uRaw = cfg[key].containsKey("uA") ? cfg[key]["uA"].as<float>() : (cfg[key].containsKey("uN") ? cfg[key]["uN"].as<float>() : defUa);
+                float uAlvo = clampF(uRaw, 40.0f, 99.0f, defUa);
                 perfis[i].umidMin = uAlvo;
                 perfis[i].umidMax = uAlvo;
-                perfis[i].faeOnMs = cfg[key]["fO"].as<unsigned long>() * 60000UL;
-                perfis[i].faeOffMs = cfg[key]["fF"].as<unsigned long>() * 60000UL;
-                unsigned long vO = cfg[key].containsKey("vO") ? cfg[key]["vO"].as<unsigned long>() : 1;
-                unsigned long vF = cfg[key].containsKey("vF") ? cfg[key]["vF"].as<unsigned long>() : 2;
-                unsigned long eO = cfg[key].containsKey("eO") ? cfg[key]["eO"].as<unsigned long>() : 2;
-                unsigned long eF = cfg[key].containsKey("eF") ? cfg[key]["eF"].as<unsigned long>() : 8;
+
+                unsigned long fO = cfg[key].containsKey("fO") ? clampMin(cfg[key]["fO"].as<long>(), 1440UL, defFo) : defFo;
+                unsigned long fF = cfg[key].containsKey("fF") ? clampMin(cfg[key]["fF"].as<long>(), 1440UL, defFf) : defFf;
+                unsigned long vO = cfg[key].containsKey("vO") ? clampMin(cfg[key]["vO"].as<long>(), 1440UL, 1UL) : 1UL;
+                unsigned long vF = cfg[key].containsKey("vF") ? clampMin(cfg[key]["vF"].as<long>(), 1440UL, 2UL) : 2UL;
+                unsigned long eO = cfg[key].containsKey("eO") ? clampMin(cfg[key]["eO"].as<long>(), 1440UL, 2UL) : 2UL;
+                unsigned long eF = cfg[key].containsKey("eF") ? clampMin(cfg[key]["eF"].as<long>(), 1440UL, 8UL) : 8UL;
+                perfis[i].faeOnMs = fO * 60000UL;
+                perfis[i].faeOffMs = fF * 60000UL;
                 perfis[i].ventoOnMs = vO * 60000UL;
                 perfis[i].ventoOffMs = vF * 60000UL;
                 perfis[i].exaustOnMs = eO * 60000UL;
@@ -539,7 +597,7 @@ void enviarNuvem(unsigned long agora) {
 
         if (docRes.containsKey("comando_fase")) {
           int fc = docRes["comando_fase"];
-          if (fc != (int)faseAtual) {
+          if (faseValida(fc) && fc != (int)faseAtual) {
             Serial.printf("📥 COMANDO NUVEM: Alterar fase para %s\n", nomeFase(fc));
             setNovaFase((FaseCultivo)fc);
             recalcularMotorImediato = true;
@@ -732,8 +790,11 @@ void aplicarReles() {
 
   // TRAVA DE SEGURANÇA ABSOLUTA DA LUZ:
   // Se estiver em modo AUTO e o relógio confirmar que é horário diurno (entre 08h e 19h59),
-  // NUNCA permite que releLuz seja true, garantindo zero picos mesmo sob qualquer ruído.
-  if (modoLuz == LUZ_AUTO && horaValida && (horaAtual >= LUZ_HORA_DESLIGA && horaAtual < LUZ_HORA_LIGA)) {
+  // NUNCA permite que releLuz seja true, garantindo zero picos mesmo sob qualquer ruído elétrico ou oscilação do RTC.
+  struct tm tiCheck = { 0 };
+  bool rtcDia = (getLocalTime(&tiCheck, 0) && (tiCheck.tm_year + 1900 >= 2024) && (tiCheck.tm_hour >= LUZ_HORA_DESLIGA && tiCheck.tm_hour < LUZ_HORA_LIGA));
+  bool horaDia = (horaValida && (horaAtual >= LUZ_HORA_DESLIGA && horaAtual < LUZ_HORA_LIGA));
+  if (modoLuz == LUZ_AUTO && (rtcDia || horaDia)) {
     releLuz = false;
   }
 
@@ -998,8 +1059,10 @@ void setup() {
   // Carrega o estado salvo na memória Flash ANTES de qualquer delay ou conexão Wi-Fi,
   // garantindo que a Luz e as configurações continuem exatamente como estavam sem piscar!
   prefs.begin("grow", false);
-  faseAtual = (FaseCultivo)prefs.getInt("fase", (int)FASE_STANDBY);
-  modoLuz = (ModoLuz)prefs.getInt("modoLuz", (int)LUZ_AUTO);
+  int faseSalva = prefs.getInt("fase", (int)FASE_STANDBY);
+  faseAtual = faseValida(faseSalva) ? (FaseCultivo)faseSalva : FASE_STANDBY;
+  int modoSalvo = prefs.getInt("modoLuz", (int)LUZ_AUTO);
+  modoLuz = (modoSalvo >= 0 && modoSalvo <= 2) ? (ModoLuz)modoSalvo : LUZ_AUTO;
   inicioFaseTempo = prefs.getUInt("inicio", 0);
   fwAtual = prefs.getUInt("fw_ver", 0);
   bool luzSalvaNVS = prefs.getBool("r_luz", false);
@@ -1226,11 +1289,19 @@ void loop() {
       bool dhtFisicoOk = !isnan(tE) && !isnan(hE) && tE != 0.0 && hE != 0.0 && tE > -10.0 && tE < 60.0 && hE > 0.0 && hE <= 100.0;
 
       static int dhtFalhasFisicas = 0;
+      static int dhtSpikesConsecutivos = 0;
       if (dhtFisicoOk) {
-        // Anti-Spike: se o valor saltou absurdamente por ruído elétrico, preserva a leitura anterior
+        // Anti-Spike: descarta picos isolados de ruído elétrico, mas aceita mudança real se persistir por 3 leituras (~9s)
         if (tempExt != -99.0 && (abs(tE - tempExt) > 6.0 || abs(hE - humExt) > 20.0)) {
-          // Ignora ruído momentâneo e preserva valor anterior
+          dhtSpikesConsecutivos++;
+          if (dhtSpikesConsecutivos >= 3) {
+            dhtSpikesConsecutivos = 0;
+            dhtFalhasFisicas = 0;
+            sensorExtOk = true;
+            atualizarFiltroExt(tE, hE);
+          }
         } else {
+          dhtSpikesConsecutivos = 0;
           dhtFalhasFisicas = 0;
           sensorExtOk = true;
           atualizarFiltroExt(tE, hE);
@@ -1324,21 +1395,30 @@ void loop() {
           confirmacoesNoiteOff = 0;
           releLuz = false;
         } else {
-          // Fallback 12/12 sem NTP (mantém o estado salvo antes do reboot)
+          // Fallback 12/12 sem NTP (mantém o estado salvo antes do reboot e alterna a cada 12h)
           confirmacoesNoiteOff = 0;
+          const unsigned long CICLO_12H_MS = 12UL * 3600UL * 1000UL;
+          if (millis() - fallbackLuzUltimaInversao >= CICLO_12H_MS) {
+            fallbackLuzLigada = !fallbackLuzLigada;
+            fallbackLuzUltimaInversao = millis();
+            Serial.printf("[LUZ FALLBACK] NTP ausente (modo sem SHT30) — alternando ciclo para %s\n", fallbackLuzLigada ? "LIGADA" : "DESLIGADA");
+          }
           releLuz = fallbackLuzLigada;
         }
       }
+      if (modoLuz == LUZ_FORCADA_ON) releLuz = true;
+      if (modoLuz == LUZ_FORCADA_OFF) releLuz = false;
     }
 
     verificarProgressao();
     aplicarReles();
 
     // HORIMETRO: Acumula tempo de uso de cada componente a cada ciclo (aprox 2s)
+    // Avança em múltiplos exatos de 1000ms para não perder frações de segundo ao longo dos dias
     if (ultimoTickHorimetro == 0) ultimoTickHorimetro = agora;
     unsigned long deltaHorimetro = (agora - ultimoTickHorimetro) / 1000;
     if (deltaHorimetro >= 1) {
-      ultimoTickHorimetro = agora;
+      ultimoTickHorimetro += deltaHorimetro * 1000UL;
       if (lastReleLuz) segLuzTotal += deltaHorimetro;
       if (lastReleUmidific) segUmidTotal += deltaHorimetro;
       if (lastReleVento) segVentoTotal += deltaHorimetro;

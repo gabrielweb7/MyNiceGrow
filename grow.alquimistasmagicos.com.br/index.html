@@ -8,16 +8,16 @@
     <meta property="og:title" content="🍄 Grow do Txai - Automação Micológica">
     <meta property="og:description" content="Painel de controle IoT em tempo real. Monitore o clima, temperatura e umidade da estufa de cultivo.">
     <meta property="og:image" content="https://grow.alquimistasmagicos.com.br/grow.alquimistasmagicos.com.br/thumb.png">
-    <meta property="og:url" content="https://grow.alquimistasmagicos.com.br/grow.alquimistasmagicos.com.br/">
+    <meta property="og:url" content="https://grow.alquimistasmagicos.com.br/">
     <meta property="og:type" content="website">
     <meta name="description" content="Painel de controle IoT em tempo real para estufa de cultivo micológico.">
     <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🍄</text></svg>">
-    <link rel="manifest" href="manifest.json">
+    <link rel="manifest" href="grow.alquimistasmagicos.com.br/manifest.json">
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <meta name="apple-mobile-web-app-title" content="Grow Txai">
     <meta name="theme-color" content="#060913">
-    <link rel="apple-touch-icon" href="icon.png">
+    <link rel="apple-touch-icon" href="grow.alquimistasmagicos.com.br/icon.png">
     <script src="https://cdn.tailwindcss.com"></script>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
@@ -931,16 +931,39 @@
 
         async function salvarFormClima() {
             let f = document.getElementById('selConfigFase').value;
-            const parseFloatSafe = (val) => parseFloat(String(val).replace(',', '.'));
-            configClima[f].tX = parseFloatSafe(document.getElementById('cfgTx').value);
-            let uAlvoVal = parseFloatSafe(document.getElementById('cfgUa').value);
+            const clampVal = (raw, min, max, def) => {
+                const v = parseFloat(String(raw).replace(',', '.'));
+                if (!Number.isFinite(v)) return def;
+                return Math.max(min, Math.min(max, v));
+            };
+            const defTx = (f === "1") ? 28.0 : 29.0;
+            const defUa = (f === "1") ? 95.0 : 92.0;
+            const defFo = (f === "1") ? 1 : 2;
+            const defFf = (f === "1") ? 40 : 25;
+
+            let tXVal = Math.round(clampVal(document.getElementById('cfgTx').value, 15.0, 35.0, defTx) * 10) / 10;
+            let uAlvoVal = Math.round(clampVal(document.getElementById('cfgUa').value, 40.0, 99.0, defUa) * 10) / 10;
+            let fOVal = Math.round(clampVal(document.getElementById('cfgFo').value, 0, 1440, defFo));
+            let fFVal = Math.round(clampVal(document.getElementById('cfgFf').value, 0, 1440, defFf));
+            let vOVal = Math.round(clampVal(document.getElementById('cfgVo').value, 0, 1440, 1));
+            let vFVal = Math.round(clampVal(document.getElementById('cfgVf').value, 0, 1440, 2));
+
+            // Atualiza os inputs na tela caso algum valor tenha sido corrigido pelo clamp
+            document.getElementById('cfgTx').value = tXVal;
+            document.getElementById('cfgUa').value = uAlvoVal;
+            document.getElementById('cfgFo').value = fOVal;
+            document.getElementById('cfgFf').value = fFVal;
+            document.getElementById('cfgVo').value = vOVal;
+            document.getElementById('cfgVf').value = vFVal;
+
+            configClima[f].tX = tXVal;
             configClima[f].uA = uAlvoVal;
             configClima[f].uN = uAlvoVal; // retrocompatibilidade
             configClima[f].uX = uAlvoVal; // retrocompatibilidade
-            configClima[f].fO = parseInt(document.getElementById('cfgFo').value) || 0;
-            configClima[f].fF = parseInt(document.getElementById('cfgFf').value) || 0;
-            configClima[f].vO = parseInt(document.getElementById('cfgVo').value) || 0;
-            configClima[f].vF = parseInt(document.getElementById('cfgVf').value) || 0;
+            configClima[f].fO = fOVal;
+            configClima[f].fF = fFVal;
+            configClima[f].vO = vOVal;
+            configClima[f].vF = vFVal;
             configClima[f].vU = document.getElementById('cfgVu').checked ? 1 : 0;
             
             let btn = document.getElementById('btnSalvarClima');
@@ -1445,10 +1468,10 @@
                 const te = parseFloat(ultimo.temp_ext);
                 const ue = parseFloat(ultimo.hum_ext);
 
-                document.getElementById('valTi').textContent = ti.toFixed(1) + ' °C';
-                document.getElementById('valUi').textContent = ui.toFixed(1) + ' %';
-                document.getElementById('valTe').textContent = te.toFixed(1) + ' °C';
-                document.getElementById('valUe').textContent = 'Umid: ' + ue.toFixed(1) + ' %';
+                document.getElementById('valTi').textContent = Number.isFinite(ti) ? (ti.toFixed(1) + ' °C') : '-- °C';
+                document.getElementById('valUi').textContent = Number.isFinite(ui) ? (ui.toFixed(1) + ' %') : '-- %';
+                document.getElementById('valTe').textContent = Number.isFinite(te) ? (te.toFixed(1) + ' °C') : '-- °C';
+                document.getElementById('valUe').textContent = Number.isFinite(ue) ? ('Umid: ' + ue.toFixed(1) + ' %') : 'Umid: -- %';
                 
                 // Aplica paleta dinâmica nos cards
                 atualizarCoresDinamicas(ti, ui, te);
@@ -2099,7 +2122,7 @@
                 try {
                     new Notification(titulo, {
                         body: corpo,
-                        icon: "icon.png"
+                        icon: "grow.alquimistasmagicos.com.br/icon.png"
                     });
                 } catch (e) {
                     console.warn("Erro ao emitir Notification:", e);
@@ -2110,13 +2133,13 @@
         function checarAlertasCriticos(ultimo, diffMinutos) {
             if (!ultimo) return;
             const ti = parseFloat(ultimo.temp_int);
-            const rUmid = parseInt(ultimo.rele_umid);
             const fase = ultimo.fase || '';
+            const faseLimpa = fase.replace(' (DHT OFFLINE)', '').replace('ALERTA: SHT30 OFFLINE', 'Standby');
+            const cId = (faseLimpa === "Frutificacao") ? "2" : "1";
+            const cfgAtiva = (typeof configClima !== 'undefined' && configClima[cId]) ? configClima[cId] : null;
+            const limiteTempAlerta = (cfgAtiva && Number.isFinite(parseFloat(cfgAtiva.tX))) ? (parseFloat(cfgAtiva.tX) + 0.5) : 29.5;
 
-            if (rUmid === 2) {
-                dispararAlerta('agua', '🚨 Falta d\'Água no Grow', 'O umidificador foi desligado automaticamente para evitar queima!', 'critico');
-            }
-            if (ti >= 29.5) {
+            if (Number.isFinite(ti) && ti >= limiteTempAlerta) {
                 dispararAlerta('tempCritica', '🔥 Alerta Térmico Crítico', `Temperatura interna atingiu ${ti.toFixed(1)}°C!`, 'critico');
             }
             if (fase.includes('SHT30 OFFLINE') || fase.includes('DHT OFFLINE')) {
@@ -2156,7 +2179,7 @@
                         atualizarBtnNotificacoes();
                         new Notification("🍄 Grow do Txai", {
                             body: "Alertas críticos e bipes ativados com sucesso!",
-                            icon: "icon.png"
+                            icon: "grow.alquimistasmagicos.com.br/icon.png"
                         });
                         tocarBipeAlerta('alerta');
                     } else {

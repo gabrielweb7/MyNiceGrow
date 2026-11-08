@@ -88,8 +88,8 @@ O ecossistema opera em uma **topologia híbrida e resiliente**: a placa ESP32-S3
 
 | Componente | Função | Pino ESP32-S3 | Pino ESP32-C3 | Nível Lógico / Tensão | Protocolo |
 | :--- | :--- | :---: | :---: | :---: | :--- |
-| **SHT30 (Interno)** | Linha de Dados (SDA) | **GPIO 4** | **GPIO 4** | 3.3V (Pull-up interno) | I2C (Endereço `0x44`) |
-| **SHT30 (Interno)** | Linha de Clock (SCL) | **GPIO 5** | **GPIO 5** | 3.3V (Pull-up interno) | I2C |
+| **SHT30 (Interno)** | Linha de Clock (SCL) | **GPIO 5** | **GPIO 5** | 3.3V (Pull-up interno) | I2C (Fio Amarelo) |
+| **SHT30 (Interno)** | Linha de Dados (SDA) | **GPIO 4** | **GPIO 4** | 3.3V (Pull-up interno) | I2C (Fio Verde `0x44`) |
 | **DHT11 (Ambiente/Sala)** | Leitura de Referência Externa | **GPIO 10** | **GPIO 10** | 3.3V (Resistor pull-up) | One-Wire Digital |
 | **Relé 1 (Luz)** | Iluminação do Cultivo (12/12) | **GPIO 0** | **GPIO 0** | Nível Baixo Ativo (`LOW`=Liga) | Digital Output *(Protegido)* |
 | **Relé 2 (Umidificador)** | Névoa Ultrassônica | **GPIO 1** | **GPIO 1** | Nível Baixo Ativo (`LOW`=Liga) | Digital Output |
@@ -110,8 +110,8 @@ O ecossistema opera em uma **topologia híbrida e resiliente**: a placa ESP32-S3
    (3.3V) --------> | 3V3               GND | <-------- (GND Geral)
    (5V Ext) ------> | 5V                G0  | --------> IN1 (Relé Luz)
                     |                   G1  | --------> IN2 (Relé Umidificador)
-   (SHT30 SDA) ---> | G4                G3  | --------> IN3 (Relé Ventilador)
-   (SHT30 SCL) ---> | G5                G6  | --------> IN4 (Relé Exaustor)
+   (SHT30: Verde SDA)->| G4             G3  | --------> IN3 (Relé Ventilador)
+   (SHT30: Amarelo SCL)| G5             G6  | --------> IN4 (Relé Exaustor)
    (DHT11 Data) --> | G10              RGB  | <-------- LED WS2812 (GPIO 48)
                     | [USB-OTG]   [USB-UART]|
                     +-----------------------+

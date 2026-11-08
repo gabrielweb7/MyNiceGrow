@@ -23,9 +23,34 @@ if (file_exists($localConfig)) {
     require_once $mainConfig;
 }
 
+// Robustez: se nenhum arquivo de configuração foi carregado, responde JSON em vez de Fatal Error
+if (!defined('DB_HOST') || !defined('API_KEY')) {
+    http_response_code(500);
+    die(json_encode(["error" => "Configuracao do servidor ausente"]));
+}
+
+// Retenção do histórico de telemetria (mesmo valor usado pelas duas rotinas de auto-limpeza)
+define('DIAS_RETENCAO_TELEMETRIA', 30);
+
 $conn = new mysqli(DB_HOST, DB_USER, DB_PASS, DB_NAME);
 if ($conn->connect_error) {
     die(json_encode(["error" => "Falha na conexão com banco de dados"]));
+}
+$conn->set_charset('utf8mb4');
+
+// Retorna o caminho do binário de firmware SOMENTE da família da placa ativa.
+// BUG CORRIGIDO: antes havia fallback cruzado (C3 <-> S3); se o .bin da própria placa faltasse,
+// o servidor anunciava a data do .bin da OUTRA placa e o ESP tentava OTA da sua URL inexistente a cada 10s.
+function caminhoBinFirmware($boardModel) {
+    $pasta = (stripos($boardModel, 'C3') !== false) ? 'esp32.esp32.esp32c3' : 'esp32.esp32.esp32s3';
+    $candidatos = [
+        __DIR__ . '/../../build/' . $pasta . '/esp32c3.ino.bin',
+        __DIR__ . '/../build/' . $pasta . '/esp32c3.ino.bin'
+    ];
+    foreach ($candidatos as $c) {
+        if (file_exists($c)) return $c;
+    }
+    return null;
 }
 
 // Garante que a tabela de configurações do sistema existe no MySQL
@@ -86,18 +111,22 @@ if ($method === 'POST') {
     $json = file_get_contents('php://input');
     $data = json_decode($json, true);
     
-    if (!$data) {
+    if (!$data || !is_array($data)) {
         http_response_code(400);
         die(json_encode(["error" => "JSON inválido"]));
     }
 
     // Suporta envio de 1 leitura (online) ou várias de uma vez (ESP32 estava sem internet)
-    if (!isset($data[0])) $data = [$data];
+    // BUG CORRIGIDO: o lote offline (array) não tem a resposta lida pelo firmware.
+    // Comandos pendentes só são entregues no envio individual (objeto), senão eram perdidos.
+    $envioEmLote = isset($data[0]);
+    if (!$envioEmLote) $data = [$data];
 
     $stmt = $conn->prepare("INSERT INTO telemetria (timestamp, temp_int, hum_int, temp_ext, hum_ext, rele_luz, rele_umid, rele_vento, rele_exaust, fase) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)");
 
     $successCount = 0;
     foreach ($data as $row) {
+        if (!is_array($row)) continue; // Robustez: ignora itens que não são objetos JSON
         // Salva versão do FW num arquivo separado pra ser rápido
         if (isset($row['fw'])) {
             file_put_contents(__DIR__ . '/fw_status.txt', $row['fw']);
@@ -120,16 +149,19 @@ if ($method === 'POST') {
         }
 
         // Se o ESP32 gravou o UNIX timestamp (offline), usamos ele. Senão, hora de agora.
-        $ts = isset($row['timestamp']) && $row['timestamp'] > 0 ? date('Y-m-d H:i:s', $row['timestamp']) : date('Y-m-d H:i:s');
+        // Robustez PHP 8: timestamp não numérico gerava TypeError (HTTP 500) e travava o lote offline
+        $ts = (isset($row['timestamp']) && is_numeric($row['timestamp']) && $row['timestamp'] > 0) ? date('Y-m-d H:i:s', (int)$row['timestamp']) : date('Y-m-d H:i:s');
         
         // Filtro de sanidade: descarta apenas se o sensor INTERNO (crítico) estiver com leitura fisicamente impossível.
         // Sensor externo (DHT11) com falha envia -99; apenas zeramos os campos externos sem descartar o registro inteiro.
-        if (isset($row['uI']) && ($row['uI'] > 100 || $row['uI'] < 0)) continue;
-        if (isset($row['tI']) && ($row['tI'] < -10 || $row['tI'] > 60)) continue;
+        if (!isset($row['tI']) || !is_numeric($row['tI']) || !isset($row['uI']) || !is_numeric($row['uI'])) continue;
+        if ($row['uI'] > 100 || $row['uI'] < 0) continue;
+        if ($row['tI'] < -10 || $row['tI'] > 60) continue;
 
         // Sensor externo: se fora do range fisicamente possível (ex: -99 de falha), grava como NULL em vez de descartar
-        $tE = (isset($row['tE']) && $row['tE'] >= -10 && $row['tE'] <= 60) ? $row['tE'] : null;
-        $uE = (isset($row['uE']) && $row['uE'] >= 0 && $row['uE'] <= 100) ? $row['uE'] : null;
+        $tE = (isset($row['tE']) && is_numeric($row['tE']) && $row['tE'] >= -10 && $row['tE'] <= 60) ? $row['tE'] : null;
+        $uE = (isset($row['uE']) && is_numeric($row['uE']) && $row['uE'] >= 0 && $row['uE'] <= 100) ? $row['uE'] : null;
+        $faseRow = isset($row['fase']) && is_scalar($row['fase']) ? (string)$row['fase'] : '';
 
         // Sanitiza estados dos relés (0 ou 1). Elimina qualquer valor legado '2' (falta d'água)
         $rLuz = (isset($row['rLuz']) && (int)$row['rLuz'] === 1) ? 1 : 0;
@@ -139,16 +171,16 @@ if ($method === 'POST') {
 
         $stmt->bind_param("sddddiiiis", 
             $ts, $row['tI'], $row['uI'], $tE, $uE, 
-            $rLuz, $rUmid, $rVento, $rExaust, $row['fase']
+            $rLuz, $rUmid, $rVento, $rExaust, $faseRow
         );
         if($stmt->execute()) $successCount++;
     }
     $stmt->close();
     
     // AUTO-LIMPEZA DO BANCO DE DADOS (Anti-Crash de Disco HostGator)
-    // Executa a limpeza com 1% de chance em cada requisição mantendo 30 dias de histórico
+    // Executa a limpeza com 1% de chance em cada requisição mantendo DIAS_RETENCAO_TELEMETRIA dias de histórico
     if (mt_rand(1, 100) === 1) {
-        $conn->query("DELETE FROM telemetria WHERE timestamp < DATE_SUB(NOW(), INTERVAL 30 DAY)");
+        $conn->query("DELETE FROM telemetria WHERE timestamp < DATE_SUB(NOW(), INTERVAL " . (int)DIAS_RETENCAO_TELEMETRIA . " DAY)");
     }
     
     $resposta = ["status" => "ok", "inseridos" => $successCount];
@@ -161,7 +193,7 @@ if ($method === 'POST') {
     }
 
     $arquivo_comando = __DIR__ . '/comando_pendente.json';
-    if (file_exists($arquivo_comando)) {
+    if (!$envioEmLote && file_exists($arquivo_comando)) {
         $fpCmd = fopen($arquivo_comando, 'c+');
         if ($fpCmd !== false) {
             flock($fpCmd, LOCK_EX);
@@ -185,25 +217,7 @@ if ($method === 'POST') {
     
     // Auto-Update: Usa a data de modificação real do arquivo correspondente ao modelo da placa ativa
     $boardModel = file_exists(__DIR__ . '/board_model.txt') ? file_get_contents(__DIR__ . '/board_model.txt') : 'ESP32-S3';
-    $isC3 = (stripos($boardModel, 'C3') !== false);
-    $candidatos_bin = $isC3 ? [
-        __DIR__ . '/../../build/esp32.esp32.esp32c3/esp32c3.ino.bin',
-        __DIR__ . '/../build/esp32.esp32.esp32c3/esp32c3.ino.bin',
-        __DIR__ . '/../../build/esp32.esp32.esp32s3/esp32c3.ino.bin',
-        __DIR__ . '/../build/esp32.esp32.esp32s3/esp32c3.ino.bin'
-    ] : [
-        __DIR__ . '/../../build/esp32.esp32.esp32s3/esp32c3.ino.bin',
-        __DIR__ . '/../build/esp32.esp32.esp32s3/esp32c3.ino.bin',
-        __DIR__ . '/../../build/esp32.esp32.esp32c3/esp32c3.ino.bin',
-        __DIR__ . '/../build/esp32.esp32.esp32c3/esp32c3.ino.bin'
-    ];
-    $arquivo_bin = null;
-    foreach ($candidatos_bin as $c) {
-        if (file_exists($c)) {
-            $arquivo_bin = $c;
-            break;
-        }
-    }
+    $arquivo_bin = caminhoBinFirmware($boardModel);
     if ($arquivo_bin) {
         $resposta['versao_nuvem'] = filemtime($arquivo_bin);
     }
@@ -234,25 +248,8 @@ elseif ($method === 'GET') {
     // Headers de Versão
     $fwPlaca = file_exists(__DIR__ . '/fw_status.txt') ? file_get_contents(__DIR__ . '/fw_status.txt') : '0';
     $boardModel = file_exists(__DIR__ . '/board_model.txt') ? file_get_contents(__DIR__ . '/board_model.txt') : 'ESP32-S3';
-    $isC3 = (stripos($boardModel, 'C3') !== false);
-    $candidatos_bin = $isC3 ? [
-        __DIR__ . '/../../build/esp32.esp32.esp32c3/esp32c3.ino.bin',
-        __DIR__ . '/../build/esp32.esp32.esp32c3/esp32c3.ino.bin',
-        __DIR__ . '/../../build/esp32.esp32.esp32s3/esp32c3.ino.bin',
-        __DIR__ . '/../build/esp32.esp32.esp32s3/esp32c3.ino.bin'
-    ] : [
-        __DIR__ . '/../../build/esp32.esp32.esp32s3/esp32c3.ino.bin',
-        __DIR__ . '/../build/esp32.esp32.esp32s3/esp32c3.ino.bin',
-        __DIR__ . '/../../build/esp32.esp32.esp32c3/esp32c3.ino.bin',
-        __DIR__ . '/../build/esp32.esp32.esp32c3/esp32c3.ino.bin'
-    ];
-    $fwNuvem = '0';
-    foreach ($candidatos_bin as $c) {
-        if (file_exists($c)) {
-            $fwNuvem = (string)filemtime($c);
-            break;
-        }
-    }
+    $binGet = caminhoBinFirmware($boardModel);
+    $fwNuvem = $binGet ? (string)filemtime($binGet) : '0';
     
     // Obtém o Hash do Git da Nuvem (pasta superior)
     $gitHead = __DIR__ . '/../../.git/refs/heads/main';
@@ -288,8 +285,9 @@ elseif ($method === 'GET') {
     
     // Auto-purge inteligente: roda com probabilidade de 1% (a cada ~8 minutos)
     // BUG CORRIGIDO: coluna unix_ts não existe na tabela; usar comparação DATETIME nativa
+    // BUG CORRIGIDO: retenção unificada com a rotina do POST (antes 90 dias aqui vs 30 no POST)
     if (mt_rand(1, 100) === 1) {
-        $conn->query("DELETE FROM telemetria WHERE timestamp < DATE_SUB(NOW(), INTERVAL 90 DAY)");
+        $conn->query("DELETE FROM telemetria WHERE timestamp < DATE_SUB(NOW(), INTERVAL " . (int)DIAS_RETENCAO_TELEMETRIA . " DAY)");
     }
 }
 

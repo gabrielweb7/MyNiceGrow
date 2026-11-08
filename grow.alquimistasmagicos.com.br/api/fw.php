@@ -4,17 +4,10 @@ header("Content-Type: application/json");
 header("Access-Control-Allow-Origin: *");
 $fwPlaca = file_exists(__DIR__ . "/fw_status.txt") ? file_get_contents(__DIR__ . "/fw_status.txt") : "0";
 $board = file_exists(__DIR__ . "/board_model.txt") ? trim(file_get_contents(__DIR__ . "/board_model.txt")) : "ESP32-S3";
-$isC3 = (stripos($board, 'C3') !== false);
-$candidatos_bin = $isC3 ? [
-    __DIR__ . "/../../build/esp32.esp32.esp32c3/esp32c3.ino.bin",
-    __DIR__ . "/../build/esp32.esp32.esp32c3/esp32c3.ino.bin",
-    __DIR__ . "/../../build/esp32.esp32.esp32s3/esp32c3.ino.bin",
-    __DIR__ . "/../build/esp32.esp32.esp32s3/esp32c3.ino.bin"
-] : [
-    __DIR__ . "/../../build/esp32.esp32.esp32s3/esp32c3.ino.bin",
-    __DIR__ . "/../build/esp32.esp32.esp32s3/esp32c3.ino.bin",
-    __DIR__ . "/../../build/esp32.esp32.esp32c3/esp32c3.ino.bin",
-    __DIR__ . "/../build/esp32.esp32.esp32c3/esp32c3.ino.bin"
+$pastaBin = (stripos($board, 'C3') !== false) ? "esp32.esp32.esp32c3" : "esp32.esp32.esp32s3";
+$candidatos_bin = [
+    __DIR__ . "/../../build/" . $pastaBin . "/esp32c3.ino.bin",
+    __DIR__ . "/../build/" . $pastaBin . "/esp32c3.ino.bin"
 ];
 $binPath = null;
 foreach ($candidatos_bin as $c) {

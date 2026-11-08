@@ -50,35 +50,91 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
     $cmd = json_decode($conteudo, true) ?: [];
 
-    if (isset($_POST['fase'])) $cmd['fase'] = (int)$_POST['fase'];
+    if (isset($_POST['fase'])) {
+        $f = (int)$_POST['fase'];
+        if (in_array($f, [0, 1, 2, 4], true)) {
+            $cmd['fase'] = $f;
+        }
+    }
     if (isset($_POST['luz'])) {
-        $cmd['luz'] = (int)$_POST['luz']; // 0: AUTO, 1: ON, 2: OFF
-        file_put_contents(__DIR__ . '/modo_luz.txt', (string)$cmd['luz']);
+        $l = (int)$_POST['luz']; // 0: AUTO, 1: ON, 2: OFF
+        if (in_array($l, [0, 1, 2], true)) {
+            $cmd['luz'] = $l;
+            file_put_contents(__DIR__ . '/modo_luz.txt', (string)$l);
+        }
     }
     if (isset($_POST['reset_agua'])) $cmd['reset_agua'] = 1;
     if (isset($_POST['ota'])) $cmd['ota'] = 1;
 
-    // Salva configurações climáticas no Banco de Dados MySQL
+    // Salva configurações climáticas no Banco de Dados MySQL (com validação e clamp seguro)
     if (isset($_POST['config'])) {
-        $jsonStr = $_POST['config'];
-        $decoded = json_decode($jsonStr, true);
-        if ($decoded) {
-            $conn = new mysqli(DB_HOST, DB_USER, DB_PASS, DB_NAME);
-            if (!$conn->connect_error) {
-                $conn->query("CREATE TABLE IF NOT EXISTS config_sistema (
-                    chave VARCHAR(50) PRIMARY KEY,
-                    valor LONGTEXT,
-                    atualizado_em INT
-                ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
-
-                $now = time();
-                $stmt = $conn->prepare("REPLACE INTO config_sistema (chave, valor, atualizado_em) VALUES ('clima', ?, ?)");
-                $stmt->bind_param("si", $jsonStr, $now);
-                $stmt->execute();
-                $stmt->close();
-                $conn->close();
-            }
+        if (!defined('DB_HOST')) {
+            flock($fp, LOCK_UN);
+            fclose($fp);
+            http_response_code(500);
+            echo json_encode(["error" => "Configuracao do banco de dados ausente."]);
+            exit;
         }
+        $jsonStr = $_POST['config'];
+        $decoded = is_string($jsonStr) ? json_decode($jsonStr, true) : null;
+        if (!is_array($decoded) || (!isset($decoded['1']) && !isset($decoded['2']))) {
+            flock($fp, LOCK_UN);
+            fclose($fp);
+            http_response_code(400);
+            echo json_encode(["error" => "JSON de configuracao climatica invalido."]);
+            exit;
+        }
+
+        $defaults = [
+            "1" => ["tX" => 28.0, "uA" => 95.0, "fO" => 1, "fF" => 40, "vO" => 1, "vF" => 2, "vU" => 1],
+            "2" => ["tX" => 29.0, "uA" => 92.0, "fO" => 2, "fF" => 25, "vO" => 1, "vF" => 2, "vU" => 1]
+        ];
+        $clampNum = function($val, $min, $max, $def) {
+            if (!is_numeric($val)) return $def;
+            $v = (float)$val;
+            return max($min, min($max, $v));
+        };
+        $sanitized = [];
+        foreach (["1", "2"] as $k) {
+            $src = isset($decoded[$k]) && is_array($decoded[$k]) ? $decoded[$k] : [];
+            $d = $defaults[$k];
+            $uRaw = isset($src['uA']) ? $src['uA'] : (isset($src['uN']) ? $src['uN'] : $d['uA']);
+            $uA = round($clampNum($uRaw, 40.0, 99.0, $d['uA']), 1);
+            $sanitized[$k] = [
+                "tX" => round($clampNum($src['tX'] ?? null, 15.0, 35.0, $d['tX']), 1),
+                "uA" => $uA,
+                "uN" => $uA,
+                "uX" => $uA,
+                "fO" => (int)round($clampNum($src['fO'] ?? null, 0, 1440, $d['fO'])),
+                "fF" => (int)round($clampNum($src['fF'] ?? null, 0, 1440, $d['fF'])),
+                "vO" => (int)round($clampNum($src['vO'] ?? null, 0, 1440, $d['vO'])),
+                "vF" => (int)round($clampNum($src['vF'] ?? null, 0, 1440, $d['vF'])),
+                "vU" => (!isset($src['vU']) || (int)$src['vU'] === 1) ? 1 : 0
+            ];
+        }
+        $jsonSanitizado = json_encode($sanitized);
+
+        $conn = new mysqli(DB_HOST, DB_USER, DB_PASS, DB_NAME);
+        if ($conn->connect_error) {
+            flock($fp, LOCK_UN);
+            fclose($fp);
+            http_response_code(500);
+            echo json_encode(["error" => "Falha ao conectar no banco de dados."]);
+            exit;
+        }
+        $conn->set_charset('utf8mb4');
+        $conn->query("CREATE TABLE IF NOT EXISTS config_sistema (
+            chave VARCHAR(50) PRIMARY KEY,
+            valor LONGTEXT,
+            atualizado_em INT
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
+
+        $now = time();
+        $stmt = $conn->prepare("REPLACE INTO config_sistema (chave, valor, atualizado_em) VALUES ('clima', ?, ?)");
+        $stmt->bind_param("si", $jsonSanitizado, $now);
+        $stmt->execute();
+        $stmt->close();
+        $conn->close();
     }
 
     // Grava o JSON atualizado com lock ainda ativo (atômico)
