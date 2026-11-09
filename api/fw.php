@@ -2,6 +2,7 @@
 date_default_timezone_set('America/Sao_Paulo');
 header("Content-Type: application/json");
 header("Access-Control-Allow-Origin: *");
+header("Cache-Control: no-store, no-cache, must-revalidate, max-age=0");
 
 function lerTxtStatus($nome, $padrao = '') {
     $locais = [

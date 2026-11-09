@@ -2,10 +2,10 @@
 //  GROW IA - Firmware Inteligente + Nuvem IoT
 //  Placa: ESP32-S3 Dual-Core (Xtensa LX7)
 //  Autor: Gabriel + Antigravity AI
-//  Versão Atual: v439 (OTA Global Dual-Bank + Auto-Recovery)
+//  Versão Atual: v441 (OTA Global Dual-Bank + Real-Time Instant ACK)
 // ============================================================
 
-#define FW_VERSION 440
+#define FW_VERSION 441
 
 #include <Arduino.h>
 #include <ArduinoJson.h>
@@ -61,7 +61,7 @@ const unsigned long FAE_OFF_MS = 58UL * 60 * 1000;
 // --- Nuvem (HostGator) ---
 const char* CLOUD_URL = "https://grow.alquimistasmagicos.com.br/api/index.php";
 const char* CLOUD_KEY = "GrowIA_V4_SuperSecreta!";
-const unsigned long INTERVALO_NUVEM = 5UL * 1000;  // 5 segundos (Alta responsividade em tempo real)
+const unsigned long INTERVALO_NUVEM = 3UL * 1000;  // 3 segundos (Ultra responsividade em tempo real)
 
 // --- Segurança ---
 const unsigned long TIMEOUT_UMID_MS = 30UL * 60 * 1000;
@@ -549,6 +549,7 @@ void enviarNuvem(unsigned long agora) {
     int code = http.POST(json);
     ultimoSuspiro = millis();  // Alimenta Watchdog logo após resposta da nuvem
     bool deveFazerOta = false;
+    bool dispararAckImediato = false;
     uint32_t vNuvemParaOta = 0;
     String urlOtaCustom = "";
     if (code == 200) {
@@ -672,9 +673,11 @@ void enviarNuvem(unsigned long agora) {
 
         if (docRes.containsKey("comando_fase")) {
           int fc = docRes["comando_fase"];
-          if (faseValida(fc) && fc != (int)faseAtual) {
-            Serial.printf("📥 COMANDO NUVEM: Alterar fase para %s\n", nomeFase(fc));
-            setNovaFase((FaseCultivo)fc);
+          if (faseValida(fc)) {
+            if (fc != (int)faseAtual) {
+              Serial.printf("📥 COMANDO NUVEM: Alterar fase para %s\n", nomeFase(fc));
+              setNovaFase((FaseCultivo)fc);
+            }
             recalcularMotorImediato = true;
           }
         }
@@ -698,8 +701,8 @@ void enviarNuvem(unsigned long agora) {
             prefs.begin("grow", false);
             prefs.putInt("modoLuz", (int)modoLuz);
             prefs.end();
-            recalcularMotorImediato = true;
           }
+          recalcularMotorImediato = true;
         }
 
         if (docRes.containsKey("comando_ar")) {
@@ -722,8 +725,8 @@ void enviarNuvem(unsigned long agora) {
             prefs.begin("grow", false);
             prefs.putInt("modoAr", (int)modoAr);
             prefs.end();
-            recalcularMotorImediato = true;
           }
+          recalcularMotorImediato = true;
         }
 
         if (docRes.containsKey("comando_vento_ext")) {
@@ -746,6 +749,7 @@ void enviarNuvem(unsigned long agora) {
         }
 
         if (recalcularMotorImediato) {
+          bypassDwellFase = true;
           if (sensorIntOk) {
             executarMotor(agora);
             aplicarSeguranca();
@@ -757,6 +761,7 @@ void enviarNuvem(unsigned long agora) {
           }
           aplicarReles();
           ultimoEnvioNuvem = 0;  // Dispara atualização imediata com relés já comutados
+          dispararAckImediato = true;
         }
 
         if (docRes.containsKey("comando_reset_agua")) {
@@ -805,22 +810,58 @@ void enviarNuvem(unsigned long agora) {
     }
     http.end();
     client.stop(); // Fecha o socket SSL de telemetria para liberar toda a memória RAM
-    delay(50);
+    delay(30);
+
+    // Envia ACK imediato no mesmo ciclo se algum comando alterou fase, luz, ar ou perfil climático
+    static bool emAck = false;
+    if (dispararAckImediato && !deveFazerOta && !emAck) {
+      emAck = true;
+      enviarNuvem(millis());
+      emAck = false;
+    }
 
     if (deveFazerOta) {
       Serial.printf("📥 OTA INICIANDO (Local: %u, Nuvem: %u)\n", fwAtual, vNuvemParaOta);
 
-      // SUSPENDE O CAO DE GUARDA: O download OTA pode demorar minutos.
-      // Sem isso, o Watchdog reinicia a placa no meio da gravacao do firmware!
+      // SUSPENDE O CAO DE GUARDA E LIBERA SOCKETS LOCAIS PARA MAXIMIZAR HEAP TLS:
       vTaskSuspend(wdtTask);
+      server.stop();
 
-      WiFiClientSecure otaClient;
-      otaClient.setInsecure();
-      otaClient.setTimeout(30);
       httpUpdate.rebootOnUpdate(false);
+      httpUpdate.setFollowRedirects(HTTPC_STRICT_FOLLOW_REDIRECTS);
+      httpUpdate.onProgress([](int cur, int total) {
+        static int ultPct = -1;
+        int pct = (total > 0) ? (cur * 100) / total : 0;
+        if (pct / 10 != ultPct / 10) {
+          ultPct = pct;
+          Serial.printf("📊 [OTA] Baixando e gravando na partição: %d%% (%d / %d bytes)\n", pct, cur, total);
+          rgbLedWrite(RGB_BUILTIN, 0, (pct % 20 == 0) ? LED_BRILHO : 0, LED_BRILHO);
+        }
+      });
 
-      String fwUrl = (urlOtaCustom.length() > 10) ? urlOtaCustom : String(OTA_FW_URL);
-      t_httpUpdate_return ret = httpUpdate.update(otaClient, fwUrl);
+      String baseFwUrl = (urlOtaCustom.length() > 10) ? urlOtaCustom : String(OTA_FW_URL);
+      t_httpUpdate_return ret = HTTP_UPDATE_FAILED;
+
+      for (int tentativaOta = 1; tentativaOta <= 3; tentativaOta++) {
+        String fwUrl = baseFwUrl + (baseFwUrl.indexOf('?') >= 0 ? "&t=" : "?t=") + String(millis());
+        Serial.printf("🚀 [OTA] Tentativa %d/3 -> %s (Free Heap: %u bytes)\n", tentativaOta, fwUrl.c_str(), ESP.getFreeHeap());
+
+        WiFiClientSecure otaClient;
+        otaClient.setInsecure();
+        otaClient.setTimeout(30);
+        otaClient.setHandshakeTimeout(30);
+
+        ret = httpUpdate.update(otaClient, fwUrl, "v" + String(FW_VERSION), [](HTTPClient* h) {
+          h->setConnectTimeout(15000);
+          h->setTimeout(30000);
+        });
+
+        otaClient.stop();
+        if (ret == HTTP_UPDATE_OK) break;
+
+        Serial.printf("⚠️ [OTA] Tentativa %d falhou (%d): %s\n", tentativaOta, httpUpdate.getLastError(), httpUpdate.getLastErrorString().c_str());
+        delay(2000);
+      }
 
       // REATIVA O CAO DE GUARDA (caso o OTA falhe e a placa continue rodando)
       ultimoSuspiro = millis();
@@ -838,7 +879,8 @@ void enviarNuvem(unsigned long agora) {
         delay(1000);
         ESP.restart();
       } else if (ret == HTTP_UPDATE_FAILED) {
-        Serial.printf("❌ Falha no OTA (%d): %s\n", httpUpdate.getLastError(), httpUpdate.getLastErrorString().c_str());
+        Serial.printf("❌ Falha definitiva no OTA (%d): %s\n", httpUpdate.getLastError(), httpUpdate.getLastErrorString().c_str());
+        server.begin();
       }
     }
   }

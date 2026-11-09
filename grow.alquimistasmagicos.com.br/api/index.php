@@ -207,7 +207,30 @@ if ($method === 'POST') {
             $ts, $row['tI'], $row['uI'], $tE, $uE, 
             $rLuz, $rUmid, $rVento, $rExaust, $rAr, $rVentoExt, $faseRow
         );
-        if($stmt->execute()) $successCount++;
+        $atualizouMesmoMinuto = false;
+        if (!$envioEmLote) {
+            $resUlt = $conn->query("SELECT id, timestamp FROM telemetria ORDER BY id DESC LIMIT 1");
+            if ($resUlt && $ultRow = $resUlt->fetch_assoc()) {
+                if (substr($ultRow['timestamp'], 0, 16) === substr($ts, 0, 16)) {
+                    $ultId = (int)$ultRow['id'];
+                    $stmtUp = $conn->prepare("UPDATE telemetria SET timestamp=?, temp_int=?, hum_int=?, temp_ext=?, hum_ext=?, rele_luz=?, rele_umid=?, rele_vento=?, rele_exaust=?, rele_ar=?, rele_vento_ext=?, fase=? WHERE id=?");
+                    if ($stmtUp) {
+                        $stmtUp->bind_param("sddddiiiiiisi",
+                            $ts, $row['tI'], $row['uI'], $tE, $uE,
+                            $rLuz, $rUmid, $rVento, $rExaust, $rAr, $rVentoExt, $faseRow, $ultId
+                        );
+                        if ($stmtUp->execute()) {
+                            $successCount++;
+                            $atualizouMesmoMinuto = true;
+                        }
+                        $stmtUp->close();
+                    }
+                }
+            }
+        }
+        if (!$atualizouMesmoMinuto) {
+            if($stmt->execute()) $successCount++;
+        }
     }
     $stmt->close();
     
@@ -299,11 +322,12 @@ elseif ($method === 'GET') {
         die(json_encode(["status" => "ok", "removidos" => $rem]));
     }
 
+    header("Cache-Control: no-store, no-cache, must-revalidate, max-age=0");
     $limit = isset($_GET['limit']) ? (int)$_GET['limit'] : 1440;
-    $limit = max(1, min(30000, $limit)); // Clamp: suporta 24h (1440) ou 7 dias (10080)
+    $limit = max(1, min(30000, $limit)); // Clamp: suporta 1 (tempo real), 24h (1440) ou 7 dias (10080)
     
-    // Multiplica a busca para cobrir pontos de 10s e garantir minutos únicos suficientes
-    $queryLimit = min(50000, $limit * 6);
+    // Para polling rápido de tempo real (limit <= 5), busca direta ultra-rápida
+    $queryLimit = ($limit <= 5) ? ($limit * 2) : min(25000, $limit * 3);
     // BUG CORRIGIDO: temp_ext >= 15 apagava noites frias do gráfico; agora filtra apenas
     // leituras fisicamente impossíveis (< -10°C) ou ruído extremo (hum_ext > 100).
     $sql = "SELECT * FROM telemetria WHERE (hum_ext <= 100 OR hum_ext IS NULL) AND (temp_ext >= -10 OR temp_ext IS NULL) ORDER BY id DESC LIMIT $queryLimit";

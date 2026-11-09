@@ -1716,8 +1716,7 @@
             }
 
             if (await enviarComando({fase: f})) {
-                loopDados(1000); // Polling acelerado a cada 1s para capturar a resposta imediata da placa
-                setTimeout(() => loopDados(2500), 1200);
+                setTimeout(() => loopDados(1200), 600);
             }
         }
 
@@ -1744,17 +1743,15 @@
             arState = proxAr;
             arPendenteTempo = Date.now();
             
-            // Feedback instantâneo no card
-            const el = document.getElementById('releAr');
+            // Optimistic UI imediata no card
+            setRele('releAr', 'releArStatus', proxAr === 1 ? 1 : (proxAr === 2 ? 0 : (window.ultimoRegistroRecebido ? parseInt(window.ultimoRegistroRecebido.rele_ar || 0) : 0)));
             const ra = document.getElementById('releArStatus');
             if (ra) {
                 ra.textContent = (proxAr === 1 ? "MANUAL (ON) ⏳" : (proxAr === 2 ? "MANUAL (OFF) ⏳" : "AUTO ⏳"));
-                ra.className = "text-[10px] text-amber-300 font-bold tracking-wider";
             }
 
             if (await enviarComando({ar: proxAr})) {
-                atualizarBotoesAr(arState);
-                loopDados(2000); // Força refresh rápido
+                setTimeout(() => loopDados(1200), 600);
             }
         }
         
@@ -1770,17 +1767,16 @@
             luzState = proxLuz;
             luzPendenteTempo = Date.now();
             
-            // Feedback instantâneo no card
-            const el = document.getElementById('releLuz');
+            // Optimistic UI imediata no card e na aba Config
+            setRele('releLuz', 'releLuzStatus', proxLuz === 1 ? 1 : (proxLuz === 2 ? 0 : (window.ultimoRegistroRecebido ? parseInt(window.ultimoRegistroRecebido.rele_luz || 0) : 0)));
             const rl = document.getElementById('releLuzStatus');
             if (rl) {
                 rl.textContent = (proxLuz === 1 ? "MANUAL (ON) ⏳" : (proxLuz === 2 ? "MANUAL (OFF) ⏳" : "AUTO ⏳"));
-                rl.className = "text-[10px] text-amber-300 font-bold tracking-wider";
             }
+            atualizarDadosViewConfig();
 
             if (await enviarComando({luz: proxLuz})) {
-                atualizarBotoesLuz(luzState);
-                loopDados(2000); // Força refresh rápido
+                setTimeout(() => loopDados(1200), 600);
             }
         }
 
@@ -2134,19 +2130,25 @@
 
         function filtrar(limit, btn) {
             limitAtual = limit;
+            window.ultimoFetchCompletoTs = 0; // Força recarregamento completo do histórico ao trocar filtro
             document.querySelectorAll('.btn-filter').forEach(b => b.classList.remove('active'));
             btn.classList.add('active');
             zoomManualUsuario = false;
             zoomAtivo3h = true;
-            carregarDados(limit);
+            carregarDados(limit, true);
         }
 
-        async function carregarDados(limit) {
+        async function carregarDados(limit, forcarCompleto = false) {
             try {
-                // Busca telemetria e metadados em paralelo para evitar atraso extra
+                const agoraReq = Date.now();
+                const temHistorico = Array.isArray(window.dadosTelemetriaAtuais) && window.dadosTelemetriaAtuais.length > 5;
+                const precisaCompleto = forcarCompleto || !temHistorico || (agoraReq - (window.ultimoFetchCompletoTs || 0) >= 45000);
+                const limitFetch = precisaCompleto ? limit : 1;
+
+                // Busca telemetria (delta rápido de 1 registro ou histórico completo) e metadados em paralelo
                 const [resDados, resFw] = await Promise.all([
-                    fetchComTimeout(`api/index.php?limit=${limit}`, {}, 8000),
-                    fetchComTimeout(`api/fw.php`, {}, 4000).catch(() => null)
+                    fetchComTimeout(`api/index.php?limit=${limitFetch}&nocache=${agoraReq}`, {}, 8000),
+                    fetchComTimeout(`api/fw.php?nocache=${agoraReq}`, {}, 4000).catch(() => null)
                 ]);
                 
                 if (resFw && resFw.ok) {
@@ -2172,12 +2174,31 @@
                     atualizarDadosViewConfig();
                 }
 
-                const data = await resDados.json();
+                const rawData = await resDados.json();
 
-                if (!data || data.length === 0) {
+                if (!rawData || rawData.length === 0) {
                     document.getElementById('statusText').textContent = 'Sem dados';
                     document.getElementById('dotColor').className = 'w-2 h-2 rounded-full bg-yellow-500 pulse-dot';
                     return;
+                }
+
+                let data = rawData;
+                if (precisaCompleto) {
+                    window.ultimoFetchCompletoTs = agoraReq;
+                } else if (temHistorico) {
+                    // Mescla o registro mais recente em tempo real no histórico local sem precisar baixar 1440 linhas
+                    const novoPonto = rawData[rawData.length - 1];
+                    const hist = window.dadosTelemetriaAtuais.slice();
+                    const ultHist = hist[hist.length - 1];
+                    const minNovo = (novoPonto.timestamp || '').slice(0, 16);
+                    const minUlt = (ultHist.timestamp || '').slice(0, 16);
+                    if (minNovo && minNovo === minUlt) {
+                        hist[hist.length - 1] = novoPonto;
+                    } else {
+                        hist.push(novoPonto);
+                        if (hist.length > limit) hist.shift();
+                    }
+                    data = hist;
                 }
 
                 const ultimo = data[data.length - 1];
@@ -2319,8 +2340,8 @@
                 calcularResumoAtividades(data);
 
                 // OTIMIZAÇÃO ZERO-LAG: Cache inteligente de dados
-                // Se o último registro não mudou e o limite é o mesmo, evita reprocessar e repintar os gráficos
-                const chaveDados = `${ultimo.id || ultimo.timestamp}_${data.length}_${limit}`;
+                // Se o último registro e seus estados de relés/fase não mudaram, evita reprocessar e repintar os gráficos
+                const chaveDados = `${ultimo.id}_${ultimo.timestamp}_${ultimo.fase}_${ultimo.rele_luz}_${ultimo.rele_umid}_${ultimo.rele_vento}_${ultimo.rele_exaust}_${ultimo.rele_ar}_${data.length}_${limit}`;
                 if (window.ultimoCacheGrafico === chaveDados) {
                     return;
                 }
@@ -3006,11 +3027,11 @@
             await carregarDados(limitAtual);
             if (myGen !== loopGen) return; // Impede loops duplicados quando usuário troca de aba ou clica em botões
 
-            // Sincroniza a cada 2s se tiver comando pendente
+            // Sincroniza a cada 1.2s se tiver comando pendente, ou 3s em operação normal (usando delta leve limit=1)
             // Se aba estiver em segundo plano (document.hidden), reduz para 30s para economizar bateria e dados móveis
-            let isPendente = (Date.now() - luzPendenteTempo < 25000) || (Date.now() - fasePendenteTempo < 25000);
-            let delayPadrao = document.hidden ? 30000 : 5000;
-            let delay = forceDelay || (isPendente ? 2000 : delayPadrao);
+            let isPendente = (Date.now() - luzPendenteTempo < 25000) || (Date.now() - arPendenteTempo < 25000) || (Date.now() - fasePendenteTempo < 25000);
+            let delayPadrao = document.hidden ? 30000 : 3000;
+            let delay = forceDelay || (isPendente ? 1200 : delayPadrao);
             if (loopTimeout) clearTimeout(loopTimeout);
             loopTimeout = setTimeout(() => loopDados(), delay);
         }

@@ -49,12 +49,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
     flock($fp, LOCK_EX);
 
-    $conteudo = '';
-    fseek($fp, 0);
-    while (!feof($fp)) {
-        $conteudo .= fread($fp, 8192);
-    }
-    $cmd = json_decode($conteudo, true) ?: [];
+    $cmd = [];
+    $pastas_status_cmd = [
+        __DIR__,
+        __DIR__ . '/../../api',
+        __DIR__ . '/../api',
+        __DIR__ . '/../grow.alquimistasmagicos.com.br/api'
+    ];
 
     if (isset($_POST['fase'])) {
         $f = (int)$_POST['fase'];
@@ -66,21 +67,27 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $l = (int)$_POST['luz']; // 0: AUTO, 1: ON, 2: OFF
         if (in_array($l, [0, 1, 2], true)) {
             $cmd['luz'] = $l;
-            file_put_contents(__DIR__ . '/modo_luz.txt', (string)$l);
+            foreach ($pastas_status_cmd as $pDir) {
+                if (is_dir($pDir)) @file_put_contents($pDir . '/modo_luz.txt', (string)$l);
+            }
         }
     }
     if (isset($_POST['ar'])) {
         $a = (int)$_POST['ar']; // 0: AUTO, 1: ON, 2: OFF
         if (in_array($a, [0, 1, 2], true)) {
             $cmd['ar'] = $a;
-            file_put_contents(__DIR__ . '/modo_ar.txt', (string)$a);
+            foreach ($pastas_status_cmd as $pDir) {
+                if (is_dir($pDir)) @file_put_contents($pDir . '/modo_ar.txt', (string)$a);
+            }
         }
     }
     if (isset($_POST['vento_ext'])) {
         $ve = (int)$_POST['vento_ext']; // 0: AUTO, 1: ON, 2: OFF
         if (in_array($ve, [0, 1, 2], true)) {
             $cmd['vento_ext'] = $ve;
-            file_put_contents(__DIR__ . '/modo_vento_ext.txt', (string)$ve);
+            foreach ($pastas_status_cmd as $pDir) {
+                if (is_dir($pDir)) @file_put_contents($pDir . '/modo_vento_ext.txt', (string)$ve);
+            }
         }
     }
     if (isset($_POST['reset_agua'])) $cmd['reset_agua'] = 1;
@@ -169,26 +176,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $conn->close();
     }
 
-    // Grava o JSON atualizado com lock ainda ativo (atômico)
-    ftruncate($fp, 0);
-    fseek($fp, 0);
-    fwrite($fp, json_encode($cmd));
-    fflush($fp);
-    flock($fp, LOCK_UN);
-    fclose($fp);
-
-    // Espelha o comando em todas as pastas para compatibilidade multi-caminho absoluta
-    $espelhos_cmd = [
-        __DIR__ . '/comando_pendente.json',
-        __DIR__ . '/../../api/comando_pendente.json',
-        __DIR__ . '/../api/comando_pendente.json',
-        __DIR__ . '/../grow.alquimistasmagicos.com.br/api/comando_pendente.json'
-    ];
-    foreach ($espelhos_cmd as $eCmd) {
-        if (is_dir(dirname($eCmd))) @file_put_contents($eCmd, json_encode($cmd));
-    }
-
-    // Também persiste na fila do MySQL para entrega atômica (100% imune a caminhos em disco)
+    // Persiste na fila do MySQL com janela de validade de 15s (evita comandos velhos acumulados ou repetidos)
+    $cmdMerged = $cmd;
     if (!empty($cmd) && defined('DB_HOST')) {
         $connCmd = @new mysqli(DB_HOST, DB_USER, DB_PASS, DB_NAME);
         if (!$connCmd->connect_error) {
@@ -198,11 +187,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 valor LONGTEXT,
                 atualizado_em INT
             ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
-            $resExist = $connCmd->query("SELECT valor FROM config_sistema WHERE chave = 'comando_pendente'");
-            $cmdMerged = $cmd;
+            $resExist = $connCmd->query("SELECT valor, atualizado_em FROM config_sistema WHERE chave = 'comando_pendente'");
             if ($resExist && $rEx = $resExist->fetch_assoc()) {
+                $idadeCmd = time() - (int)$rEx['atualizado_em'];
                 $ant = json_decode($rEx['valor'], true);
-                if (is_array($ant)) $cmdMerged = array_merge($ant, $cmd);
+                if (is_array($ant) && $idadeCmd <= 15) {
+                    $cmdMerged = array_merge($ant, $cmd);
+                }
             }
             $jsonCmdDb = json_encode($cmdMerged);
             $nowCmd = time();
@@ -216,5 +207,23 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
     }
 
-    echo json_encode(["status" => "Comando salvo na fila e no Banco de Dados!", "cmd" => $cmd]);
+    // Grava o JSON consolidado com lock exclusivo e espelha em todas as pastas
+    ftruncate($fp, 0);
+    fseek($fp, 0);
+    fwrite($fp, json_encode($cmdMerged));
+    fflush($fp);
+    flock($fp, LOCK_UN);
+    fclose($fp);
+
+    $espelhos_cmd = [
+        __DIR__ . '/comando_pendente.json',
+        __DIR__ . '/../../api/comando_pendente.json',
+        __DIR__ . '/../api/comando_pendente.json',
+        __DIR__ . '/../grow.alquimistasmagicos.com.br/api/comando_pendente.json'
+    ];
+    foreach ($espelhos_cmd as $eCmd) {
+        if (is_dir(dirname($eCmd))) @file_put_contents($eCmd, json_encode($cmdMerged));
+    }
+
+    echo json_encode(["status" => "Comando salvo na fila e no Banco de Dados!", "cmd" => $cmdMerged]);
 }
