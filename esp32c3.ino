@@ -5,7 +5,7 @@
 //  Versão Atual: v426 (Blindagem Total Anti-Travamento & Auto-Recovery)
 // ============================================================
 
-#define FW_VERSION 431
+#define FW_VERSION 432
 
 #include <Arduino.h>
 #include <ArduinoJson.h>
@@ -562,62 +562,72 @@ void enviarNuvem(unsigned long agora) {
           uint32_t versaoLocal = prefs.getUInt("cfg_ver", 0);
           prefs.end();
 
-          // Se for a primeira inicialização ou se a versão do banco no MySQL mudou:
-          if (versaoNuvem > 0 && versaoNuvem != versaoLocal) {
-            JsonObject cfg = docRes["config_clima"];
-            bool configAlterada = false;
-            auto clampF = [](float v, float mn, float mx, float def) -> float {
-              if (isnan(v) || v < mn || v > mx) return def;
-              return v;
-            };
-            auto clampMin = [](long m, unsigned long mx, unsigned long def) -> unsigned long {
-              if (m < 0) return 0UL;
-              if ((unsigned long)m > mx) return mx;
-              return (unsigned long)m;
-            };
-            for (int i = 1; i <= 2; i++) {
-              String key = String(i);
-              if (cfg.containsKey(key)) {
-                float defTx = (i == 1) ? 28.0f : 29.0f;
-                float defUa = (i == 1) ? 95.0f : 92.0f;
-                unsigned long defFo = (i == 1) ? 1UL : 2UL;
-                unsigned long defFf = (i == 1) ? 40UL : 25UL;
+          JsonObject cfg = docRes["config_clima"];
+          bool configAlterada = false;
+          auto clampF = [](float v, float mn, float mx, float def) -> float {
+            if (isnan(v) || v < mn || v > mx) return def;
+            return v;
+          };
+          auto clampMin = [](long m, unsigned long mx, unsigned long def) -> unsigned long {
+            if (m < 0) return 0UL;
+            if ((unsigned long)m > mx) return mx;
+            return (unsigned long)m;
+          };
+          for (int i = 1; i <= 2; i++) {
+            String key = String(i);
+            if (cfg.containsKey(key)) {
+              float defTx = (i == 1) ? 28.0f : 29.0f;
+              float defUa = (i == 1) ? 95.0f : 92.0f;
+              unsigned long defFo = (i == 1) ? 1UL : 2UL;
+              unsigned long defFf = (i == 1) ? 40UL : 25UL;
 
-                float tX = cfg[key].containsKey("tX") ? cfg[key]["tX"].as<float>() : defTx;
-                perfis[i].tempMax = clampF(tX, 15.0f, 35.0f, defTx);
+              float tX = cfg[key].containsKey("tX") ? cfg[key]["tX"].as<float>() : defTx;
+              float novoTx = clampF(tX, 15.0f, 35.0f, defTx);
+              if (abs(perfis[i].tempMax - novoTx) > 0.05f) {
+                perfis[i].tempMax = novoTx;
+                configAlterada = true;
+              }
 
-                float uRaw = cfg[key].containsKey("uA") ? cfg[key]["uA"].as<float>() : (cfg[key].containsKey("uN") ? cfg[key]["uN"].as<float>() : defUa);
-                float uAlvo = clampF(uRaw, 40.0f, 99.0f, defUa);
-                perfis[i].umidMin = uAlvo;
-                perfis[i].umidMax = uAlvo;
+              float uRaw = cfg[key].containsKey("uA") ? cfg[key]["uA"].as<float>() : (cfg[key].containsKey("uN") ? cfg[key]["uN"].as<float>() : defUa);
+              float novoUa = clampF(uRaw, 40.0f, 99.0f, defUa);
+              if (abs(perfis[i].umidMin - novoUa) > 0.05f) {
+                perfis[i].umidMin = novoUa;
+                perfis[i].umidMax = novoUa;
+                configAlterada = true;
+              }
 
-                unsigned long fO = cfg[key].containsKey("fO") ? clampMin(cfg[key]["fO"].as<long>(), 1440UL, defFo) : defFo;
-                unsigned long fF = cfg[key].containsKey("fF") ? clampMin(cfg[key]["fF"].as<long>(), 1440UL, defFf) : defFf;
-                unsigned long vO = cfg[key].containsKey("vO") ? clampMin(cfg[key]["vO"].as<long>(), 1440UL, 1UL) : 1UL;
-                unsigned long vF = cfg[key].containsKey("vF") ? clampMin(cfg[key]["vF"].as<long>(), 1440UL, 2UL) : 2UL;
-                unsigned long eO = cfg[key].containsKey("eO") ? clampMin(cfg[key]["eO"].as<long>(), 1440UL, 2UL) : 2UL;
-                unsigned long eF = cfg[key].containsKey("eF") ? clampMin(cfg[key]["eF"].as<long>(), 1440UL, 8UL) : 8UL;
+              unsigned long fO = cfg[key].containsKey("fO") ? clampMin(cfg[key]["fO"].as<long>(), 1440UL, defFo) : defFo;
+              unsigned long fF = cfg[key].containsKey("fF") ? clampMin(cfg[key]["fF"].as<long>(), 1440UL, defFf) : defFf;
+              unsigned long vO = cfg[key].containsKey("vO") ? clampMin(cfg[key]["vO"].as<long>(), 1440UL, 1UL) : 1UL;
+              unsigned long vF = cfg[key].containsKey("vF") ? clampMin(cfg[key]["vF"].as<long>(), 1440UL, 2UL) : 2UL;
+              unsigned long eO = cfg[key].containsKey("eO") ? clampMin(cfg[key]["eO"].as<long>(), 1440UL, 2UL) : 2UL;
+              unsigned long eF = cfg[key].containsKey("eF") ? clampMin(cfg[key]["eF"].as<long>(), 1440UL, 8UL) : 8UL;
+              bool vU = cfg[key].containsKey("vU") ? (cfg[key]["vU"].as<int>() == 1) : true;
+
+              if (perfis[i].faeOnMs != fO * 60000UL || perfis[i].faeOffMs != fF * 60000UL ||
+                  perfis[i].ventoOnMs != vO * 60000UL || perfis[i].ventoOffMs != vF * 60000UL ||
+                  perfis[i].ventoComUmid != vU) {
                 perfis[i].faeOnMs = fO * 60000UL;
                 perfis[i].faeOffMs = fF * 60000UL;
                 perfis[i].ventoOnMs = vO * 60000UL;
                 perfis[i].ventoOffMs = vF * 60000UL;
                 perfis[i].exaustOnMs = eO * 60000UL;
                 perfis[i].exaustOffMs = eF * 60000UL;
-                perfis[i].ventoComUmid = cfg[key].containsKey("vU") ? (cfg[key]["vU"].as<int>() == 1) : true;
+                perfis[i].ventoComUmid = vU;
                 configAlterada = true;
               }
             }
-            if (configAlterada) {
-              salvarPerfisNVS();
-              if (versaoNuvem > 0) {
-                prefs.begin("grow", false);
-                prefs.putUInt("cfg_ver", versaoNuvem);
-                prefs.end();
-              }
-              bypassDwellFase = true;
-              recalcularMotorImediato = true;
-              Serial.printf("✅ [SYNC NUVEM] Perfis climáticos atualizados com o Banco de Dados! Versão: %u\n", versaoNuvem);
+          }
+          if (configAlterada || (versaoNuvem > 0 && versaoNuvem != versaoLocal)) {
+            salvarPerfisNVS();
+            if (versaoNuvem > 0) {
+              prefs.begin("grow", false);
+              prefs.putUInt("cfg_ver", versaoNuvem);
+              prefs.end();
             }
+            bypassDwellFase = true;
+            recalcularMotorImediato = true;
+            Serial.printf("✅ [SYNC NUVEM] Perfis climáticos atualizados com o Banco de Dados! Versão: %u (TempMax F2: %.1f°C)\n", versaoNuvem, perfis[2].tempMax);
           }
         }
 
@@ -669,7 +679,12 @@ void enviarNuvem(unsigned long agora) {
             Serial.println("📥 COMANDO NUVEM: Ar Condicionado FORCADO DESLIGADO");
             arMudou = true;
           }
-          if (arMudou) recalcularMotorImediato = true;
+          if (arMudou) {
+            prefs.begin("grow", false);
+            prefs.putInt("modoAr", (int)modoAr);
+            prefs.end();
+            recalcularMotorImediato = true;
+          }
         }
 
         if (docRes.containsKey("comando_vento_ext")) {
@@ -698,6 +713,8 @@ void enviarNuvem(unsigned long agora) {
           } else {
             if (modoLuz == LUZ_FORCADA_ON) releLuz = true;
             if (modoLuz == LUZ_FORCADA_OFF) releLuz = false;
+            if (modoAr == AR_FORCADA_ON) releArCond = true;
+            if (modoAr == AR_FORCADA_OFF) releArCond = false;
           }
           aplicarReles();
           ultimoEnvioNuvem = 0;  // Dispara atualização imediata com relés já comutados
@@ -911,8 +928,12 @@ void aplicarReles() {
       if (compressorUltimoDesligamento == 0 || agora - compressorUltimoDesligamento >= AC_MIN_REST_MS || modoAr == AR_FORCADA_ON) {
         podeComutarAr = true;
       } else {
-        unsigned long faltaSeg = (AC_MIN_REST_MS - (agora - compressorUltimoDesligamento)) / 1000UL;
-        Serial.printf("⏳ COMPRESSOR AC: Protecao anti-ciclo curto ativa. Aguardando descanso (%lu s restantes)...\n", faltaSeg);
+        static unsigned long lastAvisoRest = 0;
+        if (agora - lastAvisoRest >= 10000) {
+          lastAvisoRest = agora;
+          unsigned long faltaSeg = (AC_MIN_REST_MS - (agora - compressorUltimoDesligamento)) / 1000UL;
+          Serial.printf("⏳ COMPRESSOR AC: Protecao anti-ciclo curto ativa. Aguardando descanso (%lu s restantes)...\n", faltaSeg);
+        }
       }
     } else {
       // Quer DESLIGAR compressor: respeita tempo mínimo ligado de 60 segundos
@@ -1009,21 +1030,33 @@ void executarMotor(unsigned long agora) {
   }
 
   // --- CONTROLE TÉRMICO E CLIMATIZAÇÃO INTELIGENTE (AR CONDICIONADO) ---
-  // Histerese de 1.5°C para o ciclo do compressor contra liga/desliga intermitente
+  // Quando atinge a temperatura alvo máxima (pf.tempMax), aciona o Ar Condicionado.
+  // Quando a meta é atingida (tempInt < pf.tempMax), mantém ligado por mais 5 minutos
+  // para estabilizar e fixar a climatização do ambiente antes de desligar.
   static bool modoRefrigeracaoAtivo = false;
+  static unsigned long tempoAlvoAtingido = 0;
+  const unsigned long TEMPO_EXTRA_REFRIGERACAO_MS = 5UL * 60UL * 1000UL; // 5 minutos pós-meta
+
   if (tempInt >= pf.tempMax) {
     modoRefrigeracaoAtivo = true;
-  } else if (tempInt < (pf.tempMax - 1.5f)) {
-    modoRefrigeracaoAtivo = false;
+    tempoAlvoAtingido = 0; // Se voltou a subir, cancela temporizador de desligamento
+  } else if (modoRefrigeracaoAtivo) {
+    // Alvo atingido (tempInt < pf.tempMax)!
+    if (tempoAlvoAtingido == 0) {
+      tempoAlvoAtingido = agora;
+      Serial.printf("❄️ CLIMATIZAÇÃO: Meta atingida (%.1f°C < %.1f°C)! Mantendo Ar ligado por mais 5 min para fixação...\n", tempInt, pf.tempMax);
+    } else if (agora - tempoAlvoAtingido >= TEMPO_EXTRA_REFRIGERACAO_MS) {
+      modoRefrigeracaoAtivo = false;
+      tempoAlvoAtingido = 0;
+      Serial.println("❄️ CLIMATIZAÇÃO: 5 minutos de pós-resfriamento concluídos. Desligando Ar Condicionado.");
+    }
   }
 
   // Ar Condicionado (Refrigeração da Sala):
   if (modoRefrigeracaoAtivo) {
     releArCond = true;
-    // releVentoExt = true; // (Comentado: pronto para upgrade com relé de 2 canais)
   } else {
     releArCond = false;
-    // releVentoExt = false;
   }
 
   // RESET EXPLICITO: Todos os reles partem de OFF e sao definidos pelas regras abaixo
@@ -1193,6 +1226,8 @@ void setup() {
   faseAtual = faseValida(faseSalva) ? (FaseCultivo)faseSalva : FASE_STANDBY;
   int modoSalvo = prefs.getInt("modoLuz", (int)LUZ_AUTO);
   modoLuz = (modoSalvo >= 0 && modoSalvo <= 2) ? (ModoLuz)modoSalvo : LUZ_AUTO;
+  int modoArSalvo = prefs.getInt("modoAr", (int)AR_AUTO);
+  modoAr = (modoArSalvo >= 0 && modoArSalvo <= 2) ? (ModoAr)modoArSalvo : AR_AUTO;
   inicioFaseTempo = prefs.getUInt("inicio", 0);
   fwAtual = prefs.getUInt("fw_ver", 0);
   bool luzSalvaNVS = prefs.getBool("r_luz", false);

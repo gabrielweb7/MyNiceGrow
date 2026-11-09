@@ -276,6 +276,33 @@
                 </div>
             </div>
 
+            <!-- CONTROLE REMOTO DO AR CONDICIONADO (CLIMATIZAÇÃO) -->
+            <div class="mt-4 pt-4 border-t border-slate-700/40">
+                <div class="flex items-center justify-between mb-2.5">
+                    <h3 class="text-xs font-bold text-slate-400 uppercase tracking-wider flex items-center gap-1.5">
+                        <span>❄️</span> Controle do Ar Condicionado
+                    </h3>
+                    <span id="txtModoArAtivo" class="text-[10px] text-cyan-400 font-bold bg-slate-800/80 px-2 py-0.5 rounded border border-slate-700/50">Modo: AUTO ❄️</span>
+                </div>
+                <div class="grid grid-cols-3 gap-2.5">
+                    <button id="btnArAuto" onclick="mudarAr(0)" class="btn-ar bg-cyan-600/30 hover:bg-cyan-600/40 rounded-lg p-2.5 text-center transition-all duration-300 border border-cyan-400 text-cyan-300 font-bold shadow-[0_0_12px_rgba(6,182,212,0.3)]" title="Ar liga se temperatura passar do alvo e desliga 5 min após meta atingida">
+                        <div class="text-xl mb-0.5">❄️</div>
+                        <p class="text-xs">Automático</p>
+                        <p class="text-[9px] text-slate-400 font-normal mt-0.5">Termostato Inteligente</p>
+                    </button>
+                    <button id="btnArOn" onclick="mudarAr(1)" class="btn-ar bg-slate-800/80 hover:bg-slate-700 rounded-lg p-2.5 text-center transition-all duration-300 border border-slate-700/50 opacity-70" title="Força o Ar Condicionado ligado imediatamente">
+                        <div class="text-xl mb-0.5">⚡</div>
+                        <p class="text-xs">Forçar LIGADO</p>
+                        <p class="text-[9px] text-slate-400 font-normal mt-0.5">Refrigeração Contínua (ON)</p>
+                    </button>
+                    <button id="btnArOff" onclick="mudarAr(2)" class="btn-ar bg-slate-800/80 hover:bg-slate-700 rounded-lg p-2.5 text-center transition-all duration-300 border border-slate-700/50 opacity-70" title="Força o Ar Condicionado desligado">
+                        <div class="text-xl mb-0.5">🛑</div>
+                        <p class="text-xs">Forçar DESLIGADO</p>
+                        <p class="text-[9px] text-slate-400 font-normal mt-0.5">Desligado / Bloqueado (OFF)</p>
+                    </button>
+                </div>
+            </div>
+
             <!-- NOVO: Painel de Informações da Fase e Inteligência -->
             <div id="infoFaseContainer" class="hidden mt-6 pt-5 border-t border-slate-700/50">
                 <div class="w-full">
@@ -506,7 +533,7 @@
                                         <input type="number" step="0.1" id="cfgTx" class="w-full bg-slate-900/90 text-amber-400 text-base font-extrabold border border-slate-700 rounded-lg p-2.5 text-center outline-none focus:border-amber-500 transition shadow-inner">
                                         <span class="absolute right-3 top-2.5 text-xs text-slate-500 font-bold">°C</span>
                                     </div>
-                                    <span class="text-[10px] text-slate-500 mt-1 block">Acima liga ventilação de alívio</span>
+                                    <span class="text-[10px] text-cyan-400 font-medium mt-1 block">❄️ Acima deste valor, liga o Ar Condicionado (desliga 5 min após meta atingida)</span>
                                 </div>
                                 <div>
                                     <label class="text-[11px] text-slate-400 block mb-1 font-medium">Umidade Alvo (%)</label>
@@ -1007,6 +1034,8 @@
         }
         
         let luzPendenteTempo = 0;
+        let arState = 0;
+        let arPendenteTempo = 0;
         let fasePendenteTempo = 0;
         let fasePendenteAlvo = null; // Guarda qual fase o usuário clicou para desbloquear a UI assim que o banco confirmar
         let loopTimeout = null;
@@ -1016,6 +1045,7 @@
             const st = document.getElementById(statusId);
             if (!el || !st) return;
             const isLuz = (id === 'releLuz');
+            const isAr = (id === 'releAr');
 
             // Remove qualquer onclick residual
             el.onclick = null;
@@ -1026,6 +1056,8 @@
                 el.className = 'bg-emerald-600 rounded-lg p-3 text-center transition-all duration-500 shadow-[0_0_15px_rgba(16,185,129,0.4)] border border-emerald-400/50';
                 if (isLuz) {
                     st.textContent = (luzState === 0) ? 'AUTO (ON)' : (luzState === 1 ? 'FORÇADA (ON)' : 'ON');
+                } else if (isAr) {
+                    st.textContent = (arState === 0) ? 'AUTO (ON)' : (arState === 1 ? 'FORÇADO (ON)' : 'ON');
                 } else {
                     st.textContent = 'ON';
                 }
@@ -1034,6 +1066,8 @@
                 el.className = 'bg-slate-800 rounded-lg p-3 text-center transition-all duration-500 border border-transparent opacity-80';
                 if (isLuz) {
                     st.textContent = (luzState === 0) ? 'AUTO (OFF)' : (luzState === 2 ? 'FORÇADA (OFF)' : 'OFF');
+                } else if (isAr) {
+                    st.textContent = (arState === 0) ? 'AUTO (OFF)' : (arState === 2 ? 'FORÇADO (OFF)' : 'OFF');
                 } else {
                     st.textContent = 'OFF';
                 }
@@ -1058,18 +1092,29 @@
             const cardTe = document.getElementById('cardTe');
             const valTe = document.getElementById('valTe');
 
-            // --- 1. TEMPERATURA INTERNA ---
-            // < 20°C: Azul Frio | 20-26°C: Verde Padrão | 26-28.5°C: Laranja | > 28.5°C: Vermelho Quente
+            // --- 1. TEMPERATURA INTERNA (DINÂMICA CONFORME META CLIMÁTICA DA FASE) ---
             if (cardTi && valTi && !isNaN(ti)) {
+                let tAlvo = 25.0;
+                const fStr = (window.ultimoRegistroRecebido && window.ultimoRegistroRecebido.fase) ? window.ultimoRegistroRecebido.fase : '';
+                if (fStr.includes('Pinagem') && typeof configClima !== 'undefined' && configClima["1"]) {
+                    tAlvo = parseFloat(configClima["1"].tX) || 28.0;
+                } else if (fStr.includes('Frutifica') && typeof configClima !== 'undefined' && configClima["2"]) {
+                    tAlvo = parseFloat(configClima["2"].tX) || 29.0;
+                }
+
                 let glowTi = 'glow-green', borderTi = 'border-emerald-500/30', textTi = 'text-emerald-400';
-                if (ti < 20.0) {
-                    glowTi = 'glow-blue'; borderTi = 'border-cyan-500/30'; textTi = 'text-cyan-400';
-                } else if (ti <= 26.0) {
-                    glowTi = 'glow-green'; borderTi = 'border-emerald-500/30'; textTi = 'text-emerald-400';
-                } else if (ti <= 28.5) {
-                    glowTi = 'glow-amber'; borderTi = 'border-amber-500/30'; textTi = 'text-amber-400';
-                } else {
+                if (ti > (tAlvo + 1.5)) {
+                    // Calor Crítico (Muito acima da meta): Vermelho Quente / Ar Condicionado acionado
                     glowTi = 'glow-red'; borderTi = 'border-rose-500/40'; textTi = 'text-rose-500';
+                } else if (ti > tAlvo) {
+                    // Acima da meta: Laranja / Aquecendo
+                    glowTi = 'glow-amber'; borderTi = 'border-amber-500/30'; textTi = 'text-amber-400';
+                } else if (ti >= (tAlvo - 2.5)) {
+                    // Faixa ideal (Alvo atingido): Verde Padrão / Clima Estável
+                    glowTi = 'glow-green'; borderTi = 'border-emerald-500/30'; textTi = 'text-emerald-400';
+                } else {
+                    // Abaixo da meta: Azul Frio
+                    glowTi = 'glow-blue'; borderTi = 'border-cyan-500/30'; textTi = 'text-cyan-400';
                 }
                 cardTi.className = `stat-card glass rounded-xl p-4 md:p-5 ${glowTi} border ${borderTi} transition-all duration-500`;
                 valTi.className = `text-2xl md:text-3xl font-extrabold ${textTi} transition-colors duration-500`;
@@ -1454,6 +1499,51 @@
                 
                 document.getElementById('valFase').textContent = "Pendente ⏳";
                 atualizarBotoesFase(f, true);
+                loopDados(2000); // Força refresh rápido
+            }
+        }
+
+        function atualizarBotoesAr(modo) {
+            const btnAuto = document.getElementById('btnArAuto');
+            const btnOn = document.getElementById('btnArOn');
+            const btnOff = document.getElementById('btnArOff');
+            const txtModo = document.getElementById('txtModoArAtivo');
+            
+            if (txtModo) {
+                const nomesModo = {0: "Modo: AUTO ❄️", 1: "Modo: FORÇADO (ON) ⚡", 2: "Modo: FORÇADO (OFF) 🛑"};
+                txtModo.textContent = (nomesModo[modo] !== undefined) ? nomesModo[modo] : "Modo: AUTO";
+                txtModo.className = "text-[10px] font-bold bg-slate-800/80 px-2 py-0.5 rounded border " + 
+                    (modo === 0 ? "border-cyan-500/50 text-cyan-400" : (modo === 1 ? "border-emerald-500/50 text-emerald-400" : "border-rose-500/50 text-rose-400"));
+            }
+
+            if (!btnAuto || !btnOn || !btnOff) return;
+
+            [btnAuto, btnOn, btnOff].forEach(b => {
+                b.className = "btn-ar bg-slate-800/80 hover:bg-slate-700 rounded-lg p-2.5 text-center transition-all duration-300 border border-slate-700/50 opacity-70";
+            });
+
+            if (modo === 0) {
+                btnAuto.className = "btn-ar bg-cyan-600/30 hover:bg-cyan-600/40 rounded-lg p-2.5 text-center transition-all duration-300 border border-cyan-400 text-cyan-300 font-bold shadow-[0_0_12px_rgba(6,182,212,0.3)] opacity-100";
+            } else if (modo === 1) {
+                btnOn.className = "btn-ar bg-emerald-600/30 hover:bg-emerald-600/40 rounded-lg p-2.5 text-center transition-all duration-300 border border-emerald-400 text-emerald-300 font-bold shadow-[0_0_12px_rgba(16,185,129,0.3)] opacity-100";
+            } else if (modo === 2) {
+                btnOff.className = "btn-ar bg-rose-600/30 hover:bg-rose-600/40 rounded-lg p-2.5 text-center transition-all duration-300 border border-rose-400 text-rose-300 font-bold shadow-[0_0_12px_rgba(244,63,94,0.3)] opacity-100";
+            }
+        }
+
+        async function mudarAr(modoDesejado = null) {
+            let proxAr = (modoDesejado !== null) ? modoDesejado : ((arState + 1) % 3);
+            if (await enviarComando({ar: proxAr})) {
+                arState = proxAr;
+                arPendenteTempo = Date.now();
+                atualizarBotoesAr(arState);
+                
+                // Feedback visual instantâneo
+                const ra = document.getElementById('releArStatus');
+                if (arState === 1) { setRele('releAr', 'releArStatus', 1); if (ra) ra.textContent = "ON (⏳)"; }
+                else if (arState === 2) { setRele('releAr', 'releArStatus', 0); if (ra) ra.textContent = "OFF (⏳)"; }
+                else { setRele('releAr', 'releArStatus', 0); if (ra) ra.textContent = "AUTO (⏳)"; }
+                
                 loopDados(2000); // Força refresh rápido
             }
         }
@@ -1877,6 +1967,9 @@
                     if (fwData.modoLuz !== undefined) {
                         window.modoLuzNuvem = parseInt(fwData.modoLuz);
                     }
+                    if (fwData.modoAr !== undefined) {
+                        window.modoArNuvem = parseInt(fwData.modoAr);
+                    }
                     if (fwData.gitHash && fwData.gitHash !== 'Desconhecido') {
                         document.getElementById('txtGitHash').textContent = `Versão: 1.5.0 (${fwData.gitHash})`;
                     } else {
@@ -1943,14 +2036,21 @@
                     fasePendenteAlvo = null; // limpa por precaução
                 }
 
-                // Min/Max do período
+                // Min/Max do período com indicador de Meta Alvo
                 let minT = Infinity, maxT = -Infinity, minH = Infinity, maxH = -Infinity;
                 data.forEach(d => {
                     const t = parseFloat(d.temp_int); const h = parseFloat(d.hum_int);
                     if (t > -40 && t < 60) { if (t < minT) minT = t; if (t > maxT) maxT = t; }
                     if (h > 0 && h <= 100) { if (h < minH) minH = h; if (h > maxH) maxH = h; }
                 });
-                document.getElementById('minMaxTemp').textContent = `Min ${minT === Infinity ? '--' : minT.toFixed(1)}° / Max ${maxT === -Infinity ? '--' : maxT.toFixed(1)}°`;
+                let tAlvoAtual = 25.0;
+                const fStrAt = ultimo.fase || '';
+                if (fStrAt.includes('Pinagem') && typeof configClima !== 'undefined' && configClima["1"]) {
+                    tAlvoAtual = parseFloat(configClima["1"].tX) || 28.0;
+                } else if (fStrAt.includes('Frutifica') && typeof configClima !== 'undefined' && configClima["2"]) {
+                    tAlvoAtual = parseFloat(configClima["2"].tX) || 29.0;
+                }
+                document.getElementById('minMaxTemp').textContent = `Min ${minT === Infinity ? '--' : minT.toFixed(1)}° / Max ${maxT === -Infinity ? '--' : maxT.toFixed(1)}° (Alvo: ≤ ${tAlvoAtual.toFixed(1)}°)`;
                 document.getElementById('minMaxHum').textContent = `Min ${minH === Infinity ? '--' : minH.toFixed(1)}% / Max ${maxH === -Infinity ? '--' : maxH.toFixed(1)}%`;
 
                 // Sincronização Inteligente do Modo da Luz com o Servidor
@@ -1963,26 +2063,45 @@
                     atualizarBotoesLuz(luzState);
                 }
 
+                // Sincronização Inteligente do Modo do Ar Condicionado com o Servidor
+                if (arPendenteTempo === 0 || agoraTime - arPendenteTempo > 20000) {
+                    if (window.modoArNuvem !== undefined) {
+                        arState = window.modoArNuvem;
+                    } else if (ultimo.modo_ar !== undefined) {
+                        arState = parseInt(ultimo.modo_ar);
+                    }
+                    atualizarBotoesAr(arState);
+                }
+
                 // Desbloqueio Inteligente da Luz
                 if (luzPendenteTempo > 0) {
-                    // Se pediu ON e a placa retornou ON, destrava!
                     if (luzState === 1 && parseInt(ultimo.rele_luz) === 1) {
                         luzPendenteTempo = 0;
                         atualizarBotoesLuz(1);
-                    }
-                    // Se pediu OFF e a placa retornou OFF, destrava!
-                    else if (luzState === 2 && parseInt(ultimo.rele_luz) === 0) {
+                    } else if (luzState === 2 && parseInt(ultimo.rele_luz) === 0) {
                         luzPendenteTempo = 0;
                         atualizarBotoesLuz(2);
-                    }
-                    // Se pediu AUTO, destrava no primeiro dado recebido
-                    else if (luzState === 0 && (agoraTime - luzPendenteTempo > 3000)) {
+                    } else if (luzState === 0 && (agoraTime - luzPendenteTempo > 3000)) {
                         luzPendenteTempo = 0; 
                         atualizarBotoesLuz(0);
                     }
                 }
 
-                // Relés — protege Luz de sobrescrever estado durante a pendência (20s)
+                // Desbloqueio Inteligente do Ar Condicionado
+                if (arPendenteTempo > 0) {
+                    if (arState === 1 && parseInt(ultimo.rele_ar) === 1) {
+                        arPendenteTempo = 0;
+                        atualizarBotoesAr(1);
+                    } else if (arState === 2 && parseInt(ultimo.rele_ar) === 0) {
+                        arPendenteTempo = 0;
+                        atualizarBotoesAr(2);
+                    } else if (arState === 0 && (agoraTime - arPendenteTempo > 3000)) {
+                        arPendenteTempo = 0;
+                        atualizarBotoesAr(0);
+                    }
+                }
+
+                // Relés — protege Luz e Ar de sobrescrever estado durante a pendência (20s)
                 if (agoraTime - luzPendenteTempo > 20000 || luzPendenteTempo === 0) {
                     setRele('releLuz', 'releLuzStatus', parseInt(ultimo.rele_luz));
                     atualizarBotoesLuz(luzState);
@@ -1990,7 +2109,10 @@
                 setRele('releUmid', 'releUmidStatus', parseInt(ultimo.rele_umid));
                 setRele('releVento', 'releVentoStatus', parseInt(ultimo.rele_vento));
                 setRele('releExaust', 'releExaustStatus', parseInt(ultimo.rele_exaust));
-                setRele('releAr', 'releArStatus', parseInt(ultimo.rele_ar || 0));
+                if (agoraTime - arPendenteTempo > 20000 || arPendenteTempo === 0) {
+                    setRele('releAr', 'releArStatus', parseInt(ultimo.rele_ar || 0));
+                    atualizarBotoesAr(arState);
+                }
                 // setRele('releVentoExt', 'releVentoExtStatus', parseInt(ultimo.rele_vento_ext || 0));
 
                 // Processa o cérebro / protocolo da Sistema
