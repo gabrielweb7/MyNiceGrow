@@ -1,11 +1,11 @@
 // ============================================================
 //  GROW IA - Firmware Inteligente + Nuvem IoT
-//  Placa: ESP32-S3 Dual-Core (Xtensa LX7) / Compatível com ESP32-C3
+//  Placa: ESP32-S3 Dual-Core (Xtensa LX7)
 //  Autor: Gabriel + Antigravity AI
-//  Versão Atual: v426 (Blindagem Total Anti-Travamento & Auto-Recovery)
+//  Versão Atual: v435 (Blindagem Total Anti-Travamento & Auto-Recovery)
 // ============================================================
 
-#define FW_VERSION 433
+#define FW_VERSION 435
 
 #include <Arduino.h>
 #include <ArduinoJson.h>
@@ -44,7 +44,10 @@ const int LUZ_HORA_DESLIGA = 8;
 const float TEMP_MINIMA = 18.0;  // Limite de alerta (estufa não passa frio, sem injeção forçada de ar da sala)
 const float TEMP_ALVO_MAX = 29.0;
 const float TEMP_CRITICA = 32.0;    // Aumentado para evitar spam no calor de MS
-const float TEMP_CORTE_LUZ = 34.0;  // Desliga luz por segurança térmica extrema
+float tempCorteLuz = 34.0f;           // Desliga luz por segurança térmica extrema
+float tempMinCongelamento = 15.0f;    // Desliga ar condicionado por segurança anti-congelamento
+unsigned long tempoExtraRefrigeracaoMs = 5UL * 60UL * 1000UL; // 5 minutos pós-meta
+unsigned long maxRunContinuoArMs = 45UL * 60UL * 1000UL;      // Limite máximo contínuo (45 min)
 
 // --- Umidade ---
 const float UMIDADE_MINIMA = 88.0;
@@ -69,21 +72,13 @@ const int DIAS_PINANDO = 0;
 const int DIAS_FRUTIFICACAO = 0;
 
 // ============================================================
-//  PINOS & SUPORTE DE HARDWARE (ESP32-S3 DUAL USB & ESP32-C3)
+//  PINOS & SUPORTE DE HARDWARE (ESP32-S3 DUAL USB-C)
 // ============================================================
-#if defined(CONFIG_IDF_TARGET_ESP32S3) || defined(ARDUINO_ESP32S3_DEV)
-  #define BOARD_MODEL "ESP32-S3 Dual-Core"
-  #ifndef RGB_BUILTIN
-    #define RGB_BUILTIN 48  // LED RGB integrado comum no ESP32-S3 DevKit
-  #endif
-  #define PIN_BOOT 0        // Botão BOOT físico do ESP32-S3
-#else
-  #define BOARD_MODEL "ESP32-C3 SuperMini"
-  #ifndef RGB_BUILTIN
-    #define RGB_BUILTIN 8   // LED RGB integrado no ESP32-C3
-  #endif
-  #define PIN_BOOT 9        // Botão BOOT físico do ESP32-C3
+#define BOARD_MODEL "ESP32-S3 Dual-Core"
+#ifndef RGB_BUILTIN
+  #define RGB_BUILTIN 48  // LED RGB integrado comum no ESP32-S3 DevKit
 #endif
+#define PIN_BOOT 0        // Botão BOOT físico do ESP32-S3
 
 #define PIN_SDA 4
 #define PIN_SCL 5
@@ -94,6 +89,10 @@ const int DIAS_FRUTIFICACAO = 0;
 #define PIN_RELE_VENTO_INT 3
 #define PIN_RELE_EXAUST_EXT 6
 #define PIN_RELE_AR_COND 7
+// O módulo relé de 1 canal (Ar Condicionado) possui jumper seletor (High/Low).
+// Com o jumper em HIGH (padrão de fábrica), acionar o relé requer nível ALTO (HIGH):
+#define RELE_AR_NIVEL_LIGADO HIGH
+#define RELE_AR_NIVEL_DESLIGADO LOW
 // #define PIN_RELE_VENTO_EXT 8 // (Comentado: pronto para upgrade futuro com módulo relé duplo)
 
 // Proteção de colisão: se o pino do Relé 1 coincidir com o pino BOOT,
@@ -618,16 +617,40 @@ void enviarNuvem(unsigned long agora) {
               }
             }
           }
+
+          if (cfg.containsKey("hvac")) {
+            JsonObject h = cfg["hvac"];
+            if (h.containsKey("tCongela")) {
+              float tc = clampF(h["tCongela"].as<float>(), 5.0f, 25.0f, 15.0f);
+              if (abs(tempMinCongelamento - tc) > 0.05f) { tempMinCongelamento = tc; configAlterada = true; }
+            }
+            if (h.containsKey("tPosMeta")) {
+              unsigned long tpm = clampMin(h["tPosMeta"].as<long>(), 60UL, 5UL) * 60000UL;
+              if (tempoExtraRefrigeracaoMs != tpm) { tempoExtraRefrigeracaoMs = tpm; configAlterada = true; }
+            }
+            if (h.containsKey("tMaxRun")) {
+              unsigned long tmr = clampMin(h["tMaxRun"].as<long>(), 180UL, 45UL) * 60000UL;
+              if (maxRunContinuoArMs != tmr) { maxRunContinuoArMs = tmr; configAlterada = true; }
+            }
+            if (h.containsKey("tCorteLuz")) {
+              float tcl = clampF(h["tCorteLuz"].as<float>(), 25.0f, 45.0f, 34.0f);
+              if (abs(tempCorteLuz - tcl) > 0.05f) { tempCorteLuz = tcl; configAlterada = true; }
+            }
+          }
+
           if (configAlterada || (versaoNuvem > 0 && versaoNuvem != versaoLocal)) {
             salvarPerfisNVS();
-            if (versaoNuvem > 0) {
-              prefs.begin("grow", false);
-              prefs.putUInt("cfg_ver", versaoNuvem);
-              prefs.end();
-            }
+            prefs.begin("grow", false);
+            prefs.putFloat("tCongela", tempMinCongelamento);
+            prefs.putUInt("tPosMeta", (uint32_t)(tempoExtraRefrigeracaoMs / 60000UL));
+            prefs.putUInt("tMaxRun", (uint32_t)(maxRunContinuoArMs / 60000UL));
+            prefs.putFloat("tCorteLuz", tempCorteLuz);
+            if (versaoNuvem > 0) prefs.putUInt("cfg_ver", versaoNuvem);
+            prefs.end();
             bypassDwellFase = true;
             recalcularMotorImediato = true;
-            Serial.printf("✅ [SYNC NUVEM] Perfis climáticos atualizados com o Banco de Dados! Versão: %u (TempMax F2: %.1f°C)\n", versaoNuvem, perfis[2].tempMax);
+            Serial.printf("✅ [SYNC NUVEM] Perfis e travas atualizados! Versão: %u (TempMax F2: %.1f°C | Anti-Congela: %.1f°C | Pós-Meta: %lu min)\n",
+                          versaoNuvem, perfis[2].tempMax, tempMinCongelamento, tempoExtraRefrigeracaoMs / 60000UL);
           }
         }
 
@@ -746,11 +769,7 @@ void enviarNuvem(unsigned long agora) {
           otaClient.setInsecure();
           httpUpdate.rebootOnUpdate(false);
 
-#if defined(CONFIG_IDF_TARGET_ESP32S3) || defined(ARDUINO_ESP32S3_DEV)
           String fwUrl = "https://grow.alquimistasmagicos.com.br/build/esp32.esp32.esp32s3/esp32c3.ino.bin";
-#else
-          String fwUrl = "https://grow.alquimistasmagicos.com.br/build/esp32.esp32.esp32c3/esp32c3.ino.bin";
-#endif
           t_httpUpdate_return ret = httpUpdate.update(otaClient, fwUrl);
 
           // REATIVA O CAO DE GUARDA (caso o OTA falhe e a placa continue rodando)
@@ -879,7 +898,7 @@ void aplicarReles() {
     releLuz = false;
   }
 
-  bool corteLuzImediato = (tempInt >= TEMP_CORTE_LUZ || modoLuz == LUZ_FORCADA_OFF || bypassDwellFase);
+  bool corteLuzImediato = (tempInt >= tempCorteLuz || modoLuz == LUZ_FORCADA_OFF || bypassDwellFase);
   bool corteUmidImediato = (releExaustExt || faseAtual == FASE_STANDBY || faseAtual == FASE_SECAGEM || !sensorIntOk || bypassDwellFase);
 
   // Luz: Bypass do dwell time quando está DESLIGANDO (false), em corte de emergência ou comando manual forçado
@@ -950,7 +969,7 @@ void aplicarReles() {
       } else {
         compressorUltimoDesligamento = agora;
       }
-      digitalWrite(PIN_RELE_AR_COND, lastReleArCond ? LOW : HIGH);
+      digitalWrite(PIN_RELE_AR_COND, lastReleArCond ? RELE_AR_NIVEL_LIGADO : RELE_AR_NIVEL_DESLIGADO);
       Serial.printf("❄️ ACAO: AR CONDICIONADO %s\n", lastReleArCond ? "LIGADO" : "DESLIGADO");
       alterou = true;
     }
@@ -1031,18 +1050,16 @@ void executarMotor(unsigned long agora) {
 
   // --- CONTROLE TÉRMICO E CLIMATIZAÇÃO INTELIGENTE (AR CONDICIONADO) ---
   // Quando atinge a temperatura alvo máxima (pf.tempMax), aciona o Ar Condicionado.
-  // Quando a meta é atingida (tempInt < pf.tempMax), mantém ligado por mais 5 minutos
+  // Quando a meta é atingida (tempInt < pf.tempMax), mantém ligado pelo tempo pós-meta configurado
   // para estabilizar e fixar a climatização do ambiente antes de desligar.
   static bool modoRefrigeracaoAtivo = false;
   static unsigned long tempoAlvoAtingido = 0;
-  const unsigned long TEMPO_EXTRA_REFRIGERACAO_MS = 5UL * 60UL * 1000UL; // 5 minutos pós-meta
-  const unsigned long MAX_RUN_CONTINUO_AR_MS = 45UL * 60UL * 1000UL;      // Limite máximo de segurança contínuo (45 min)
 
   if (tempInt >= pf.tempMax) {
-    // Se o compressor estiver rodando direto por mais de 45 minutos (ex: porta aberta),
+    // Se o compressor estiver rodando direto por mais do tempo máximo configurado (ex: 45 min),
     // dá uma pausa de alívio para proteger a bobina do relé e o motor do ar
-    if (modoRefrigeracaoAtivo && compressorUltimaPartida > 0 && (agora - compressorUltimaPartida >= MAX_RUN_CONTINUO_AR_MS)) {
-      Serial.println("⏳ SEGURANÇA: Ar Condicionado atingiu limite contínuo de 45 min. Pausa preventiva de descanso...");
+    if (modoRefrigeracaoAtivo && compressorUltimaPartida > 0 && (agora - compressorUltimaPartida >= maxRunContinuoArMs)) {
+      Serial.printf("⏳ SEGURANÇA: Ar Condicionado atingiu limite contínuo de %lu min. Pausa preventiva de descanso...\n", maxRunContinuoArMs / 60000UL);
       modoRefrigeracaoAtivo = false;
       tempoAlvoAtingido = 0;
     } else {
@@ -1053,11 +1070,11 @@ void executarMotor(unsigned long agora) {
     // Alvo atingido (tempInt < pf.tempMax)!
     if (tempoAlvoAtingido == 0) {
       tempoAlvoAtingido = agora;
-      Serial.printf("❄️ CLIMATIZAÇÃO: Meta atingida (%.1f°C < %.1f°C)! Mantendo Ar ligado por mais 5 min para fixação...\n", tempInt, pf.tempMax);
-    } else if (agora - tempoAlvoAtingido >= TEMPO_EXTRA_REFRIGERACAO_MS) {
+      Serial.printf("❄️ CLIMATIZAÇÃO: Meta atingida (%.1f°C < %.1f°C)! Mantendo Ar ligado por mais %lu min para fixação...\n", tempInt, pf.tempMax, tempoExtraRefrigeracaoMs / 60000UL);
+    } else if (agora - tempoAlvoAtingido >= tempoExtraRefrigeracaoMs) {
       modoRefrigeracaoAtivo = false;
       tempoAlvoAtingido = 0;
-      Serial.println("❄️ CLIMATIZAÇÃO: 5 minutos de pós-resfriamento concluídos. Desligando Ar Condicionado.");
+      Serial.printf("❄️ CLIMATIZAÇÃO: %lu minutos de pós-resfriamento concluídos. Desligando Ar Condicionado.\n", tempoExtraRefrigeracaoMs / 60000UL);
     }
   }
 
@@ -1190,16 +1207,16 @@ void aplicarSeguranca() {
   if (modoAr == AR_FORCADA_OFF) releArCond = false;
   // if (modoVentoExt == VENTO_EXT_FORCADA_ON) releVentoExt = true;
   // if (modoVentoExt == VENTO_EXT_FORCADA_OFF) releVentoExt = false;
-  if (tempInt >= TEMP_CORTE_LUZ) {
+  if (tempInt >= tempCorteLuz) {
     releLuz = false;
-    Serial.println("🔥 SEGURANCA: Corte Termico da LUZ ativado!");
+    Serial.printf("🔥 SEGURANCA: Corte Termico da LUZ ativado! (%.1f°C >= %.1f°C)\n", tempInt, tempCorteLuz);
   }
   // TRAVA DE SEGURANÇA ANTI-CONGELAMENTO (ANTI-FREEZING GUARD):
-  // Se a temperatura interna cair abaixo de 15.0°C (risco de choque ou dormência do micélio),
+  // Se a temperatura interna cair abaixo de tempMinCongelamento (ex: 15.0°C),
   // desliga o Ar Condicionado imediatamente, mesmo se estiver forçado manual!
-  if (tempInt <= 15.0f && sensorIntOk) {
+  if (tempInt <= tempMinCongelamento && sensorIntOk) {
     releArCond = false;
-    Serial.println("❄️🛑 SEGURANÇA: Corte Térmico Anti-Congelamento do Ar ativado! (Temp <= 15°C)");
+    Serial.printf("❄️🛑 SEGURANÇA: Corte Térmico Anti-Congelamento do Ar ativado! (Temp %.1f°C <= %.1f°C)\n", tempInt, tempMinCongelamento);
   }
   if (tempInt >= TEMP_CRITICA) { Serial.println("⚠️ SEGURANCA: Temperatura critica atingida!"); }
 }
@@ -1258,6 +1275,12 @@ void setup() {
   segUmidTotal = prefs.getUInt("h_umid", 0);
   segVentoTotal = prefs.getUInt("h_vento", 0);
   segExaustTotal = prefs.getUInt("h_exaust", 0);
+
+  // Carrega Travas de Segurança Térmica e Climatização NVS
+  tempMinCongelamento = prefs.getFloat("tCongela", 15.0f);
+  tempoExtraRefrigeracaoMs = (unsigned long)prefs.getUInt("tPosMeta", 5) * 60000UL;
+  maxRunContinuoArMs = (unsigned long)prefs.getUInt("tMaxRun", 45) * 60000UL;
+  tempCorteLuz = prefs.getFloat("tCorteLuz", 34.0f);
   prefs.end();
 
   if (modoLuz == LUZ_FORCADA_ON) luzSalvaNVS = true;
@@ -1267,7 +1290,7 @@ void setup() {
   lastReleLuz = luzSalvaNVS;
   fallbackLuzLigada = luzSalvaNVS;
 
-  // Inicializa pinos dos relés já preservando o estado real da Luz (LOW = Ligado, HIGH = Desligado)
+  // Inicializa pinos dos relés já preservando o estado real da Luz (LOW = Ligado, HIGH = Desligado para relés SSR active low)
   pinMode(PIN_RELE_LUZ, OUTPUT);
   digitalWrite(PIN_RELE_LUZ, lastReleLuz ? LOW : HIGH);
   pinMode(PIN_RELE_UMIDIFIC, OUTPUT);
@@ -1281,7 +1304,7 @@ void setup() {
   lastReleExaust = (faseAtual == FASE_SECAGEM);
   releExaustExt = lastReleExaust;
   pinMode(PIN_RELE_AR_COND, OUTPUT);
-  digitalWrite(PIN_RELE_AR_COND, HIGH);
+  digitalWrite(PIN_RELE_AR_COND, RELE_AR_NIVEL_DESLIGADO);
   lastReleArCond = false;
   releArCond = false;
   // pinMode(PIN_RELE_VENTO_EXT, OUTPUT); // (Comentado: pronto para upgrade com relé duplo)
@@ -1291,11 +1314,7 @@ void setup() {
   delay(1500);
   bootTime = millis();
   fallbackLuzUltimaInversao = bootTime;
-#if defined(CONFIG_IDF_TARGET_ESP32S3) || defined(ARDUINO_ESP32S3_DEV)
   Serial.println("\n=== GROW IA v4.0 (ESP32-S3 DUAL USB-C) ===");
-#else
-  Serial.println("\n=== GROW IA v4.0 (ESP32-C3 SUPERMINI) ===");
-#endif
 
   if (!LittleFS.begin(true)) Serial.println("[ERRO] LittleFS");
   else Serial.println("[OK] LittleFS (Datalogger)");

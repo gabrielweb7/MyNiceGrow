@@ -190,31 +190,39 @@
         <section class="fade-in glass rounded-xl p-4 md:p-5 border border-slate-700/30">
             <h2 class="text-xs font-bold text-slate-400 uppercase tracking-wider mb-3">⚡ Status dos Relés (Tempo Real)</h2>
             <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
-                <div id="releLuz" class="rele-off rounded-lg p-3 text-center transition-all duration-500">
+                <!-- Luz (Interativo: clica para alternar AUTO / MANUAL ON / MANUAL OFF) -->
+                <button id="releLuz" onclick="ciclarLuz()" class="rele-off rounded-lg p-3 text-center transition-all duration-300 cursor-pointer hover:scale-[1.02] focus:outline-none select-none" title="Clique para alternar: AUTO ➔ MANUAL ON ➔ MANUAL OFF">
                     <div class="text-2xl mb-1">💡</div>
-                    <p class="text-xs font-bold">Luz</p>
-                    <p class="text-[10px] text-slate-400 mt-0.5" id="releLuzStatus">OFF</p>
-                </div>
+                    <p class="text-xs font-bold flex items-center justify-center gap-1">
+                        <span>Luz</span>
+                        <span class="text-[9px] text-slate-400">🔄</span>
+                    </p>
+                    <p class="text-[10px] text-slate-400 mt-0.5 font-bold tracking-wider" id="releLuzStatus">OFF</p>
+                </button>
                 <div id="releUmid" class="rele-off rounded-lg p-3 text-center transition-all duration-500">
                     <div class="text-2xl mb-1">💨</div>
                     <p class="text-xs font-bold">Umidificador</p>
-                    <p class="text-[10px] text-slate-400 mt-0.5" id="releUmidStatus">OFF</p>
+                    <p class="text-[10px] text-slate-400 mt-0.5 font-bold tracking-wider" id="releUmidStatus">OFF</p>
                 </div>
                 <div id="releVento" class="rele-off rounded-lg p-3 text-center transition-all duration-500">
                     <div class="text-2xl mb-1">🌀</div>
                     <p class="text-xs font-bold">Vento Interno</p>
-                    <p class="text-[10px] text-slate-400 mt-0.5" id="releVentoStatus">OFF</p>
+                    <p class="text-[10px] text-slate-400 mt-0.5 font-bold tracking-wider" id="releVentoStatus">OFF</p>
                 </div>
                 <div id="releExaust" class="rele-off rounded-lg p-3 text-center transition-all duration-500">
                     <div class="text-2xl mb-1">🌬️</div>
                     <p class="text-xs font-bold">Exaustor</p>
-                    <p class="text-[10px] text-slate-400 mt-0.5" id="releExaustStatus">OFF</p>
+                    <p class="text-[10px] text-slate-400 mt-0.5 font-bold tracking-wider" id="releExaustStatus">OFF</p>
                 </div>
-                <div id="releAr" class="rele-off rounded-lg p-3 text-center transition-all duration-500">
+                <!-- Ar Condicionado (Interativo: clica para alternar AUTO / MANUAL ON / MANUAL OFF) -->
+                <button id="releAr" onclick="ciclarAr()" class="rele-off rounded-lg p-3 text-center transition-all duration-300 cursor-pointer hover:scale-[1.02] focus:outline-none select-none" title="Clique para alternar: AUTO ➔ MANUAL ON ➔ MANUAL OFF">
                     <div class="text-2xl mb-1">❄️</div>
-                    <p class="text-xs font-bold">Ar Condicionado</p>
-                    <p class="text-[10px] text-slate-400 mt-0.5" id="releArStatus">OFF</p>
-                </div>
+                    <p class="text-xs font-bold flex items-center justify-center gap-1">
+                        <span>Ar Condicionado</span>
+                        <span class="text-[9px] text-slate-400">🔄</span>
+                    </p>
+                    <p class="text-[10px] text-slate-400 mt-0.5 font-bold tracking-wider" id="releArStatus">OFF</p>
+                </button>
                 <div id="releVentoExt" class="hidden"><span id="releVentoExtStatus"></span></div>
             </div>
         </section>
@@ -247,61 +255,7 @@
                     <p class="text-[10px] md:text-xs font-bold text-slate-300">Secagem Total</p>
                 </button>
             </div>
-            <p class="text-[10px] text-slate-500 mt-3 text-center">*Ao clicar, a ordem é sincronizada instantaneamente com o ESP32.</p>
-
-            <!-- CONTROLE REMOTO DA ILUMINAÇÃO (MODO) -->
-            <div class="mt-4 pt-4 border-t border-slate-700/40">
-                <div class="flex items-center justify-between mb-2.5">
-                    <h3 class="text-xs font-bold text-slate-400 uppercase tracking-wider flex items-center gap-1.5">
-                        <span>💡</span> Controle de Iluminação
-                    </h3>
-                    <span id="txtModoLuzAtivo" class="text-[10px] text-amber-400 font-bold bg-slate-800/80 px-2 py-0.5 rounded border border-slate-700/50">Modo: AUTO</span>
-                </div>
-                <div class="grid grid-cols-3 gap-2.5">
-                    <button id="btnLuzAuto" onclick="mudarLuz(0)" class="btn-luz bg-amber-600/30 hover:bg-amber-600/40 rounded-lg p-2.5 text-center transition-all duration-300 border border-amber-400 text-amber-300 font-bold shadow-[0_0_12px_rgba(245,158,11,0.3)]" title="Luz liga automaticamente entre 20h e 08h">
-                        <div class="text-xl mb-0.5">🌙</div>
-                        <p class="text-xs">Automático</p>
-                        <p class="text-[9px] text-slate-400 font-normal mt-0.5">Ciclo Noturno (20h-08h)</p>
-                    </button>
-                    <button id="btnLuzOn" onclick="mudarLuz(1)" class="btn-luz bg-slate-800/80 hover:bg-slate-700 rounded-lg p-2.5 text-center transition-all duration-300 border border-slate-700/50 opacity-70" title="Força a lâmpada acesa imediatamente">
-                        <div class="text-xl mb-0.5">💡</div>
-                        <p class="text-xs">Forçar LIGADA</p>
-                        <p class="text-[9px] text-slate-400 font-normal mt-0.5">Luz Contínua (ON)</p>
-                    </button>
-                    <button id="btnLuzOff" onclick="mudarLuz(2)" class="btn-luz bg-slate-800/80 hover:bg-slate-700 rounded-lg p-2.5 text-center transition-all duration-300 border border-slate-700/50 opacity-70" title="Força a lâmpada apagada imediatamente">
-                        <div class="text-xl mb-0.5">🌑</div>
-                        <p class="text-xs">Forçar DESLIGADA</p>
-                        <p class="text-[9px] text-slate-400 font-normal mt-0.5">Luz Apagada (OFF)</p>
-                    </button>
-                </div>
-            </div>
-
-            <!-- CONTROLE REMOTO DO AR CONDICIONADO (CLIMATIZAÇÃO) -->
-            <div class="mt-4 pt-4 border-t border-slate-700/40">
-                <div class="flex items-center justify-between mb-2.5">
-                    <h3 class="text-xs font-bold text-slate-400 uppercase tracking-wider flex items-center gap-1.5">
-                        <span>❄️</span> Controle do Ar Condicionado
-                    </h3>
-                    <span id="txtModoArAtivo" class="text-[10px] text-cyan-400 font-bold bg-slate-800/80 px-2 py-0.5 rounded border border-slate-700/50">Modo: AUTO ❄️</span>
-                </div>
-                <div class="grid grid-cols-3 gap-2.5">
-                    <button id="btnArAuto" onclick="mudarAr(0)" class="btn-ar bg-cyan-600/30 hover:bg-cyan-600/40 rounded-lg p-2.5 text-center transition-all duration-300 border border-cyan-400 text-cyan-300 font-bold shadow-[0_0_12px_rgba(6,182,212,0.3)]" title="Ar liga se temperatura passar do alvo e desliga 5 min após meta atingida">
-                        <div class="text-xl mb-0.5">❄️</div>
-                        <p class="text-xs">Automático</p>
-                        <p class="text-[9px] text-slate-400 font-normal mt-0.5">Termostato Inteligente</p>
-                    </button>
-                    <button id="btnArOn" onclick="mudarAr(1)" class="btn-ar bg-slate-800/80 hover:bg-slate-700 rounded-lg p-2.5 text-center transition-all duration-300 border border-slate-700/50 opacity-70" title="Força o Ar Condicionado ligado imediatamente">
-                        <div class="text-xl mb-0.5">⚡</div>
-                        <p class="text-xs">Forçar LIGADO</p>
-                        <p class="text-[9px] text-slate-400 font-normal mt-0.5">Refrigeração Contínua (ON)</p>
-                    </button>
-                    <button id="btnArOff" onclick="mudarAr(2)" class="btn-ar bg-slate-800/80 hover:bg-slate-700 rounded-lg p-2.5 text-center transition-all duration-300 border border-slate-700/50 opacity-70" title="Força o Ar Condicionado desligado">
-                        <div class="text-xl mb-0.5">🛑</div>
-                        <p class="text-xs">Forçar DESLIGADO</p>
-                        <p class="text-[9px] text-slate-400 font-normal mt-0.5">Desligado / Bloqueado (OFF)</p>
-                    </button>
-                </div>
-            </div>
+            <p class="text-[10px] text-slate-500 mt-3 text-center">*Dica: Para ligar ou desligar a Luz ou o Ar manualmente, basta clicar direto no card deles no Status dos Relés acima.</p>
 
             <!-- NOVO: Painel de Informações da Fase e Inteligência -->
             <div id="infoFaseContainer" class="hidden mt-6 pt-5 border-t border-slate-700/50">
@@ -603,6 +557,68 @@
                                     <input type="checkbox" id="cfgVu" class="sr-only peer">
                                     <div class="w-11 h-6 bg-slate-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-emerald-500 shadow-inner"></div>
                                 </label>
+                            </div>
+                        </div>
+
+                        <!-- CARD: Travas de Segurança & Climatização Avançada -->
+                        <div class="bg-slate-800/60 rounded-xl p-4 md:p-5 border border-cyan-500/30 space-y-4">
+                            <div class="flex items-center justify-between pb-3 border-b border-slate-700/60">
+                                <div>
+                                    <h4 class="text-xs md:text-sm font-bold text-cyan-300 flex items-center gap-2">
+                                        <span>🛡️</span> <span>Travas de Segurança & Climatização Avançada</span>
+                                    </h4>
+                                    <p class="text-[11px] text-slate-400 mt-0.5">Parâmetros de proteção térmica e anti-congelamento sincronizados com a memória Flash NVS do ESP32-S3.</p>
+                                </div>
+                            </div>
+
+                            <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+                                <!-- Trava Anti-Congelamento -->
+                                <div class="bg-slate-900/60 p-3 rounded-xl border border-slate-700/60 space-y-1.5">
+                                    <label for="cfgTCongela" class="text-[11px] font-semibold text-cyan-300 flex items-center gap-1.5">
+                                        <span>❄️🛑</span> <span>Anti-Congelamento</span>
+                                    </label>
+                                    <div class="flex items-center gap-2">
+                                        <input type="number" step="0.1" min="5" max="25" id="cfgTCongela" value="15.0" class="w-full bg-slate-900/90 text-cyan-300 text-sm font-extrabold border border-slate-700 rounded-lg p-2 text-center outline-none focus:border-cyan-500 transition shadow-inner">
+                                        <span class="text-xs text-slate-400 font-bold">°C</span>
+                                    </div>
+                                    <p class="text-[10px] text-slate-400 leading-tight">Corta o Ar Condicionado se a temperatura interna cair abaixo deste valor.</p>
+                                </div>
+
+                                <!-- Pós-Resfriamento Pós-Meta -->
+                                <div class="bg-slate-900/60 p-3 rounded-xl border border-slate-700/60 space-y-1.5">
+                                    <label for="cfgTPosMeta" class="text-[11px] font-semibold text-cyan-300 flex items-center gap-1.5">
+                                        <span>⏱️❄️</span> <span>Pós-Resfriamento</span>
+                                    </label>
+                                    <div class="flex items-center gap-2">
+                                        <input type="number" step="1" min="1" max="60" id="cfgTPosMeta" value="5" class="w-full bg-slate-900/90 text-cyan-300 text-sm font-extrabold border border-slate-700 rounded-lg p-2 text-center outline-none focus:border-cyan-500 transition shadow-inner">
+                                        <span class="text-xs text-slate-400 font-bold">min</span>
+                                    </div>
+                                    <p class="text-[10px] text-slate-400 leading-tight">Mantém o Ar ligado após atingir a meta térmica para fixar o clima.</p>
+                                </div>
+
+                                <!-- Limite Máximo Contínuo -->
+                                <div class="bg-slate-900/60 p-3 rounded-xl border border-slate-700/60 space-y-1.5">
+                                    <label for="cfgTMaxRun" class="text-[11px] font-semibold text-amber-300 flex items-center gap-1.5">
+                                        <span>⏳🛡️</span> <span>Limite Contínuo Ar</span>
+                                    </label>
+                                    <div class="flex items-center gap-2">
+                                        <input type="number" step="1" min="10" max="180" id="cfgTMaxRun" value="45" class="w-full bg-slate-900/90 text-amber-300 text-sm font-extrabold border border-slate-700 rounded-lg p-2 text-center outline-none focus:border-amber-500 transition shadow-inner">
+                                        <span class="text-xs text-slate-400 font-bold">min</span>
+                                    </div>
+                                    <p class="text-[10px] text-slate-400 leading-tight">Pausa preventiva de descanso se o compressor rodar ininterruptamente.</p>
+                                </div>
+
+                                <!-- Corte Térmico da Iluminação -->
+                                <div class="bg-slate-900/60 p-3 rounded-xl border border-slate-700/60 space-y-1.5">
+                                    <label for="cfgTCorteLuz" class="text-[11px] font-semibold text-rose-300 flex items-center gap-1.5">
+                                        <span>🔥🛑</span> <span>Corte Térmico Luz</span>
+                                    </label>
+                                    <div class="flex items-center gap-2">
+                                        <input type="number" step="0.1" min="25" max="45" id="cfgTCorteLuz" value="34.0" class="w-full bg-slate-900/90 text-rose-300 text-sm font-extrabold border border-slate-700 rounded-lg p-2 text-center outline-none focus:border-rose-500 transition shadow-inner">
+                                        <span class="text-xs text-slate-400 font-bold">°C</span>
+                                    </div>
+                                    <p class="text-[10px] text-slate-400 leading-tight">Apaga a lâmpada imediatamente em caso de superaquecimento extremo.</p>
+                                </div>
                             </div>
                         </div>
                     </div>
@@ -1046,31 +1062,68 @@
             if (!el || !st) return;
             const isLuz = (id === 'releLuz');
             const isAr = (id === 'releAr');
-
-            // Remove qualquer onclick residual
-            el.onclick = null;
-
             const isOn = (estadoRele === 1 || estadoRele === true || estadoRele === '1');
 
+            if (isLuz) {
+                if (luzState === 1) {
+                    // Manual LIGADA
+                    el.className = 'rele-btn bg-amber-500 rounded-lg p-3 text-center transition-all duration-300 shadow-[0_0_18px_rgba(245,158,11,0.55)] border border-amber-300 cursor-pointer hover:scale-[1.02]';
+                    st.textContent = 'MANUAL (ON) ⚡';
+                    st.className = 'text-[10px] text-amber-950 bg-amber-200/90 rounded px-1.5 py-0.5 mt-0.5 font-extrabold tracking-wider inline-block';
+                } else if (luzState === 2) {
+                    // Manual DESLIGADA
+                    el.className = 'rele-btn bg-slate-900 rounded-lg p-3 text-center transition-all duration-300 border border-rose-500/50 shadow-[0_0_12px_rgba(244,63,94,0.3)] cursor-pointer hover:scale-[1.02]';
+                    st.textContent = 'MANUAL (OFF) 🛑';
+                    st.className = 'text-[10px] text-rose-400 mt-0.5 font-bold tracking-wider';
+                } else {
+                    // AUTO
+                    if (isOn) {
+                        el.className = 'rele-btn bg-emerald-600 rounded-lg p-3 text-center transition-all duration-300 shadow-[0_0_15px_rgba(16,185,129,0.4)] border border-emerald-400/50 cursor-pointer hover:scale-[1.02]';
+                        st.textContent = 'AUTO (ON)';
+                        st.className = 'text-[10px] text-emerald-100 mt-0.5 font-bold tracking-wider';
+                    } else {
+                        el.className = 'rele-btn bg-slate-800 rounded-lg p-3 text-center transition-all duration-300 border border-transparent opacity-85 hover:opacity-100 cursor-pointer hover:scale-[1.02]';
+                        st.textContent = 'AUTO (OFF)';
+                        st.className = 'text-[10px] text-slate-400 mt-0.5 font-bold tracking-wider';
+                    }
+                }
+                return;
+            }
+
+            if (isAr) {
+                if (arState === 1) {
+                    // Manual LIGADO
+                    el.className = 'rele-btn bg-emerald-600 rounded-lg p-3 text-center transition-all duration-300 shadow-[0_0_18px_rgba(16,185,129,0.55)] border border-emerald-300 cursor-pointer hover:scale-[1.02]';
+                    st.textContent = 'MANUAL (ON) ⚡';
+                    st.className = 'text-[10px] text-emerald-950 bg-emerald-200/90 rounded px-1.5 py-0.5 mt-0.5 font-extrabold tracking-wider inline-block';
+                } else if (arState === 2) {
+                    // Manual DESLIGADO
+                    el.className = 'rele-btn bg-slate-900 rounded-lg p-3 text-center transition-all duration-300 border border-rose-500/50 shadow-[0_0_12px_rgba(244,63,94,0.3)] cursor-pointer hover:scale-[1.02]';
+                    st.textContent = 'MANUAL (OFF) 🛑';
+                    st.className = 'text-[10px] text-rose-400 mt-0.5 font-bold tracking-wider';
+                } else {
+                    // AUTO
+                    if (isOn) {
+                        el.className = 'rele-btn bg-cyan-600 rounded-lg p-3 text-center transition-all duration-300 shadow-[0_0_15px_rgba(6,182,212,0.4)] border border-cyan-400/50 cursor-pointer hover:scale-[1.02]';
+                        st.textContent = 'AUTO (ON)';
+                        st.className = 'text-[10px] text-cyan-100 mt-0.5 font-bold tracking-wider';
+                    } else {
+                        el.className = 'rele-btn bg-slate-800 rounded-lg p-3 text-center transition-all duration-300 border border-transparent opacity-85 hover:opacity-100 cursor-pointer hover:scale-[1.02]';
+                        st.textContent = 'AUTO (OFF)';
+                        st.className = 'text-[10px] text-slate-400 mt-0.5 font-bold tracking-wider';
+                    }
+                }
+                return;
+            }
+
+            // Para os demais relés (Umidificador, Vento Interno, Exaustor)
             if (isOn) {
                 el.className = 'bg-emerald-600 rounded-lg p-3 text-center transition-all duration-500 shadow-[0_0_15px_rgba(16,185,129,0.4)] border border-emerald-400/50';
-                if (isLuz) {
-                    st.textContent = (luzState === 0) ? 'AUTO (ON)' : (luzState === 1 ? 'FORÇADA (ON)' : 'ON');
-                } else if (isAr) {
-                    st.textContent = (arState === 0) ? 'AUTO (ON)' : (arState === 1 ? 'FORÇADO (ON)' : 'ON');
-                } else {
-                    st.textContent = 'ON';
-                }
+                st.textContent = 'ON';
                 st.className = 'text-[10px] text-emerald-100 mt-0.5 font-bold tracking-wider';
             } else {
                 el.className = 'bg-slate-800 rounded-lg p-3 text-center transition-all duration-500 border border-transparent opacity-80';
-                if (isLuz) {
-                    st.textContent = (luzState === 0) ? 'AUTO (OFF)' : (luzState === 2 ? 'FORÇADA (OFF)' : 'OFF');
-                } else if (isAr) {
-                    st.textContent = (arState === 0) ? 'AUTO (OFF)' : (arState === 2 ? 'FORÇADO (OFF)' : 'OFF');
-                } else {
-                    st.textContent = 'OFF';
-                }
+                st.textContent = 'OFF';
                 st.className = 'text-[10px] text-slate-500 mt-0.5 font-bold tracking-wider';
             }
         }
@@ -1417,6 +1470,14 @@
                 document.getElementById('cfgVf').value = cfg.vF !== undefined ? cfg.vF : 2;
                 document.getElementById('cfgVu').checked = cfg.vU !== undefined ? (cfg.vU == 1) : true;
             }
+
+            // Carrega travas de segurança e climatização
+            if (configClima.hvac) {
+                if (document.getElementById('cfgTCongela')) document.getElementById('cfgTCongela').value = configClima.hvac.tCongela !== undefined ? configClima.hvac.tCongela : 15.0;
+                if (document.getElementById('cfgTPosMeta')) document.getElementById('cfgTPosMeta').value = configClima.hvac.tPosMeta !== undefined ? configClima.hvac.tPosMeta : 5;
+                if (document.getElementById('cfgTMaxRun')) document.getElementById('cfgTMaxRun').value = configClima.hvac.tMaxRun !== undefined ? configClima.hvac.tMaxRun : 45;
+                if (document.getElementById('cfgTCorteLuz')) document.getElementById('cfgTCorteLuz').value = configClima.hvac.tCorteLuz !== undefined ? configClima.hvac.tCorteLuz : 34.0;
+            }
         }
 
         async function salvarFormClima() {
@@ -1438,6 +1499,12 @@
             let vOVal = Math.round(clampVal(document.getElementById('cfgVo').value, 0, 1440, 1));
             let vFVal = Math.round(clampVal(document.getElementById('cfgVf').value, 0, 1440, 2));
 
+            // Travas de segurança & HVAC
+            let tCongelaVal = Math.round(clampVal(document.getElementById('cfgTCongela') ? document.getElementById('cfgTCongela').value : 15.0, 5.0, 25.0, 15.0) * 10) / 10;
+            let tPosMetaVal = Math.round(clampVal(document.getElementById('cfgTPosMeta') ? document.getElementById('cfgTPosMeta').value : 5, 1, 60, 5));
+            let tMaxRunVal = Math.round(clampVal(document.getElementById('cfgTMaxRun') ? document.getElementById('cfgTMaxRun').value : 45, 10, 180, 45));
+            let tCorteLuzVal = Math.round(clampVal(document.getElementById('cfgTCorteLuz') ? document.getElementById('cfgTCorteLuz').value : 34.0, 25.0, 45.0, 34.0) * 10) / 10;
+
             // Atualiza os inputs na tela caso algum valor tenha sido corrigido pelo clamp
             document.getElementById('cfgTx').value = tXVal;
             document.getElementById('cfgUa').value = uAlvoVal;
@@ -1445,6 +1512,10 @@
             document.getElementById('cfgFf').value = fFVal;
             document.getElementById('cfgVo').value = vOVal;
             document.getElementById('cfgVf').value = vFVal;
+            if (document.getElementById('cfgTCongela')) document.getElementById('cfgTCongela').value = tCongelaVal;
+            if (document.getElementById('cfgTPosMeta')) document.getElementById('cfgTPosMeta').value = tPosMetaVal;
+            if (document.getElementById('cfgTMaxRun')) document.getElementById('cfgTMaxRun').value = tMaxRunVal;
+            if (document.getElementById('cfgTCorteLuz')) document.getElementById('cfgTCorteLuz').value = tCorteLuzVal;
 
             configClima[f].tX = tXVal;
             configClima[f].uA = uAlvoVal;
@@ -1455,6 +1526,13 @@
             configClima[f].vO = vOVal;
             configClima[f].vF = vFVal;
             configClima[f].vU = document.getElementById('cfgVu').checked ? 1 : 0;
+
+            configClima.hvac = {
+                tCongela: tCongelaVal,
+                tPosMeta: tPosMetaVal,
+                tMaxRun: tMaxRunVal,
+                tCorteLuz: tCorteLuzVal
+            };
             
             let btn = document.getElementById('btnSalvarClima');
             btn.textContent = "Gravando no Banco e Placa...";
@@ -1503,92 +1581,65 @@
             }
         }
 
+        async function ciclarLuz() {
+            let proxLuz = (luzState + 1) % 3; // 0: AUTO -> 1: MANUAL ON -> 2: MANUAL OFF
+            await mudarLuz(proxLuz);
+        }
+
+        async function ciclarAr() {
+            let proxAr = (arState + 1) % 3; // 0: AUTO -> 1: MANUAL ON -> 2: MANUAL OFF
+            await mudarAr(proxAr);
+        }
+
         function atualizarBotoesAr(modo) {
-            const btnAuto = document.getElementById('btnArAuto');
-            const btnOn = document.getElementById('btnArOn');
-            const btnOff = document.getElementById('btnArOff');
-            const txtModo = document.getElementById('txtModoArAtivo');
-            
-            if (txtModo) {
-                const nomesModo = {0: "Modo: AUTO ❄️", 1: "Modo: FORÇADO (ON) ⚡", 2: "Modo: FORÇADO (OFF) 🛑"};
-                txtModo.textContent = (nomesModo[modo] !== undefined) ? nomesModo[modo] : "Modo: AUTO";
-                txtModo.className = "text-[10px] font-bold bg-slate-800/80 px-2 py-0.5 rounded border " + 
-                    (modo === 0 ? "border-cyan-500/50 text-cyan-400" : (modo === 1 ? "border-emerald-500/50 text-emerald-400" : "border-rose-500/50 text-rose-400"));
-            }
-
-            if (!btnAuto || !btnOn || !btnOff) return;
-
-            [btnAuto, btnOn, btnOff].forEach(b => {
-                b.className = "btn-ar bg-slate-800/80 hover:bg-slate-700 rounded-lg p-2.5 text-center transition-all duration-300 border border-slate-700/50 opacity-70";
-            });
-
-            if (modo === 0) {
-                btnAuto.className = "btn-ar bg-cyan-600/30 hover:bg-cyan-600/40 rounded-lg p-2.5 text-center transition-all duration-300 border border-cyan-400 text-cyan-300 font-bold shadow-[0_0_12px_rgba(6,182,212,0.3)] opacity-100";
-            } else if (modo === 1) {
-                btnOn.className = "btn-ar bg-emerald-600/30 hover:bg-emerald-600/40 rounded-lg p-2.5 text-center transition-all duration-300 border border-emerald-400 text-emerald-300 font-bold shadow-[0_0_12px_rgba(16,185,129,0.3)] opacity-100";
-            } else if (modo === 2) {
-                btnOff.className = "btn-ar bg-rose-600/30 hover:bg-rose-600/40 rounded-lg p-2.5 text-center transition-all duration-300 border border-rose-400 text-rose-300 font-bold shadow-[0_0_12px_rgba(244,63,94,0.3)] opacity-100";
+            arState = modo;
+            // Se houver último registro, reaplica as cores no card
+            if (window.ultimoRegistroRecebido) {
+                setRele('releAr', 'releArStatus', parseInt(window.ultimoRegistroRecebido.rele_ar || 0));
             }
         }
 
         async function mudarAr(modoDesejado = null) {
             let proxAr = (modoDesejado !== null) ? modoDesejado : ((arState + 1) % 3);
+            arState = proxAr;
+            arPendenteTempo = Date.now();
+            
+            // Feedback instantâneo no card
+            const el = document.getElementById('releAr');
+            const ra = document.getElementById('releArStatus');
+            if (ra) {
+                ra.textContent = (proxAr === 1 ? "MANUAL (ON) ⏳" : (proxAr === 2 ? "MANUAL (OFF) ⏳" : "AUTO ⏳"));
+                ra.className = "text-[10px] text-amber-300 font-bold tracking-wider";
+            }
+
             if (await enviarComando({ar: proxAr})) {
-                arState = proxAr;
-                arPendenteTempo = Date.now();
                 atualizarBotoesAr(arState);
-                
-                // Feedback visual instantâneo
-                const ra = document.getElementById('releArStatus');
-                if (arState === 1) { setRele('releAr', 'releArStatus', 1); if (ra) ra.textContent = "ON (⏳)"; }
-                else if (arState === 2) { setRele('releAr', 'releArStatus', 0); if (ra) ra.textContent = "OFF (⏳)"; }
-                else { setRele('releAr', 'releArStatus', 0); if (ra) ra.textContent = "AUTO (⏳)"; }
-                
                 loopDados(2000); // Força refresh rápido
             }
         }
         
         function atualizarBotoesLuz(modo) {
-            const btnAuto = document.getElementById('btnLuzAuto');
-            const btnOn = document.getElementById('btnLuzOn');
-            const btnOff = document.getElementById('btnLuzOff');
-            const txtModo = document.getElementById('txtModoLuzAtivo');
-            
-            if (txtModo) {
-                const nomesModo = {0: "Modo: AUTO 🌙", 1: "Modo: FORÇADA (ON) 💡", 2: "Modo: FORÇADA (OFF) 🌑"};
-                txtModo.textContent = (nomesModo[modo] !== undefined) ? nomesModo[modo] : "Modo: AUTO";
-                txtModo.className = "text-[10px] font-bold bg-slate-800/80 px-2 py-0.5 rounded border " + 
-                    (modo === 0 ? "border-amber-500/50 text-amber-400" : (modo === 1 ? "border-emerald-500/50 text-emerald-400" : "border-rose-500/50 text-rose-400"));
-            }
-
-            if (!btnAuto || !btnOn || !btnOff) return;
-
-            [btnAuto, btnOn, btnOff].forEach(b => {
-                b.className = "btn-luz bg-slate-800/80 hover:bg-slate-700 rounded-lg p-2.5 text-center transition-all duration-300 border border-slate-700/50 opacity-70";
-            });
-
-            if (modo === 0) {
-                btnAuto.className = "btn-luz bg-amber-600/30 hover:bg-amber-600/40 rounded-lg p-2.5 text-center transition-all duration-300 border border-amber-400 text-amber-300 font-bold shadow-[0_0_12px_rgba(245,158,11,0.3)] opacity-100";
-            } else if (modo === 1) {
-                btnOn.className = "btn-luz bg-emerald-600/30 hover:bg-emerald-600/40 rounded-lg p-2.5 text-center transition-all duration-300 border border-emerald-400 text-emerald-300 font-bold shadow-[0_0_12px_rgba(16,185,129,0.3)] opacity-100";
-            } else if (modo === 2) {
-                btnOff.className = "btn-luz bg-rose-600/30 hover:bg-rose-600/40 rounded-lg p-2.5 text-center transition-all duration-300 border border-rose-400 text-rose-300 font-bold shadow-[0_0_12px_rgba(244,63,94,0.3)] opacity-100";
+            luzState = modo;
+            if (window.ultimoRegistroRecebido) {
+                setRele('releLuz', 'releLuzStatus', parseInt(window.ultimoRegistroRecebido.rele_luz || 0));
             }
         }
 
         async function mudarLuz(modoDesejado = null) {
             let proxLuz = (modoDesejado !== null) ? modoDesejado : ((luzState + 1) % 3);
+            luzState = proxLuz;
+            luzPendenteTempo = Date.now();
+            
+            // Feedback instantâneo no card
+            const el = document.getElementById('releLuz');
+            const rl = document.getElementById('releLuzStatus');
+            if (rl) {
+                rl.textContent = (proxLuz === 1 ? "MANUAL (ON) ⏳" : (proxLuz === 2 ? "MANUAL (OFF) ⏳" : "AUTO ⏳"));
+                rl.className = "text-[10px] text-amber-300 font-bold tracking-wider";
+            }
+
             if (await enviarComando({luz: proxLuz})) {
-                luzState = proxLuz;
-                luzPendenteTempo = Date.now();
                 atualizarBotoesLuz(luzState);
-                
-                // Feedback visual instantâneo (com tipagem correta de estado)
-                const rl = document.getElementById('releLuzStatus');
-                if (luzState === 1) { setRele('releLuz', 'releLuzStatus', 1); if (rl) rl.textContent = "ON (⏳)"; }
-                else if (luzState === 2) { setRele('releLuz', 'releLuzStatus', 0); if (rl) rl.textContent = "OFF (⏳)"; }
-                else { setRele('releLuz', 'releLuzStatus', 0); if (rl) rl.textContent = "AUTO (⏳)"; }
-                
                 loopDados(2000); // Força refresh rápido
             }
         }

@@ -126,6 +126,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 "vU" => (!isset($src['vU']) || (int)$src['vU'] === 1) ? 1 : 0
             ];
         }
+
+        // Sanitiza parâmetros de HVAC e Travas de Segurança Térmica
+        $srcHvac = isset($decoded['hvac']) && is_array($decoded['hvac']) ? $decoded['hvac'] : [];
+        $sanitized['hvac'] = [
+            "tCongela" => round($clampNum($srcHvac['tCongela'] ?? null, 5.0, 25.0, 15.0), 1),
+            "tPosMeta" => (int)round($clampNum($srcHvac['tPosMeta'] ?? null, 1, 60, 5)),
+            "tMaxRun" => (int)round($clampNum($srcHvac['tMaxRun'] ?? null, 10, 180, 45)),
+            "tCorteLuz" => round($clampNum($srcHvac['tCorteLuz'] ?? null, 25.0, 45.0, 34.0), 1)
+        ];
+
         $jsonSanitizado = json_encode($sanitized);
 
         $conn = new mysqli(DB_HOST, DB_USER, DB_PASS, DB_NAME);
