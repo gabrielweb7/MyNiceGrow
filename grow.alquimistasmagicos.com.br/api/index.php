@@ -158,15 +158,25 @@ if ($method === 'POST') {
             __DIR__ . '/../api',
             __DIR__ . '/../grow.alquimistasmagicos.com.br/api'
         ];
+        $bModelRow = isset($row['board']) ? $row['board'] : (file_exists(__DIR__ . '/board_model.txt') ? file_get_contents(__DIR__ . '/board_model.txt') : 'ESP32-C3');
+        $binRow = caminhoBinFirmware($bModelRow);
+        $mtimeRow = $binRow ? (int)filemtime($binRow) : 0;
         foreach ($pastas_status as $pDir) {
             if (is_dir($pDir)) {
-                if (isset($row['fw'])) @file_put_contents($pDir . '/fw_status.txt', $row['fw']);
+                if (isset($row['fw'])) {
+                    $fwVal = (int)$row['fw'];
+                    if ($fwVal > time() + 300 && $mtimeRow > 0) $fwVal = $mtimeRow;
+                    @file_put_contents($pDir . '/fw_status.txt', (string)$fwVal);
+                }
                 if (isset($row['vFirmware'])) @file_put_contents($pDir . '/vFirmware.txt', $row['vFirmware']);
                 if (isset($row['board'])) @file_put_contents($pDir . '/board_model.txt', $row['board']);
                 if (isset($row['canRollback'])) @file_put_contents($pDir . '/can_rollback.txt', (string)(int)$row['canRollback']);
                 if (isset($row['modoLuz'])) @file_put_contents($pDir . '/modo_luz.txt', (string)(int)$row['modoLuz']);
                 if (isset($row['modoAr'])) @file_put_contents($pDir . '/modo_ar.txt', (string)(int)$row['modoAr']);
-                if (isset($row['otaError']) && $row['otaError'] == 1) @file_put_contents($pDir . '/fw_error.txt', '1');
+                if (isset($row['otaError'])) {
+                    if ($row['otaError'] == 1) @file_put_contents($pDir . '/fw_error.txt', '1');
+                    else @unlink($pDir . '/fw_error.txt');
+                }
             }
         }
 
@@ -235,24 +245,25 @@ if ($method === 'POST') {
         __DIR__ . '/../api/comando_pendente.json',
         __DIR__ . '/../grow.alquimistasmagicos.com.br/api/comando_pendente.json'
     ];
-    if (!$cmd && !$envioEmLote) {
+    if (!$envioEmLote) {
         foreach ($candidatos_cmd as $arqCmd) {
             if (file_exists($arqCmd)) {
                 $fpCmd = fopen($arqCmd, 'c+');
                 if ($fpCmd !== false) {
                     flock($fpCmd, LOCK_EX);
-                    $conteudo = '';
-                    fseek($fpCmd, 0);
-                    while (!feof($fpCmd)) $conteudo .= fread($fpCmd, 8192);
-                    $parsed = json_decode($conteudo, true);
-                    if ($parsed && !empty($parsed)) {
-                        $cmd = $parsed;
-                        ftruncate($fpCmd, 0);
-                        fflush($fpCmd);
+                    if (!$cmd) {
+                        $conteudo = '';
+                        fseek($fpCmd, 0);
+                        while (!feof($fpCmd)) $conteudo .= fread($fpCmd, 8192);
+                        $parsed = json_decode($conteudo, true);
+                        if ($parsed && !empty($parsed)) {
+                            $cmd = $parsed;
+                        }
                     }
+                    ftruncate($fpCmd, 0);
+                    fflush($fpCmd);
                     flock($fpCmd, LOCK_UN);
                     fclose($fpCmd);
-                    if ($cmd) break;
                 }
             }
         }
@@ -268,20 +279,12 @@ if ($method === 'POST') {
         if (isset($cmd['url_ota'])) $resposta['url_ota'] = $cmd['url_ota'];
     }
     
-    // Auto-Update Blindado: Usa a data de modificação real do arquivo correspondente ao modelo da placa ativa
-    $boardModel = file_exists(__DIR__ . '/board_model.txt') ? file_get_contents(__DIR__ . '/board_model.txt') : 'ESP32-S3';
+    // Entrega a versão do binário correspondente à placa ativa apenas sob ordem explícita de OTA,
+    // evitando loops infinitos de re-gravação ou reversão acidental de Rollback Dual-Bank.
+    $boardModel = file_exists(__DIR__ . '/board_model.txt') ? file_get_contents(__DIR__ . '/board_model.txt') : 'ESP32-C3';
     $arquivo_bin = caminhoBinFirmware($boardModel);
     $mtimeBin = $arquivo_bin ? (int)filemtime($arquivo_bin) : 0;
-    $resposta['versao_nuvem'] = $mtimeBin;
-
-    // BLINDAGEM ANTI-TRAVAMENTO: Se a placa estiver presa na versão 431 ou qualquer versão anterior à v438:
-    $vFwPlaca = file_exists(__DIR__ . '/vFirmware.txt') ? trim(file_get_contents(__DIR__ . '/vFirmware.txt')) : '';
-    $fwPlacaSalvo = file_exists(__DIR__ . '/fw_status.txt') ? (int)trim(file_get_contents(__DIR__ . '/fw_status.txt')) : 0;
-    if ($vFwPlaca !== '' && $vFwPlaca !== 'v438' && $vFwPlaca !== '438') {
-        // Força ordem de OTA irrefutável e quebra empate de timestamp da NVS
-        $resposta['comando_ota'] = 1;
-        $resposta['versao_nuvem'] = max($mtimeBin, $fwPlacaSalvo + 3600);
-    }
+    $resposta['versao_nuvem'] = !empty($resposta['comando_ota']) ? $mtimeBin : 0;
     
     echo json_encode($resposta);
 } 

@@ -39,6 +39,9 @@ foreach ($candidatos_bin as $c) {
     }
 }
 $fwNuvem = $binPath ? (string)filemtime($binPath) : "0";
+if ((int)$fwPlaca > time() + 300 && (int)$fwNuvem > 0) {
+    $fwPlaca = $fwNuvem;
+}
 $fwError = lerTxtStatus("fw_error.txt", "0");
 
 $gitCandidatos = [

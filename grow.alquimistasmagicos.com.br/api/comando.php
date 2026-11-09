@@ -188,5 +188,33 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         if (is_dir(dirname($eCmd))) @file_put_contents($eCmd, json_encode($cmd));
     }
 
+    // Também persiste na fila do MySQL para entrega atômica (100% imune a caminhos em disco)
+    if (!empty($cmd) && defined('DB_HOST')) {
+        $connCmd = @new mysqli(DB_HOST, DB_USER, DB_PASS, DB_NAME);
+        if (!$connCmd->connect_error) {
+            $connCmd->set_charset('utf8mb4');
+            $connCmd->query("CREATE TABLE IF NOT EXISTS config_sistema (
+                chave VARCHAR(50) PRIMARY KEY,
+                valor LONGTEXT,
+                atualizado_em INT
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
+            $resExist = $connCmd->query("SELECT valor FROM config_sistema WHERE chave = 'comando_pendente'");
+            $cmdMerged = $cmd;
+            if ($resExist && $rEx = $resExist->fetch_assoc()) {
+                $ant = json_decode($rEx['valor'], true);
+                if (is_array($ant)) $cmdMerged = array_merge($ant, $cmd);
+            }
+            $jsonCmdDb = json_encode($cmdMerged);
+            $nowCmd = time();
+            $stmtCmd = $connCmd->prepare("REPLACE INTO config_sistema (chave, valor, atualizado_em) VALUES ('comando_pendente', ?, ?)");
+            if ($stmtCmd) {
+                $stmtCmd->bind_param("si", $jsonCmdDb, $nowCmd);
+                $stmtCmd->execute();
+                $stmtCmd->close();
+            }
+            $connCmd->close();
+        }
+    }
+
     echo json_encode(["status" => "Comando salvo na fila e no Banco de Dados!", "cmd" => $cmd]);
 }

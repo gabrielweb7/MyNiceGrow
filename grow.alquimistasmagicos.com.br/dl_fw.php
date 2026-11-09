@@ -2,20 +2,20 @@
 // Servidor de Firmware Direto para OTA do ESP32 com Telemetria de Download
 date_default_timezone_set('America/Sao_Paulo');
 
+$freeSpace = $_SERVER['HTTP_X_ESP32_FREE_SPACE'] ?? '-';
+$sketchSize = $_SERVER['HTTP_X_ESP32_SKETCH_SIZE'] ?? '-';
 $logFile = __DIR__ . '/api/ota_access.log';
-$logEntry = date('Y-m-d H:i:s') . ' | IP: ' . ($_SERVER['REMOTE_ADDR'] ?? 'desconhecido') . ' | URI: ' . ($_SERVER['REQUEST_URI'] ?? '') . ' | UA: ' . ($_SERVER['HTTP_USER_AGENT'] ?? '') . "\n";
+$logEntry = date('Y-m-d H:i:s') . ' | IP: ' . ($_SERVER['REMOTE_ADDR'] ?? 'desconhecido') . ' | URI: ' . ($_SERVER['REQUEST_URI'] ?? '') . ' | UA: ' . ($_SERVER['HTTP_USER_AGENT'] ?? '') . " | Free: $freeSpace | Sketch: $sketchSize\n";
 @file_put_contents($logFile, $logEntry, FILE_APPEND);
 
-// Identifica qual binário servir
+// Identifica estritamente qual binário servir conforme a família da placa solicitada na URL
 $uri = $_SERVER['REQUEST_URI'] ?? '';
 $isS3 = (stripos($uri, 'esp32s3') !== false);
 $pasta = $isS3 ? 'esp32.esp32.esp32s3' : 'esp32.esp32.esp32c3';
 
 $candidatos = [
     __DIR__ . '/build/' . $pasta . '/esp32c3.ino.bin',
-    __DIR__ . '/build/esp32.esp32.esp32s3/esp32c3.ino.bin',
-    __DIR__ . '/../build/' . $pasta . '/esp32c3.ino.bin',
-    __DIR__ . '/../build/esp32.esp32.esp32s3/esp32c3.ino.bin'
+    __DIR__ . '/../build/' . $pasta . '/esp32c3.ino.bin'
 ];
 
 $binPath = null;
