@@ -5,23 +5,19 @@ header('Content-Type: application/json');
 header('Connection: close'); // Força encerramento do socket HTTP para liberar Heap/RAM de SSL no ESP32
 header('Access-Control-Allow-Origin: *');
 header('Access-Control-Expose-Headers: X-Fw-Placa, X-Fw-Nuvem');
-$localConfig = __DIR__ . '/../config.local.php';
-$mainConfig  = __DIR__ . '/../config.php';
-
-// Auto-cria config.local.php no servidor na primeira execução para manter as credenciais fora do Git
-if (!file_exists($localConfig)) {
-    if (file_exists($mainConfig)) {
-        $conteudo = @file_get_contents($mainConfig);
-        if ($conteudo && strpos($conteudo, 'poder692_grow_ia') !== false) {
-            @file_put_contents($localConfig, $conteudo);
-        }
+$candidatos_cfg = [
+    __DIR__ . '/../config.local.php',
+    __DIR__ . '/../config.php',
+    __DIR__ . '/../../grow.alquimistasmagicos.com.br/config.local.php',
+    __DIR__ . '/../../grow.alquimistasmagicos.com.br/config.php',
+    __DIR__ . '/../../config.local.php',
+    __DIR__ . '/../../config.php'
+];
+foreach ($candidatos_cfg as $c) {
+    if (file_exists($c)) {
+        require_once $c;
+        if (defined('DB_HOST') && defined('API_KEY')) break;
     }
-}
-
-if (file_exists($localConfig)) {
-    require_once $localConfig;
-} elseif (file_exists($mainConfig)) {
-    require_once $mainConfig;
 }
 
 // Robustez: se nenhum arquivo de configuração foi carregado, responde JSON em vez de Fatal Error
