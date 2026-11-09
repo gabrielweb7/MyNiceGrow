@@ -10,13 +10,19 @@ if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
     exit;
 }
 
-$localConfig = __DIR__ . '/../config.local.php';
-$mainConfig  = __DIR__ . '/../config.php';
-
-if (file_exists($localConfig)) {
-    require_once $localConfig;
-} elseif (file_exists($mainConfig)) {
-    require_once $mainConfig;
+$candidatos_cfg = [
+    __DIR__ . '/../config.local.php',
+    __DIR__ . '/../config.php',
+    __DIR__ . '/../../config.local.php',
+    __DIR__ . '/../../config.php',
+    __DIR__ . '/../../grow.alquimistasmagicos.com.br/config.php',
+    __DIR__ . '/../grow.alquimistasmagicos.com.br/config.php'
+];
+foreach ($candidatos_cfg as $c) {
+    if (file_exists($c)) {
+        require_once $c;
+        if (defined('ADMIN_KEY')) break;
+    }
 }
 
 $arquivo_comando = __DIR__ . '/comando_pendente.json';

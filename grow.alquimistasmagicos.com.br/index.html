@@ -1403,7 +1403,7 @@
             let p = window.fwPlaca;
             let n = window.fwNuvem;
             let err = window.fwError;
-            let vFw = window.vFirmware || '';
+            let vFw = window.vFirmware || 'v438';
             let vNuvem = window.vFirmwareNuvem || 'v439';
             let board = window.boardModel || 'ESP32-C3';
             
@@ -1412,8 +1412,13 @@
 
             const uiPlaca = document.getElementById('uiFwPlaca');
             const uiNuvem = document.getElementById('uiFwNuvem');
-            if (uiPlaca) uiPlaca.innerHTML = `<span class="text-emerald-400 font-bold">${vFw || 'v438'}</span> <span class="text-xs text-slate-500 font-normal">(${formatarDataFW(p)})</span>`;
-            if (uiNuvem) uiNuvem.innerHTML = `<span class="text-cyan-400 font-bold">${vNuvem}</span> <span class="text-xs text-slate-500 font-normal">(${formatarDataFW(n)})</span>`;
+            let dataP = (p && p !== '0' && p !== 0) ? formatarDataFW(p) : '';
+            let dataN = (n && n !== '0' && n !== 0) ? formatarDataFW(n) : '';
+            let extraP = (dataP && dataP !== 'Desconhecida') ? `<span class="text-xs text-slate-500 font-normal">(${dataP})</span>` : '';
+            let extraN = (dataN && dataN !== 'Desconhecida') ? `<span class="text-xs text-slate-500 font-normal">(${dataN})</span>` : '';
+            
+            if (uiPlaca) uiPlaca.innerHTML = `<span class="text-emerald-400 font-bold">${vFw}</span> ${extraP}`;
+            if (uiNuvem) uiNuvem.innerHTML = `<span class="text-cyan-400 font-bold">${vNuvem}</span> ${extraN}`;
             
             let statusBadge = document.getElementById('otaStatusBadge');
             if (statusBadge) {
