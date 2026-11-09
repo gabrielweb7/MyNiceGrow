@@ -1,17 +1,94 @@
-# 🍄 Grow do Txai — Sistema Inteligente de Automação IoT (v1.5.0 / FW v425 Oficial)
+# 🍄 Grow do Txai — Sistema Inteligente de Automação IoT (v1.6.0 / FW v439 Oficial)
 
-[![Release v1.5.0](https://img.shields.io/badge/Release-v1.5.0%20(FW%20v425)-gold?style=for-the-badge&logo=target)](https://github.com/gabrielweb7/MyNiceGrow)
-[![ESP32-S3](https://img.shields.io/badge/Hardware-ESP32--S3%20Dual--Core%20(Dual%20USB--C)-brightgreen?style=for-the-badge&logo=espressif)](https://www.espressif.com/)
-[![Arduino / C++](https://img.shields.io/badge/Firmware-Arduino%20%2F%20C%2B%2B-blue?style=for-the-badge&logo=arduino)](https://www.arduino.cc/)
+[![Release v1.6.0](https://img.shields.io/badge/Release-v1.6.0%20(FW%20v439)-gold?style=for-the-badge&logo=target)](https://github.com/gabrielweb7/MyNiceGrow)
+[![Hardware](https://img.shields.io/badge/Hardware-ESP32--C3%20%2F%20ESP32--S3%20Dual--Board-brightgreen?style=for-the-badge&logo=espressif)](https://www.espressif.com/)
+[![Firmware](https://img.shields.io/badge/Firmware-Arduino%20%2F%20C%2B%2B%20%2B%20Dual--Bank%20OTA-blue?style=for-the-badge&logo=arduino)](https://www.arduino.cc/)
 [![FreeRTOS](https://img.shields.io/badge/RTOS-FreeRTOS%20Watchdog-red?style=for-the-badge&logo=freertos)](https://www.freertos.org/)
-[![PHP 8.x](https://img.shields.io/badge/Backend-PHP%208.x%20%2F%20REST-purple?style=for-the-badge&logo=php)](https://www.php.net/)
-[![MySQL](https://img.shields.io/badge/Database-MySQL-orange?style=for-the-badge&logo=mysql)](https://www.mysql.com/)
-[![Chart.js 4.4](https://img.shields.io/badge/Charts-Chart.js%204.4%20%2B%20Zoom-ff6384?style=for-the-badge&logo=chartdotjs)](https://www.chartjs.org/)
-[![Auto-OTA](https://img.shields.io/badge/Deploy-Continuous%20Auto--OTA-emerald?style=for-the-badge&logo=git)](https://github.com/)
+[![Backend](https://img.shields.io/badge/Backend-PHP%208.x%20%2F%20REST-purple?style=for-the-badge&logo=php)](https://www.php.net/)
+[![Database](https://img.shields.io/badge/Database-MySQL-orange?style=for-the-badge&logo=mysql)](https://www.mysql.com/)
+[![Deploy](https://img.shields.io/badge/Deploy-Dual--Bank%20OTA%20%2B%20Instant%20Rollback-emerald?style=for-the-badge&logo=git)](https://github.com/)
 
 Um ecossistema IoT autônomo, robusto e de nível profissional projetado especificamente para **micologia de precisão e controle ambiental de cultivo protegido** (especialmente fungos como *Psilocybe cubensis*, shimeji, cogumelos medicinais e comestíveis).
 
-O sistema integra o processador de alta performance **ESP32-S3 Dual-Core (Xtensa 32-bit LX7 com Dual USB-C e LED RGB integrado)** (mantendo compatibilidade universal automática com ESP32-C3), leitura com sensor industrial de precisão **SHT30 via I2C**, sensor de referência externa **DHT11**, atuadores de **4 canais com optoacoplamento**, memória não-volátil anti-apagão (NVS Flash), datalogger offline em LittleFS, máquina de estados não-bloqueante, atualização remota **Auto-OTA** com rollback anti-brick e um **Dashboard Web SPA em tempo real com projeção futura (Ghost Chart)**.
+O sistema suporta tanto a arquitetura **ESP32-C3 (RISC-V 32-bit - placa ativa padrão)** quanto **ESP32-S3 (Xtensa Dual-Core)**, leitura com sensor industrial de precisão **SHT30 via I2C**, sensor de referência externa **DHT11**, controle de **5 relés atuadores** (Iluminação, Umidificador, Vento Interno, Exaustor FAE e Ar Condicionado HVAC com proteção de compressor), memória não-volátil anti-apagão (NVS Flash), datalogger offline em LittleFS, máquina de estados não-bloqueante, atualização remota **Over-The-Air (OTA) Dual-Bank com auto-recuperação (Anti-Brick)** e um **Dashboard Web SPA em tempo real**.
+
+---
+
+## 🏛️ Guia Definitivo para Desenvolvedores & Futuras IAs
+
+> [!IMPORTANT]
+> **LEIA ANTES DE MODIFICAR QUALQUER LINHA DE CÓDIGO:**  
+> A placa instalada fisicamente na estufa em produção é um **ESP32-C3** (RISC-V).  
+> Nunca envie um binário compilado para ESP32-S3 (Xtensa) para a rota da C3, pois a arquitetura do processador é diferente e a placa recusará a gravação!
+
+### 1. Arquitetura de Memória e Dual-Bank OTA
+* **Partições:** O chip utiliza a tabela de partição `min_spiffs` (Minimal SPIFFS com 1.9MB para cada gaveta OTA: `ota_0` e `ota_1`, e 128KB de SPIFFS).
+* **Mecanismo Anti-Brick (`esp_ota_ops.h`):**
+  1. A nova versão grava na gaveta secundária e a placa reinicia.
+  2. Ao ligar, o firmware novo entra em modo de validação pendente.
+  3. Se ele conseguir conectar ao Wi-Fi e receber `HTTP 200 OK` do backend na nuvem, ele executa `esp_ota_mark_app_valid_cancel_rollback()`, consolidando a versão como estável.
+  4. Se o novo firmware der crash (Kernel Panic), travar no loop (Watchdog) ou não responder à nuvem em 5 minutos, o microcontrolador aciona automaticamente o rollback de hardware e reinicia na versão estável anterior sem intervenção humana.
+* **Rollback Remoto por Botão:** O painel conta com um botão que envia o comando `{ "rollback": 1 }`. Ao receber a ordem, a placa chama `Update.rollBack()` e reverte para a partição estável em ~30 segundos.
+
+---
+
+### 2. Como Compilar para ESP32-C3 via Linha de Comando (CLI)
+Para gerar o binário de produção de forma rápida e precisa sem depender de cliques manuais:
+
+```powershell
+& "C:\Users\ghost\AppData\Local\Programs\Arduino IDE\resources\app\lib\backend\resources\arduino-cli.exe" compile `
+  --fqbn esp32:esp32:esp32c3:PartitionScheme=min_spiffs `
+  --output-dir "build/esp32.esp32.esp32c3" `
+  "esp32c3"
+```
+
+### 3. Como Fazer o Deploy de uma Nova Versão OTA
+1. Incremente a versão em `esp32c3.ino` (ex: `#define FW_VERSION 440`) e sincronize a cópia em `esp32c3/esp32c3.ino`.
+2. Execute o comando de compilação acima.
+3. Copie o binário gerado:
+   - De: `build/esp32.esp32.esp32c3/esp32c3.ino.bin`
+   - Para: `grow.alquimistasmagicos.com.br/build/esp32.esp32.esp32c3/esp32c3.ino.bin`
+   - E salve uma cópia versionada em: `grow.alquimistasmagicos.com.br/build/versoes/v440_esp32c3.bin`
+4. Atualize a versão no backend `grow.alquimistasmagicos.com.br/api/fw.php` (`"vFirmwareNuvem" => "v440"`).
+5. Faça o commit e push para o GitHub:
+   ```bash
+   git add -A
+   git commit -m "feat: release firmware v440"
+   git push origin main
+   ```
+6. No cPanel da HostGator (Git Version Control), acione o **"Update from Remote"**.
+7. No Dashboard Web, vá na aba **Firmware & OTA** e clique em **"⚡ Instalar Versão da Nuvem na Placa"**!
+
+---
+
+## 🔌 Diagrama de Conexões & Pinagem (Wiring & Pinout)
+
+| Componente | Função | Pino ESP32-C3 (Produção) | Pino ESP32-S3 | Nível Lógico |
+| :--- | :--- | :---: | :---: | :--- |
+| **SHT30 (Interno)** | Clock I2C (SCL) | **GPIO 5** | GPIO 5 | 3.3V (Pull-up interno) |
+| **SHT30 (Interno)** | Dados I2C (SDA) | **GPIO 4** | GPIO 4 | 3.3V (`0x44`) |
+| **DHT11 (Ambiente)** | Referência Externa | **GPIO 10** | GPIO 10 | 3.3V (Pull-up 10k) |
+| **Relé 1 (Luz)** | Fotoperíodo do Cultivo | **GPIO 0** | GPIO 0 | `LOW` = Ligado |
+| **Relé 2 (Umidificador)** | Névoa Ultrassônica | **GPIO 1** | GPIO 1 | `LOW` = Ligado |
+| **Relé 3 (Vento Interno)** | Brisa / Circulação | **GPIO 3** | GPIO 3 | `LOW` = Ligado |
+| **Relé 4 (Exaustor)** | Troca de Ar (FAE) | **GPIO 6** | GPIO 6 | `LOW` = Ligado |
+| **Relé 5 (Ar Condicionado)** | Climatização HVAC | **GPIO 7** | GPIO 7 | `LOW` = Ligado *(Anti-Ciclo Curto de 3 min)* |
+| **Botão Físico (BOOT)** | Factory Reset (5s) | **GPIO 9** | GPIO 0 | Pull-up Interno |
+
+---
+
+## ❄️ Lógica Térmica do Ar Condicionado (HVAC)
+* **Partida Automática:** Aciona quando `tempInt >= pf.tempMax` (ex: 28°C na Pinagem ou 29°C na Frutificação).
+* **Pós-Resfriamento de Fixação:** Ao atingir a meta (`tempInt < pf.tempMax`), mantém o ar ligado por mais **5 minutos** para fixar a temperatura antes de desligar.
+* **Proteção Anti-Ciclo Curto do Compressor:** O compressor respeita repouso mínimo obrigatório de **3 minutos** entre desligamento e religamento.
+* **Trava Anti-Congelamento:** Desliga imediatamente se `tempInt <= 15.0°C`.
+* **Pausa de Segurança:** Descanso preventivo de 10 min se operar continuamente por mais de 45 minutos.
+
+---
+
+## 🧙‍♂️ Créditos & Licença
+Desenvolvido por **Gabriel da Luz** ([@gabrielweb7](https://github.com/gabrielweb7)) para o **Grow do Txai** por **Alquimistas Mágicos**.  
+Distribuído sob licença **MIT**. Sinta-se livre para usar, estudar e evoluir a automação micológica! 🍄✨
 
 ---
 
