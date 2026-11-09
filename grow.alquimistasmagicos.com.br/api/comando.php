@@ -177,5 +177,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     flock($fp, LOCK_UN);
     fclose($fp);
 
+    // Espelha o comando em todas as pastas para compatibilidade multi-caminho absoluta
+    $espelhos_cmd = [
+        __DIR__ . '/comando_pendente.json',
+        __DIR__ . '/../../api/comando_pendente.json',
+        __DIR__ . '/../api/comando_pendente.json',
+        __DIR__ . '/../grow.alquimistasmagicos.com.br/api/comando_pendente.json'
+    ];
+    foreach ($espelhos_cmd as $eCmd) {
+        if (is_dir(dirname($eCmd))) @file_put_contents($eCmd, json_encode($cmd));
+    }
+
     echo json_encode(["status" => "Comando salvo na fila e no Banco de Dados!", "cmd" => $cmd]);
 }

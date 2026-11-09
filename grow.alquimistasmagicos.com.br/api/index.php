@@ -149,30 +149,23 @@ if ($method === 'POST') {
     $successCount = 0;
     foreach ($data as $row) {
         if (!is_array($row)) continue; // Robustez: ignora itens que não são objetos JSON
-        // Salva versão do FW num arquivo separado pra ser rápido
-        if (isset($row['fw'])) {
-            file_put_contents(__DIR__ . '/fw_status.txt', $row['fw']);
-        }
-        if (isset($row['vFirmware'])) {
-            file_put_contents(__DIR__ . '/vFirmware.txt', $row['vFirmware']);
-        }
-        if (isset($row['board'])) {
-            file_put_contents(__DIR__ . '/board_model.txt', $row['board']);
-        }
-        if (isset($row['canRollback'])) {
-            file_put_contents(__DIR__ . '/can_rollback.txt', (string)(int)$row['canRollback']);
-        }
-        // Salva modo atual da luz se reportado
-        if (isset($row['modoLuz'])) {
-            file_put_contents(__DIR__ . '/modo_luz.txt', (string)(int)$row['modoLuz']);
-        }
-        // Salva modo atual do ar condicionado se reportado
-        if (isset($row['modoAr'])) {
-            file_put_contents(__DIR__ . '/modo_ar.txt', (string)(int)$row['modoAr']);
-        }
-        // Salva flag de erro de OTA se a placa reportar que precisou reverter
-        if (isset($row['otaError']) && $row['otaError'] == 1) {
-            file_put_contents(__DIR__ . '/fw_error.txt', '1');
+        // Salva status em todas as pastas possíveis para sincronia perfeita
+        $pastas_status = [
+            __DIR__,
+            __DIR__ . '/../../api',
+            __DIR__ . '/../api',
+            __DIR__ . '/../grow.alquimistasmagicos.com.br/api'
+        ];
+        foreach ($pastas_status as $pDir) {
+            if (is_dir($pDir)) {
+                if (isset($row['fw'])) @file_put_contents($pDir . '/fw_status.txt', $row['fw']);
+                if (isset($row['vFirmware'])) @file_put_contents($pDir . '/vFirmware.txt', $row['vFirmware']);
+                if (isset($row['board'])) @file_put_contents($pDir . '/board_model.txt', $row['board']);
+                if (isset($row['canRollback'])) @file_put_contents($pDir . '/can_rollback.txt', (string)(int)$row['canRollback']);
+                if (isset($row['modoLuz'])) @file_put_contents($pDir . '/modo_luz.txt', (string)(int)$row['modoLuz']);
+                if (isset($row['modoAr'])) @file_put_contents($pDir . '/modo_ar.txt', (string)(int)$row['modoAr']);
+                if (isset($row['otaError']) && $row['otaError'] == 1) @file_put_contents($pDir . '/fw_error.txt', '1');
+            }
         } else {
             @unlink(__DIR__ . '/fw_error.txt');
         }
@@ -223,31 +216,44 @@ if ($method === 'POST') {
         $resposta['cfg_ver'] = (int)$rCfg['atualizado_em'];
     }
 
-    $arquivo_comando = __DIR__ . '/comando_pendente.json';
-    if (!$envioEmLote && file_exists($arquivo_comando)) {
-        $fpCmd = fopen($arquivo_comando, 'c+');
-        if ($fpCmd !== false) {
-            flock($fpCmd, LOCK_EX);
-            $conteudo = '';
-            fseek($fpCmd, 0);
-            while (!feof($fpCmd)) $conteudo .= fread($fpCmd, 8192);
-            $cmd = json_decode($conteudo, true);
-            if ($cmd) {
-                if (isset($cmd['fase'])) $resposta['comando_fase'] = $cmd['fase'];
-                if (isset($cmd['luz'])) $resposta['comando_luz'] = $cmd['luz'];
-                if (isset($cmd['ar'])) $resposta['comando_ar'] = $cmd['ar'];
-                if (isset($cmd['vento_ext'])) $resposta['comando_vento_ext'] = $cmd['vento_ext'];
-                if (isset($cmd['reset_agua'])) $resposta['comando_reset_agua'] = 1;
-                if (isset($cmd['ota'])) $resposta['comando_ota'] = 1;
-                if (isset($cmd['rollback'])) $resposta['comando_rollback'] = 1;
-                if (isset($cmd['url_ota'])) $resposta['url_ota'] = $cmd['url_ota'];
+    $candidatos_cmd = [
+        __DIR__ . '/comando_pendente.json',
+        __DIR__ . '/../../api/comando_pendente.json',
+        __DIR__ . '/../api/comando_pendente.json',
+        __DIR__ . '/../grow.alquimistasmagicos.com.br/api/comando_pendente.json'
+    ];
+    $cmd = null;
+    if (!$envioEmLote) {
+        foreach ($candidatos_cmd as $arqCmd) {
+            if (file_exists($arqCmd)) {
+                $fpCmd = fopen($arqCmd, 'c+');
+                if ($fpCmd !== false) {
+                    flock($fpCmd, LOCK_EX);
+                    $conteudo = '';
+                    fseek($fpCmd, 0);
+                    while (!feof($fpCmd)) $conteudo .= fread($fpCmd, 8192);
+                    $parsed = json_decode($conteudo, true);
+                    if ($parsed && !empty($parsed)) {
+                        $cmd = $parsed;
+                        ftruncate($fpCmd, 0);
+                        fflush($fpCmd);
+                    }
+                    flock($fpCmd, LOCK_UN);
+                    fclose($fpCmd);
+                    if ($cmd) break;
+                }
             }
-            // Esvazia os comandos entregues com trava atômica para evitar conflito com comando.php
-            ftruncate($fpCmd, 0);
-            fflush($fpCmd);
-            flock($fpCmd, LOCK_UN);
-            fclose($fpCmd);
         }
+    }
+    if ($cmd) {
+        if (isset($cmd['fase'])) $resposta['comando_fase'] = $cmd['fase'];
+        if (isset($cmd['luz'])) $resposta['comando_luz'] = $cmd['luz'];
+        if (isset($cmd['ar'])) $resposta['comando_ar'] = $cmd['ar'];
+        if (isset($cmd['vento_ext'])) $resposta['comando_vento_ext'] = $cmd['vento_ext'];
+        if (isset($cmd['reset_agua'])) $resposta['comando_reset_agua'] = 1;
+        if (isset($cmd['ota'])) $resposta['comando_ota'] = 1;
+        if (isset($cmd['rollback'])) $resposta['comando_rollback'] = 1;
+        if (isset($cmd['url_ota'])) $resposta['url_ota'] = $cmd['url_ota'];
     }
     
     // Auto-Update Blindado: Usa a data de modificação real do arquivo correspondente ao modelo da placa ativa
