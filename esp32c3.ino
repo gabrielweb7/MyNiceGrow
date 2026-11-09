@@ -2,10 +2,10 @@
 //  GROW IA - Firmware Inteligente + Nuvem IoT
 //  Placa: ESP32-S3 Dual-Core (Xtensa LX7)
 //  Autor: Gabriel + Antigravity AI
-//  Versão Atual: v438 (Blindagem Total Anti-Travamento & Auto-Recovery)
+//  Versão Atual: v439 (OTA Global Dual-Bank + Auto-Recovery)
 // ============================================================
 
-#define FW_VERSION 438
+#define FW_VERSION 439
 
 #include <Arduino.h>
 #include <ArduinoJson.h>
@@ -22,6 +22,7 @@
 #include <HTTPClient.h>  // Nuvem
 #include <HTTPUpdate.h>  // Atualização Remota via Web (OTA)
 #include <Update.h>
+#include <esp_ota_ops.h>
 #include <LittleFS.h>  // Datalogger Offline
 #include <time.h>
 #include <sys/time.h>
@@ -441,7 +442,8 @@ void enviarNuvem(unsigned long agora) {
 
   json += "\"fw\":" + String(fwAtual) + ",";
   json += "\"board\":\"" + String(BOARD_MODEL) + "\",";
-  json += "\"vFirmware\":\"v" + String(FW_VERSION) + "\"";
+  json += "\"vFirmware\":\"v" + String(FW_VERSION) + "\",";
+  json += "\"canRollback\":" + String(Update.canRollBack() ? 1 : 0);
   json += "}";
 
   if (WiFi.status() != WL_CONNECTED) {
@@ -548,7 +550,9 @@ void enviarNuvem(unsigned long agora) {
     ultimoSuspiro = millis();  // Alimenta Watchdog logo após resposta da nuvem
     bool deveFazerOta = false;
     uint32_t vNuvemParaOta = 0;
+    String urlOtaCustom = "";
     if (code == 200) {
+      esp_ota_mark_app_valid_cancel_rollback(); // Hardware Dual-Bank: Valida o firmware novo no bootloader
       prefs.begin("grow", false);
       if (prefs.getBool("ota_test", false)) {
         prefs.putBool("ota_test", false);
@@ -764,6 +768,22 @@ void enviarNuvem(unsigned long agora) {
           Serial.println("📥 COMANDO NUVEM: Reset de Alerta de Agua confirmado e limpo da NVS.");
         }
 
+        // COMANDO ROLLBACK: Retorna instantaneamente para a partição anterior do Dual-Bank
+        if (docRes.containsKey("comando_rollback")) {
+          Serial.println("↩️ [ROLLBACK] Ordem recebida da nuvem! Revertendo para partição estável anterior...");
+          if (Update.canRollBack()) {
+            Update.rollBack();
+            delay(500);
+            ESP.restart();
+          } else {
+            Serial.println("⚠️ [ROLLBACK] Nenhuma partição anterior gravada para reversão.");
+          }
+        }
+
+        if (docRes.containsKey("url_ota")) {
+          urlOtaCustom = docRes["url_ota"].as<String>();
+        }
+
         uint32_t vNuvem = docRes.containsKey("versao_nuvem") ? (uint32_t)docRes["versao_nuvem"] : 0;
         prefs.begin("grow", true);
         uint32_t otaBadVer = prefs.getUInt("ota_bad_ver", 0);
@@ -784,6 +804,8 @@ void enviarNuvem(unsigned long agora) {
       salvarOffline(json);
     }
     http.end();
+    client.stop(); // Fecha o socket SSL de telemetria para liberar toda a memória RAM
+    delay(50);
 
     if (deveFazerOta) {
       Serial.printf("📥 OTA INICIANDO (Local: %u, Nuvem: %u)\n", fwAtual, vNuvemParaOta);
@@ -796,7 +818,7 @@ void enviarNuvem(unsigned long agora) {
       otaClient.setInsecure();
       httpUpdate.rebootOnUpdate(false);
 
-      String fwUrl = OTA_FW_URL;
+      String fwUrl = (urlOtaCustom.length() > 10) ? urlOtaCustom : String(OTA_FW_URL);
       t_httpUpdate_return ret = httpUpdate.update(otaClient, fwUrl);
 
       // REATIVA O CAO DE GUARDA (caso o OTA falhe e a placa continue rodando)

@@ -27,6 +27,7 @@ $gitHash = file_exists($gitHead) ? substr(trim(file_get_contents($gitHead)), 0, 
 $modoLuz = file_exists(__DIR__ . "/modo_luz.txt") ? (int)trim(file_get_contents(__DIR__ . "/modo_luz.txt")) : 0;
 $modoAr = file_exists(__DIR__ . "/modo_ar.txt") ? (int)trim(file_get_contents(__DIR__ . "/modo_ar.txt")) : 0;
 $vFirmware = file_exists(__DIR__ . "/vFirmware.txt") ? trim(file_get_contents(__DIR__ . "/vFirmware.txt")) : "";
-echo json_encode(["placa" => trim($fwPlaca), "nuvem" => trim($fwNuvem), "error" => $fwError, "gitHash" => $gitHash, "modoLuz" => $modoLuz, "modoAr" => $modoAr, "vFirmware" => $vFirmware, "board" => $board]);
+$canRollback = file_exists(__DIR__ . "/can_rollback.txt") ? (int)trim(file_get_contents(__DIR__ . "/can_rollback.txt")) : 0;
+echo json_encode(["placa" => trim($fwPlaca), "nuvem" => trim($fwNuvem), "error" => $fwError, "gitHash" => $gitHash, "modoLuz" => $modoLuz, "modoAr" => $modoAr, "vFirmware" => $vFirmware, "board" => $board, "canRollback" => $canRollback, "vFirmwareNuvem" => "v439"]);
 
 

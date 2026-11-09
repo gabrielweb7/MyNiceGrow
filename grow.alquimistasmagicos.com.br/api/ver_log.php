@@ -6,3 +6,4 @@ if (file_exists($log)) {
 } else {
     echo "Nenhum acesso registrado ainda.";
 }
+

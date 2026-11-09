@@ -79,6 +79,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
     if (isset($_POST['reset_agua'])) $cmd['reset_agua'] = 1;
     if (isset($_POST['ota'])) $cmd['ota'] = 1;
+    if (isset($_POST['rollback'])) $cmd['rollback'] = 1;
+    if (isset($_POST['url_ota'])) $cmd['url_ota'] = trim($_POST['url_ota']);
 
     // Salva configurações climáticas no Banco de Dados MySQL (com validação e clamp seguro)
     if (isset($_POST['config'])) {

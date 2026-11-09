@@ -704,44 +704,66 @@
                 </div>
             </div>
 
-            <!-- ABA 3: FIRMWARE & OTA -->
+            <!-- ABA 3: FIRMWARE & OTA (MODERNO & BLINDADO) -->
             <div id="tabContentOta" class="space-y-6 hidden">
                 <div class="glass rounded-2xl p-5 md:p-8 border border-slate-700/60 shadow-xl space-y-6">
                     <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-4 border-b border-slate-800/80">
                         <div>
                             <h3 class="text-base md:text-lg font-bold text-emerald-400 flex items-center gap-2">
-                                <span>🚀</span> Sincronização de Firmware Over-the-Air (OTA)
+                                <span>🚀</span> Central de Firmware & OTA Dual-Bank
                             </h3>
-                            <p class="text-xs text-slate-400 mt-1">O ESP32 compara a versão em flash com o binário na nuvem e faz o update seguro via Wi-Fi.</p>
+                            <p class="text-xs text-slate-400 mt-1">Gerenciamento remoto de versões com tolerância a falhas e auto-recuperação de hardware.</p>
                         </div>
                         <div id="otaStatusBadge"></div>
                     </div>
 
-                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-                        <div class="bg-slate-800/50 p-5 rounded-xl border border-slate-700/70 space-y-2">
-                            <span class="text-[11px] text-slate-400 uppercase tracking-wider font-semibold block">Versão Instalada na Estufa</span>
-                            <div id="uiFwPlaca" class="text-base md:text-lg font-mono font-bold text-emerald-400">--</div>
-                            <p class="text-[11px] text-slate-500">Timestamp de compilação reportado pelo microcontrolador.</p>
+                    <!-- CARD DE ALERTA DE ROLLBACK CASO OCORRA -->
+                    <div id="cardAlertaRollback" class="hidden bg-rose-500/10 border border-rose-500/30 rounded-xl p-4 text-xs text-rose-300 space-y-2 animate-pulse">
+                        <div class="font-bold flex items-center gap-2 text-rose-400 text-sm">
+                            <span>🚨</span> Mecanismo Anti-Brick Executou Rollback Automático!
                         </div>
-                        <div class="bg-slate-800/50 p-5 rounded-xl border border-slate-700/70 space-y-2">
-                            <span class="text-[11px] text-slate-400 uppercase tracking-wider font-semibold block">Versão Disponível na Nuvem</span>
-                            <div id="uiFwNuvem" class="text-base md:text-lg font-mono font-bold text-cyan-400">--</div>
-                            <p class="text-[11px] text-slate-500">Último binário compilado e sincronizado no servidor web.</p>
+                        <p id="txtAlertaRollback" class="text-slate-300">
+                            A versão anterior apresentou falha durante o boot e a placa restaurou com sucesso a partição estável.
+                        </p>
+                    </div>
+
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div class="bg-slate-800/50 p-5 rounded-xl border border-slate-700/70 space-y-2 relative overflow-hidden">
+                            <div class="flex items-center justify-between">
+                                <span class="text-[11px] text-slate-400 uppercase tracking-wider font-semibold block">Versão Instalada na Placa</span>
+                                <span id="badgeBoardModel" class="text-[10px] px-2 py-0.5 rounded bg-slate-700 text-slate-300 font-mono">ESP32-C3</span>
+                            </div>
+                            <div id="uiFwPlaca" class="text-xl md:text-2xl font-mono font-bold text-emerald-400">--</div>
+                            <p class="text-[11px] text-slate-500">Firmware ativo atualmente controlando o clima da estufa.</p>
+                        </div>
+                        <div class="bg-slate-800/50 p-5 rounded-xl border border-slate-700/70 space-y-2 relative overflow-hidden">
+                            <div class="flex items-center justify-between">
+                                <span class="text-[11px] text-slate-400 uppercase tracking-wider font-semibold block">Versão Disponível na Nuvem</span>
+                                <span class="text-[10px] px-2 py-0.5 rounded bg-cyan-900/50 text-cyan-300 font-mono">Oficial</span>
+                            </div>
+                            <div id="uiFwNuvem" class="text-xl md:text-2xl font-mono font-bold text-cyan-400">--</div>
+                            <p class="text-[11px] text-slate-500">Última versão compilada e pronta para envio remoto via Wi-Fi.</p>
                         </div>
                     </div>
 
                     <div class="bg-slate-800/30 p-4 rounded-xl border border-slate-700/50 text-xs text-slate-300 space-y-2 leading-relaxed">
-                        <div class="font-bold text-slate-200 flex items-center gap-1.5">
-                            <span>🛡️</span> Mecanismo Anti-Brick Dual-Bank OTA
+                        <div class="font-bold text-slate-200 flex items-center justify-between">
+                            <span class="flex items-center gap-1.5">
+                                <span>🛡️</span> Particionamento Dual-Bank (ota_0 / ota_1)
+                            </span>
+                            <span class="text-[10px] text-emerald-400 font-mono bg-emerald-950/60 border border-emerald-500/30 px-2 py-0.5 rounded">Ativo & Seguro</span>
                         </div>
                         <p class="text-slate-400 text-[11px]">
-                            O sistema utiliza partições OTA duplas (<span class="text-slate-300 font-mono">ota_0</span> e <span class="text-slate-300 font-mono">ota_1</span>) com rollback automático no ESP32-S3. Se houver falha de rede ou corrupção de download, a placa reverte de forma autônoma para a versão anterior estável sem intervenção manual.
+                            Se qualquer atualização sofrer queda de energia, falha de Wi-Fi ou travamento, o ESP32 desfaz a atualização de forma autônoma e reverte para a partição estável em menos de 30 segundos.
                         </p>
                     </div>
 
-                    <div class="pt-2">
-                        <button onclick="enviarOTA()" id="btnEnviarOta" class="w-full bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white font-bold text-xs sm:text-sm py-3.5 rounded-xl transition-all shadow-[0_0_20px_rgba(16,185,129,0.25)] flex items-center justify-center gap-2 active:scale-[0.99]">
+                    <div class="pt-2 flex flex-col sm:flex-row gap-3">
+                        <button onclick="enviarOTA()" id="btnEnviarOta" class="flex-1 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white font-bold text-xs sm:text-sm py-3.5 rounded-xl transition-all shadow-[0_0_20px_rgba(16,185,129,0.25)] flex items-center justify-center gap-2 active:scale-[0.99]">
                             <span>⚡</span> <span>Instalar Versão da Nuvem na Placa</span>
+                        </button>
+                        <button onclick="enviarRollback()" id="btnRollbackOta" class="bg-slate-800 hover:bg-slate-700 text-rose-300 hover:text-rose-200 border border-rose-500/30 font-bold text-xs sm:text-sm py-3.5 px-5 rounded-xl transition-all shadow-sm flex items-center justify-center gap-2 active:scale-[0.99]" title="Reverte imediatamente para a partição estável anterior via Dual-Bank">
+                            <span>↩️</span> <span>Reverter p/ Versão Anterior (Dual-Bank)</span>
                         </button>
                     </div>
                 </div>
@@ -1381,25 +1403,26 @@
             let p = window.fwPlaca;
             let n = window.fwNuvem;
             let err = window.fwError;
-            let vFw = window.vFirmware;
+            let vFw = window.vFirmware || '';
+            let vNuvem = window.vFirmwareNuvem || 'v439';
+            let board = window.boardModel || 'ESP32-C3';
             
-            let strPlaca = formatarDataFW(p);
-            if (vFw && vFw !== '') {
-                strPlaca += ` <span class="text-emerald-400 font-bold">(${vFw})</span>`;
-            }
+            const badgeBoard = document.getElementById('badgeBoardModel');
+            if (badgeBoard) badgeBoard.textContent = board;
+
             const uiPlaca = document.getElementById('uiFwPlaca');
             const uiNuvem = document.getElementById('uiFwNuvem');
-            if (uiPlaca) uiPlaca.innerHTML = strPlaca;
-            if (uiNuvem) uiNuvem.textContent = formatarDataFW(n);
+            if (uiPlaca) uiPlaca.innerHTML = `<span class="text-emerald-400 font-bold">${vFw || 'v438'}</span> <span class="text-xs text-slate-500 font-normal">(${formatarDataFW(p)})</span>`;
+            if (uiNuvem) uiNuvem.innerHTML = `<span class="text-cyan-400 font-bold">${vNuvem}</span> <span class="text-xs text-slate-500 font-normal">(${formatarDataFW(n)})</span>`;
             
             let statusBadge = document.getElementById('otaStatusBadge');
             if (statusBadge) {
                 if (err === '1') {
                     statusBadge.innerHTML = '<span class="bg-rose-500/20 text-rose-400 text-[10px] px-2.5 py-1 rounded-full font-bold animate-pulse border border-rose-500/30">❌ OTA FALHOU (REVERTIDO)</span>';
-                } else if (p === n && p !== '0') {
-                    statusBadge.innerHTML = '<span class="bg-emerald-500/20 text-emerald-400 text-[10px] px-2.5 py-1 rounded-full font-bold border border-emerald-500/30">✓ ATUALIZADO</span>';
-                } else if (p !== '0' && n !== '0' && p !== n) {
-                    statusBadge.innerHTML = '<span class="bg-amber-500/20 text-amber-400 text-[10px] px-2.5 py-1 rounded-full font-bold animate-pulse border border-amber-500/30">⚠️ NOVA ATUALIZAÇÃO DISPONÍVEL</span>';
+                } else if (vFw === vNuvem && vFw !== '') {
+                    statusBadge.innerHTML = `<span class="bg-emerald-500/20 text-emerald-400 text-[10px] px-2.5 py-1 rounded-full font-bold border border-emerald-500/30">✓ ATUALIZADO (${vFw})</span>`;
+                } else if (vFw !== '' && vFw !== vNuvem) {
+                    statusBadge.innerHTML = `<span class="bg-amber-500/20 text-amber-400 text-[10px] px-2.5 py-1 rounded-full font-bold animate-pulse border border-amber-500/30">⚠️ NOVA VERSÃO DISPONÍVEL (${vNuvem})</span>`;
                 } else {
                     statusBadge.innerHTML = '';
                 }
@@ -1559,7 +1582,7 @@
 
             try {
                 if (await enviarComando({ota: 1})) {
-                    alert("✅ Sucesso! A placa já foi avisada.\nEla vai baixar o arquivo do Git e voltará online em cerca de 1 minuto.");
+                    alert("✅ Sucesso! A placa já foi avisada.\nEla vai baixar o novo binário da nuvem e reiniciar em ~45 segundos.");
                     fecharConfig();
                 } else {
                     alert("⚠️ Houve uma falha ao comunicar com a nuvem.");
@@ -1567,9 +1590,29 @@
             } catch (e) {
                 alert("❌ Erro: " + e.message);
             } finally {
-                btn.textContent = "Baixar do Git e Atualizar Placa";
+                btn.textContent = "Instalar Versão da Nuvem na Placa";
                 btn.disabled = false;
                 btn.classList.remove('opacity-50', 'cursor-not-allowed');
+            }
+        }
+
+        async function enviarRollback() {
+            if (!confirm("↩️ Tem certeza que deseja reverter para a versão anterior do firmware?\n\nA placa reiniciará imediatamente na partição estável anterior via Dual-Bank (sem precisar baixar nada).")) return;
+            const btn = document.getElementById('btnRollbackOta');
+            btn.textContent = "Revertendo...";
+            btn.disabled = true;
+            try {
+                if (await enviarComando({rollback: 1})) {
+                    alert("✅ Ordem de Rollback entregue! A placa está alternando para a partição anterior e estará de volta em ~30 segundos.");
+                    fecharConfig();
+                } else {
+                    alert("⚠️ Falha ao comunicar ordem de rollback com a nuvem.");
+                }
+            } catch (e) {
+                alert("❌ Erro: " + e.message);
+            } finally {
+                btn.innerHTML = '<span>↩️</span> <span>Reverter p/ Versão Anterior (Dual-Bank)</span>';
+                btn.disabled = false;
             }
         }
 

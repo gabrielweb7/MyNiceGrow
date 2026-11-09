@@ -1,3 +1,33 @@
 <?php
-require dirname(__DIR__) . "/grow.alquimistasmagicos.com.br/api/fw.php";
+date_default_timezone_set('America/Sao_Paulo');
+header("Content-Type: application/json");
+header("Access-Control-Allow-Origin: *");
+$fwPlaca = file_exists(__DIR__ . "/fw_status.txt") ? file_get_contents(__DIR__ . "/fw_status.txt") : "0";
+$board = file_exists(__DIR__ . "/board_model.txt") ? trim(file_get_contents(__DIR__ . "/board_model.txt")) : "ESP32-S3";
+$pastaBin = (stripos($board, 'C3') !== false) ? "esp32.esp32.esp32c3" : "esp32.esp32.esp32s3";
+$candidatos_bin = [
+    __DIR__ . "/../build/" . $pastaBin . "/esp32c3.ino.bin",
+    __DIR__ . "/../../build/" . $pastaBin . "/esp32c3.ino.bin"
+];
+$binPath = null;
+$maiorMtime = 0;
+foreach ($candidatos_bin as $c) {
+    if (file_exists($c)) {
+        $mt = (int)@filemtime($c);
+        if ($mt > $maiorMtime) {
+            $maiorMtime = $mt;
+            $binPath = $c;
+        }
+    }
+}
+$fwNuvem = $binPath ? (string)filemtime($binPath) : "0";
+$fwError = file_exists(__DIR__ . "/fw_error.txt") ? "1" : "0";
+$gitHead = __DIR__ . '/../../.git/refs/heads/main';
+$gitHash = file_exists($gitHead) ? substr(trim(file_get_contents($gitHead)), 0, 7) : 'Desconhecido';
+$modoLuz = file_exists(__DIR__ . "/modo_luz.txt") ? (int)trim(file_get_contents(__DIR__ . "/modo_luz.txt")) : 0;
+$modoAr = file_exists(__DIR__ . "/modo_ar.txt") ? (int)trim(file_get_contents(__DIR__ . "/modo_ar.txt")) : 0;
+$vFirmware = file_exists(__DIR__ . "/vFirmware.txt") ? trim(file_get_contents(__DIR__ . "/vFirmware.txt")) : "";
+$canRollback = file_exists(__DIR__ . "/can_rollback.txt") ? (int)trim(file_get_contents(__DIR__ . "/can_rollback.txt")) : 0;
+echo json_encode(["placa" => trim($fwPlaca), "nuvem" => trim($fwNuvem), "error" => $fwError, "gitHash" => $gitHash, "modoLuz" => $modoLuz, "modoAr" => $modoAr, "vFirmware" => $vFirmware, "board" => $board, "canRollback" => $canRollback, "vFirmwareNuvem" => "v439"]);
+
 
