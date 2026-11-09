@@ -8,6 +8,8 @@ header('Access-Control-Expose-Headers: X-Fw-Placa, X-Fw-Nuvem');
 $candidatos_cfg = [
     __DIR__ . '/../config.local.php',
     __DIR__ . '/../config.php',
+    __DIR__ . '/../grow.alquimistasmagicos.com.br/config.local.php',
+    __DIR__ . '/../grow.alquimistasmagicos.com.br/config.php',
     __DIR__ . '/../../grow.alquimistasmagicos.com.br/config.local.php',
     __DIR__ . '/../../grow.alquimistasmagicos.com.br/config.php',
     __DIR__ . '/../../config.local.php',
