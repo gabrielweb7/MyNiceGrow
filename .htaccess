@@ -21,5 +21,11 @@ Options -Indexes
     </IfModule>
 </FilesMatch>
 
+# Roteamento direto de firmware OTA para dl_fw.php (evita renegotiation TLS do Apache e registra logs)
+<IfModule mod_rewrite.c>
+    RewriteEngine On
+    RewriteRule ^build/.+\.bin$ dl_fw.php [L,QSA]
+</IfModule>
+
 # Prioridade de index
 DirectoryIndex index.php index.html
