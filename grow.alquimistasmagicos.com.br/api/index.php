@@ -44,10 +44,8 @@ $conn->set_charset('utf8mb4');
 function caminhoBinFirmware($boardModel) {
     $pasta = (stripos($boardModel, 'C3') !== false) ? 'esp32.esp32.esp32c3' : 'esp32.esp32.esp32s3';
     $candidatos = [
-        __DIR__ . '/../../build/' . $pasta . '/esp32c3.ino.bin',
         __DIR__ . '/../build/' . $pasta . '/esp32c3.ino.bin',
-        __DIR__ . '/../../build/esp32.esp32.esp32c3/esp32c3.ino.bin',
-        __DIR__ . '/../build/esp32.esp32.esp32c3/esp32c3.ino.bin'
+        __DIR__ . '/../../build/' . $pasta . '/esp32c3.ino.bin'
     ];
     $melhor = null;
     $maiorMtime = 0;

@@ -6,6 +6,13 @@
 esp32c3/
 out_s3/
 out_c3/
+build/**/core/
+build/**/sketch/
+build/**/libraries/
+build/**/*.cache
+build/**/compile_commands.json
+build/**/file_opts
+build/**/build_opt.h
 
 # SEGURANÇA: Arquivo local privado com as credenciais reais do servidor (NUNCA vai para o Git)
 **/config.local.php

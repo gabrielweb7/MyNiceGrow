@@ -72,13 +72,23 @@ const int DIAS_PINANDO = 0;
 const int DIAS_FRUTIFICACAO = 0;
 
 // ============================================================
-//  PINOS & SUPORTE DE HARDWARE (ESP32-S3 DUAL USB-C)
+//  PINOS & SUPORTE DE HARDWARE (ESP32-S3 DUAL USB & ESP32-C3)
 // ============================================================
-#define BOARD_MODEL "ESP32-S3 Dual-Core"
-#ifndef RGB_BUILTIN
-  #define RGB_BUILTIN 48  // LED RGB integrado comum no ESP32-S3 DevKit
+#if defined(CONFIG_IDF_TARGET_ESP32S3) || defined(ARDUINO_ESP32S3_DEV)
+  #define BOARD_MODEL "ESP32-S3 Dual-Core"
+  #ifndef RGB_BUILTIN
+    #define RGB_BUILTIN 48  // LED RGB integrado comum no ESP32-S3 DevKit
+  #endif
+  #define PIN_BOOT 0        // Botão BOOT físico do ESP32-S3
+  #define OTA_FW_URL "https://grow.alquimistasmagicos.com.br/build/esp32.esp32.esp32s3/esp32c3.ino.bin"
+#else
+  #define BOARD_MODEL "ESP32-C3 SuperMini"
+  #ifndef RGB_BUILTIN
+    #define RGB_BUILTIN 8   // LED RGB integrado no ESP32-C3
+  #endif
+  #define PIN_BOOT 9        // Botão BOOT físico do ESP32-C3
+  #define OTA_FW_URL "https://grow.alquimistasmagicos.com.br/build/esp32.esp32.esp32c3/esp32c3.ino.bin"
 #endif
-#define PIN_BOOT 0        // Botão BOOT físico do ESP32-S3
 
 #define PIN_SDA 4
 #define PIN_SCL 5
@@ -769,7 +779,7 @@ void enviarNuvem(unsigned long agora) {
           otaClient.setInsecure();
           httpUpdate.rebootOnUpdate(false);
 
-          String fwUrl = "https://grow.alquimistasmagicos.com.br/build/esp32.esp32.esp32s3/esp32c3.ino.bin";
+          String fwUrl = OTA_FW_URL;
           t_httpUpdate_return ret = httpUpdate.update(otaClient, fwUrl);
 
           // REATIVA O CAO DE GUARDA (caso o OTA falhe e a placa continue rodando)
@@ -1321,7 +1331,11 @@ void setup() {
   delay(1500);
   bootTime = millis();
   fallbackLuzUltimaInversao = bootTime;
+#if defined(CONFIG_IDF_TARGET_ESP32S3) || defined(ARDUINO_ESP32S3_DEV)
   Serial.println("\n=== GROW IA v4.0 (ESP32-S3 DUAL USB-C) ===");
+#else
+  Serial.println("\n=== GROW IA v4.0 (ESP32-C3 SUPERMINI) ===");
+#endif
 
   if (!LittleFS.begin(true)) Serial.println("[ERRO] LittleFS");
   else Serial.println("[OK] LittleFS (Datalogger)");
