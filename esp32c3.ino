@@ -5,7 +5,7 @@
 //  Versão Atual: v426 (Blindagem Total Anti-Travamento & Auto-Recovery)
 // ============================================================
 
-#define FW_VERSION 432
+#define FW_VERSION 433
 
 #include <Arduino.h>
 #include <ArduinoJson.h>
@@ -1036,10 +1036,19 @@ void executarMotor(unsigned long agora) {
   static bool modoRefrigeracaoAtivo = false;
   static unsigned long tempoAlvoAtingido = 0;
   const unsigned long TEMPO_EXTRA_REFRIGERACAO_MS = 5UL * 60UL * 1000UL; // 5 minutos pós-meta
+  const unsigned long MAX_RUN_CONTINUO_AR_MS = 45UL * 60UL * 1000UL;      // Limite máximo de segurança contínuo (45 min)
 
   if (tempInt >= pf.tempMax) {
-    modoRefrigeracaoAtivo = true;
-    tempoAlvoAtingido = 0; // Se voltou a subir, cancela temporizador de desligamento
+    // Se o compressor estiver rodando direto por mais de 45 minutos (ex: porta aberta),
+    // dá uma pausa de alívio para proteger a bobina do relé e o motor do ar
+    if (modoRefrigeracaoAtivo && compressorUltimaPartida > 0 && (agora - compressorUltimaPartida >= MAX_RUN_CONTINUO_AR_MS)) {
+      Serial.println("⏳ SEGURANÇA: Ar Condicionado atingiu limite contínuo de 45 min. Pausa preventiva de descanso...");
+      modoRefrigeracaoAtivo = false;
+      tempoAlvoAtingido = 0;
+    } else {
+      modoRefrigeracaoAtivo = true;
+      tempoAlvoAtingido = 0; // Se voltou a subir, cancela temporizador de desligamento
+    }
   } else if (modoRefrigeracaoAtivo) {
     // Alvo atingido (tempInt < pf.tempMax)!
     if (tempoAlvoAtingido == 0) {
@@ -1184,6 +1193,13 @@ void aplicarSeguranca() {
   if (tempInt >= TEMP_CORTE_LUZ) {
     releLuz = false;
     Serial.println("🔥 SEGURANCA: Corte Termico da LUZ ativado!");
+  }
+  // TRAVA DE SEGURANÇA ANTI-CONGELAMENTO (ANTI-FREEZING GUARD):
+  // Se a temperatura interna cair abaixo de 15.0°C (risco de choque ou dormência do micélio),
+  // desliga o Ar Condicionado imediatamente, mesmo se estiver forçado manual!
+  if (tempInt <= 15.0f && sensorIntOk) {
+    releArCond = false;
+    Serial.println("❄️🛑 SEGURANÇA: Corte Térmico Anti-Congelamento do Ar ativado! (Temp <= 15°C)");
   }
   if (tempInt >= TEMP_CRITICA) { Serial.println("⚠️ SEGURANCA: Temperatura critica atingida!"); }
 }
