@@ -2,10 +2,10 @@
 //  GROW IA - Firmware Inteligente + Nuvem IoT
 //  Placa: ESP32-S3 Dual-Core (Xtensa LX7)
 //  Autor: Gabriel + Antigravity AI
-//  Versão Atual: v436 (Blindagem Total Anti-Travamento & Auto-Recovery)
+//  Versão Atual: v438 (Blindagem Total Anti-Travamento & Auto-Recovery)
 // ============================================================
 
-#define FW_VERSION 436
+#define FW_VERSION 438
 
 #include <Arduino.h>
 #include <ArduinoJson.h>
@@ -546,6 +546,8 @@ void enviarNuvem(unsigned long agora) {
     http.addHeader("X-Api-Key", CLOUD_KEY);
     int code = http.POST(json);
     ultimoSuspiro = millis();  // Alimenta Watchdog logo após resposta da nuvem
+    bool deveFazerOta = false;
+    uint32_t vNuvemParaOta = 0;
     if (code == 200) {
       prefs.begin("grow", false);
       if (prefs.getBool("ota_test", false)) {
@@ -767,39 +769,12 @@ void enviarNuvem(unsigned long agora) {
         uint32_t otaBadVer = prefs.getUInt("ota_bad_ver", 0);
         prefs.end();
         bool otaManual = docRes.containsKey("comando_ota");
+        bool deveFazerOta = false;
+        uint32_t vNuvemParaOta = 0;
         // Evita loop infinito de OTA caso uma versão específica da nuvem tenha sofrido rollback por falha
         if (otaManual || (vNuvem > 0 && vNuvem > fwAtual && vNuvem != otaBadVer)) {
-          Serial.printf("📥 OTA INICIANDO (Local: %u, Nuvem: %u)\n", fwAtual, vNuvem);
-
-          // SUSPENDE O CAO DE GUARDA: O download OTA pode demorar minutos.
-          // Sem isso, o Watchdog reinicia a placa no meio da gravacao do firmware!
-          vTaskSuspend(wdtTask);
-
-          WiFiClientSecure otaClient;
-          otaClient.setInsecure();
-          httpUpdate.rebootOnUpdate(false);
-
-          String fwUrl = OTA_FW_URL;
-          t_httpUpdate_return ret = httpUpdate.update(otaClient, fwUrl);
-
-          // REATIVA O CAO DE GUARDA (caso o OTA falhe e a placa continue rodando)
-          ultimoSuspiro = millis();
-          vTaskResume(wdtTask);
-
-          if (ret == HTTP_UPDATE_OK) {
-            // Grava flag de teste APENAS após download e flash 100% concluídos com sucesso!
-            prefs.begin("grow", false);
-            prefs.putBool("ota_test", true);
-            prefs.putUInt("ota_tentativa", vNuvem);
-            prefs.putBool("ota_falhou", false);
-            prefs.putInt("ota_boot_fails", 0);
-            prefs.end();
-            Serial.println("✅ OTA CONCLUIDO! Reiniciando em modo de teste (Anti-Brick)...");
-            delay(1000);
-            ESP.restart();
-          } else if (ret == HTTP_UPDATE_FAILED) {
-            Serial.printf("❌ Falha no OTA (%d): %s\n", httpUpdate.getLastError(), httpUpdate.getLastErrorString().c_str());
-          }
+          deveFazerOta = true;
+          vNuvemParaOta = vNuvem;
         }
       }
       Serial.println("[NUVEM] Leitura enviada! O_O O_O O_O");
@@ -808,6 +783,40 @@ void enviarNuvem(unsigned long agora) {
       salvarOffline(json);
     }
     http.end();
+
+    if (deveFazerOta) {
+      Serial.printf("📥 OTA INICIANDO (Local: %u, Nuvem: %u)\n", fwAtual, vNuvemParaOta);
+
+      // SUSPENDE O CAO DE GUARDA: O download OTA pode demorar minutos.
+      // Sem isso, o Watchdog reinicia a placa no meio da gravacao do firmware!
+      vTaskSuspend(wdtTask);
+
+      WiFiClientSecure otaClient;
+      otaClient.setInsecure();
+      httpUpdate.rebootOnUpdate(false);
+
+      String fwUrl = OTA_FW_URL;
+      t_httpUpdate_return ret = httpUpdate.update(otaClient, fwUrl);
+
+      // REATIVA O CAO DE GUARDA (caso o OTA falhe e a placa continue rodando)
+      ultimoSuspiro = millis();
+      vTaskResume(wdtTask);
+
+      if (ret == HTTP_UPDATE_OK) {
+        // Grava flag de teste APENAS após download e flash 100% concluídos com sucesso!
+        prefs.begin("grow", false);
+        prefs.putBool("ota_test", true);
+        prefs.putUInt("ota_tentativa", vNuvemParaOta);
+        prefs.putBool("ota_falhou", false);
+        prefs.putInt("ota_boot_fails", 0);
+        prefs.end();
+        Serial.println("✅ OTA CONCLUIDO! Reiniciando em modo de teste (Anti-Brick)...");
+        delay(1000);
+        ESP.restart();
+      } else if (ret == HTTP_UPDATE_FAILED) {
+        Serial.printf("❌ Falha no OTA (%d): %s\n", httpUpdate.getLastError(), httpUpdate.getLastErrorString().c_str());
+      }
+    }
   }
 }
 
