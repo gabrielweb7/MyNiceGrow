@@ -1,0 +1,25 @@
+# Bloqueia acesso direto a arquivos sensíveis
+<FilesMatch "\.(ino|sql|zip|log|ini|bak|old)$">
+    Require all denied
+</FilesMatch>
+
+# Bloqueia config.php de leitura direta (inclusive backups tipo config.php.bak)
+<Files "config.php">
+    Require all denied
+</Files>
+
+# Bloqueia visualizacao de diretorios
+Options -Indexes
+
+# Otimização de entrega de firmwares para o ESP32 (evita falhas de TLS e buffering)
+<FilesMatch "\.bin$">
+    SetEnv no-gzip 1
+    <IfModule mod_headers.c>
+        Header set Connection "close"
+        Header set Cache-Control "no-store, no-cache, must-revalidate"
+        Header set Content-Type "application/octet-stream"
+    </IfModule>
+</FilesMatch>
+
+# Prioridade de index
+DirectoryIndex index.php index.html

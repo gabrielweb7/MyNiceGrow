@@ -2,6 +2,7 @@
 date_default_timezone_set('America/Sao_Paulo');
 ob_start("ob_gzhandler"); // Compressão GZIP ativa: reduz o payload do painel em 90%!
 header('Content-Type: application/json');
+header('Connection: close'); // Força encerramento do socket HTTP para liberar Heap/RAM de SSL no ESP32
 header('Access-Control-Allow-Origin: *');
 header('Access-Control-Expose-Headers: X-Fw-Placa, X-Fw-Nuvem');
 $localConfig = __DIR__ . '/../config.local.php';
@@ -248,11 +249,19 @@ if ($method === 'POST') {
         }
     }
     
-    // Auto-Update: Usa a data de modificação real do arquivo correspondente ao modelo da placa ativa
+    // Auto-Update Blindado: Usa a data de modificação real do arquivo correspondente ao modelo da placa ativa
     $boardModel = file_exists(__DIR__ . '/board_model.txt') ? file_get_contents(__DIR__ . '/board_model.txt') : 'ESP32-S3';
     $arquivo_bin = caminhoBinFirmware($boardModel);
-    if ($arquivo_bin) {
-        $resposta['versao_nuvem'] = filemtime($arquivo_bin);
+    $mtimeBin = $arquivo_bin ? (int)filemtime($arquivo_bin) : 0;
+    $resposta['versao_nuvem'] = $mtimeBin;
+
+    // BLINDAGEM ANTI-TRAVAMENTO: Se a placa estiver presa na versão 431 ou qualquer versão anterior à v438:
+    $vFwPlaca = file_exists(__DIR__ . '/vFirmware.txt') ? trim(file_get_contents(__DIR__ . '/vFirmware.txt')) : '';
+    $fwPlacaSalvo = file_exists(__DIR__ . '/fw_status.txt') ? (int)trim(file_get_contents(__DIR__ . '/fw_status.txt')) : 0;
+    if ($vFwPlaca !== '' && $vFwPlaca !== 'v438' && $vFwPlaca !== '438') {
+        // Força ordem de OTA irrefutável e quebra empate de timestamp da NVS
+        $resposta['comando_ota'] = 1;
+        $resposta['versao_nuvem'] = max($mtimeBin, $fwPlacaSalvo + 3600);
     }
     
     echo json_encode($resposta);

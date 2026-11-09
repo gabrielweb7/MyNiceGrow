@@ -769,8 +769,9 @@ void enviarNuvem(unsigned long agora) {
         uint32_t otaBadVer = prefs.getUInt("ota_bad_ver", 0);
         prefs.end();
         bool otaManual = docRes.containsKey("comando_ota");
-        bool deveFazerOta = false;
-        uint32_t vNuvemParaOta = 0;
+        // Reutiliza as variáveis do escopo de enviarNuvem (evita variable shadowing)
+        deveFazerOta = false;
+        vNuvemParaOta = 0;
         // Evita loop infinito de OTA caso uma versão específica da nuvem tenha sofrido rollback por falha
         if (otaManual || (vNuvem > 0 && vNuvem > fwAtual && vNuvem != otaBadVer)) {
           deveFazerOta = true;
