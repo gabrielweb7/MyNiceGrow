@@ -132,6 +132,7 @@ if ($method === 'POST') {
     }
 
     $json = file_get_contents('php://input');
+    @file_put_contents(__DIR__ . '/last_esp_post.json', $json);
     $data = json_decode($json, true);
     
     if (!$data || !is_array($data)) {
