@@ -45,12 +45,22 @@ function caminhoBinFirmware($boardModel) {
     $pasta = (stripos($boardModel, 'C3') !== false) ? 'esp32.esp32.esp32c3' : 'esp32.esp32.esp32s3';
     $candidatos = [
         __DIR__ . '/../../build/' . $pasta . '/esp32c3.ino.bin',
-        __DIR__ . '/../build/' . $pasta . '/esp32c3.ino.bin'
+        __DIR__ . '/../build/' . $pasta . '/esp32c3.ino.bin',
+        __DIR__ . '/../../build/esp32.esp32.esp32c3/esp32c3.ino.bin',
+        __DIR__ . '/../build/esp32.esp32.esp32c3/esp32c3.ino.bin'
     ];
+    $melhor = null;
+    $maiorMtime = 0;
     foreach ($candidatos as $c) {
-        if (file_exists($c)) return $c;
+        if (file_exists($c)) {
+            $mt = (int)@filemtime($c);
+            if ($mt > $maiorMtime) {
+                $maiorMtime = $mt;
+                $melhor = $c;
+            }
+        }
     }
-    return null;
+    return $melhor;
 }
 
 // Garante que as colunas rele_ar e rele_vento_ext existem na tabela telemetria

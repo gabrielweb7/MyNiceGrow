@@ -7,13 +7,19 @@ $board = file_exists(__DIR__ . "/board_model.txt") ? trim(file_get_contents(__DI
 $pastaBin = (stripos($board, 'C3') !== false) ? "esp32.esp32.esp32c3" : "esp32.esp32.esp32s3";
 $candidatos_bin = [
     __DIR__ . "/../../build/" . $pastaBin . "/esp32c3.ino.bin",
-    __DIR__ . "/../build/" . $pastaBin . "/esp32c3.ino.bin"
+    __DIR__ . "/../build/" . $pastaBin . "/esp32c3.ino.bin",
+    __DIR__ . "/../../build/esp32.esp32.esp32c3/esp32c3.ino.bin",
+    __DIR__ . "/../build/esp32.esp32.esp32c3/esp32c3.ino.bin"
 ];
 $binPath = null;
+$maiorMtime = 0;
 foreach ($candidatos_bin as $c) {
     if (file_exists($c)) {
-        $binPath = $c;
-        break;
+        $mt = (int)@filemtime($c);
+        if ($mt > $maiorMtime) {
+            $maiorMtime = $mt;
+            $binPath = $c;
+        }
     }
 }
 $fwNuvem = $binPath ? (string)filemtime($binPath) : "0";

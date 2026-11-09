@@ -2,7 +2,7 @@
 //  GROW IA - Firmware Inteligente + Nuvem IoT
 //  Placa: ESP32-S3 Dual-Core (Xtensa LX7)
 //  Autor: Gabriel + Antigravity AI
-//  Versão Atual: v435 (Blindagem Total Anti-Travamento & Auto-Recovery)
+//  Versão Atual: v436 (Blindagem Total Anti-Travamento & Auto-Recovery)
 // ============================================================
 
 #define FW_VERSION 436
