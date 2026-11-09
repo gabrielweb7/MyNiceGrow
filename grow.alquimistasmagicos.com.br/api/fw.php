@@ -58,8 +58,44 @@ foreach ($gitCandidatos as $g) {
 
 $modoLuz = (int)lerTxtStatus("modo_luz.txt", "0");
 $modoAr = (int)lerTxtStatus("modo_ar.txt", "0");
-$vFirmware = lerTxtStatus("vFirmware.txt", "v438");
+$vFirmware = lerTxtStatus("vFirmware.txt", "--");
 $canRollback = (int)lerTxtStatus("can_rollback.txt", "0");
+
+function detectarVersaoNuvem() {
+    $candidatosJson = [
+        __DIR__ . '/../build/version.json',
+        __DIR__ . '/../../build/version.json',
+        __DIR__ . '/../grow.alquimistasmagicos.com.br/build/version.json'
+    ];
+    foreach ($candidatosJson as $jsonPath) {
+        if (file_exists($jsonPath)) {
+            $conteudo = @file_get_contents($jsonPath);
+            $dados = json_decode($conteudo, true);
+            if (!empty($dados['versao'])) return $dados['versao'];
+        }
+    }
+
+    $versoesDir = [
+        __DIR__ . '/../build/versoes',
+        __DIR__ . '/../../build/versoes',
+        __DIR__ . '/../grow.alquimistasmagicos.com.br/build/versoes'
+    ];
+    $maiorVersao = 0;
+    foreach ($versoesDir as $dir) {
+        if (is_dir($dir)) {
+            $arquivos = scandir($dir);
+            foreach ($arquivos as $arq) {
+                if (preg_match('/v(\d+)/i', $arq, $m)) {
+                    $num = (int)$m[1];
+                    if ($num > $maiorVersao) $maiorVersao = $num;
+                }
+            }
+        }
+    }
+    return $maiorVersao > 0 ? "v" . $maiorVersao : "--";
+}
+
+$vFirmwareNuvem = detectarVersaoNuvem();
 
 echo json_encode([
     "placa" => $fwPlaca,
@@ -71,7 +107,7 @@ echo json_encode([
     "vFirmware" => $vFirmware,
     "board" => $board,
     "canRollback" => $canRollback,
-    "vFirmwareNuvem" => "v440"
+    "vFirmwareNuvem" => $vFirmwareNuvem
 ]);
 
 

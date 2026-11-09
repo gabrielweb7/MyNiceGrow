@@ -1403,8 +1403,8 @@
             let p = window.fwPlaca;
             let n = window.fwNuvem;
             let err = window.fwError;
-            let vFw = window.vFirmware || 'v438';
-            let vNuvem = window.vFirmwareNuvem || 'v439';
+            let vFw = window.vFirmware || '--';
+            let vNuvem = window.vFirmwareNuvem || '--';
             let board = window.boardModel || 'ESP32-C3';
             
             const badgeBoard = document.getElementById('badgeBoardModel');
@@ -1428,14 +1428,51 @@
             
             let statusBadge = document.getElementById('otaStatusBadge');
             if (statusBadge) {
+                let numPlaca = parseInt((vFw || '').replace(/\D/g, '')) || 0;
+                let numNuvem = parseInt((vNuvem || '').replace(/\D/g, '')) || 0;
                 if (err === '1') {
                     statusBadge.innerHTML = '<span class="bg-rose-500/20 text-rose-400 text-[10px] px-2.5 py-1 rounded-full font-bold animate-pulse border border-rose-500/30">❌ OTA FALHOU (REVERTIDO)</span>';
-                } else if (vFw === vNuvem && vFw !== '') {
+                } else if (numPlaca >= numNuvem && numPlaca > 0) {
                     statusBadge.innerHTML = `<span class="bg-emerald-500/20 text-emerald-400 text-[10px] px-2.5 py-1 rounded-full font-bold border border-emerald-500/30">✓ ATUALIZADO (${vFw})</span>`;
-                } else if (vFw !== '' && vFw !== vNuvem) {
+                } else if (numNuvem > numPlaca) {
                     statusBadge.innerHTML = `<span class="bg-amber-500/20 text-amber-400 text-[10px] px-2.5 py-1 rounded-full font-bold animate-pulse border border-amber-500/30">⚠️ NOVA VERSÃO DISPONÍVEL (${vNuvem})</span>`;
                 } else {
                     statusBadge.innerHTML = '';
+                }
+
+                // CONTROLE INTELIGENTE DO BOTÃO DE ATUALIZAR OTA:
+                // Se a placa já estiver na versão mais recente da nuvem, desativa o botão de atualizar para evitar uploads desnecessários.
+                const btnOta = document.getElementById('btnEnviarOta');
+                if (btnOta && !btnOta.dataset.atualizando) {
+                    if (numPlaca >= numNuvem && numPlaca > 0) {
+                        btnOta.disabled = true;
+                        btnOta.className = "flex-1 bg-slate-800/80 border border-slate-700/60 text-slate-400 font-bold text-xs sm:text-sm py-3.5 rounded-xl cursor-not-allowed opacity-60 flex items-center justify-center gap-2 transition-all";
+                        btnOta.innerHTML = '<span>✓</span> <span>Versão Mais Recente Já Instalada</span>';
+                    } else if (numNuvem > numPlaca) {
+                        btnOta.disabled = false;
+                        btnOta.className = "flex-1 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white font-bold text-xs sm:text-sm py-3.5 rounded-xl transition-all shadow-[0_0_20px_rgba(16,185,129,0.25)] flex items-center justify-center gap-2 active:scale-[0.99] cursor-pointer animate-pulse";
+                        btnOta.innerHTML = `<span>⚡</span> <span>Instalar Nova Versão (${vNuvem}) na Placa</span>`;
+                    } else {
+                        btnOta.disabled = false;
+                        btnOta.className = "flex-1 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white font-bold text-xs sm:text-sm py-3.5 rounded-xl transition-all shadow-[0_0_20px_rgba(16,185,129,0.25)] flex items-center justify-center gap-2 active:scale-[0.99]";
+                        btnOta.innerHTML = '<span>⚡</span> <span>Instalar Versão da Nuvem na Placa</span>';
+                    }
+                }
+
+                // CONTROLE INTELIGENTE DO BOTÃO DE ROLLBACK:
+                const btnRollback = document.getElementById('btnRollbackOta');
+                if (btnRollback) {
+                    if (window.canRollback === 1) {
+                        btnRollback.disabled = false;
+                        btnRollback.className = "bg-slate-800 hover:bg-slate-700 text-rose-300 hover:text-rose-200 border border-rose-500/30 font-bold text-xs sm:text-sm py-3.5 px-5 rounded-xl transition-all shadow-sm flex items-center justify-center gap-2 active:scale-[0.99] cursor-pointer";
+                        btnRollback.innerHTML = '<span>↩️</span> <span>Reverter p/ Versão Anterior (Dual-Bank)</span>';
+                        btnRollback.title = "Reverte imediatamente para a partição estável anterior via Dual-Bank";
+                    } else {
+                        btnRollback.disabled = true;
+                        btnRollback.className = "bg-slate-800/40 border border-slate-700/40 text-slate-500 font-bold text-xs sm:text-sm py-3.5 px-5 rounded-xl cursor-not-allowed opacity-50 flex items-center justify-center gap-2";
+                        btnRollback.innerHTML = '<span>↩️</span> <span>Sem Rollback Disponível</span>';
+                        btnRollback.title = "Nenhuma versão anterior gravada no Dual-Bank";
+                    }
                 }
             }
             
@@ -1587,6 +1624,7 @@
 
         async function enviarOTA() {
             const btn = document.getElementById('btnEnviarOta');
+            btn.dataset.atualizando = "1";
             btn.innerHTML = '<span>⏳</span> <span>Avisando a Placa...</span>';
             btn.disabled = true;
             btn.classList.add('opacity-50', 'cursor-not-allowed');
@@ -1608,13 +1646,11 @@
                                 const fw = await res.json();
                                 if (fw.vFirmware && fw.vFirmwareNuvem && fw.vFirmware === fw.vFirmwareNuvem) {
                                     clearInterval(intervaloOta);
+                                    delete btn.dataset.atualizando;
                                     btn.innerHTML = `<span>✅</span> <span>Atualizado (${fw.vFirmware})!</span>`;
                                     setTimeout(() => {
-                                        btn.innerHTML = '<span>⚡</span> <span>Instalar Versão da Nuvem na Placa</span>';
-                                        btn.disabled = false;
-                                        btn.classList.remove('opacity-50', 'cursor-not-allowed');
                                         atualizarDadosViewConfig();
-                                    }, 3000);
+                                    }, 2000);
                                     alert(`🎉 Sucesso! A placa foi atualizada para a versão ${fw.vFirmware}!`);
                                     return;
                                 }
@@ -1622,22 +1658,19 @@
                         } catch(err) {}
                         if (segundosRestantes <= -30) {
                             clearInterval(intervaloOta);
-                            btn.innerHTML = '<span>⚡</span> <span>Instalar Versão da Nuvem na Placa</span>';
-                            btn.disabled = false;
-                            btn.classList.remove('opacity-50', 'cursor-not-allowed');
+                            delete btn.dataset.atualizando;
+                            atualizarDadosViewConfig();
                         }
                     }, 3000);
                 } else {
                     alert("⚠️ Houve uma falha ao comunicar com a nuvem.");
-                    btn.innerHTML = '<span>⚡</span> <span>Instalar Versão da Nuvem na Placa</span>';
-                    btn.disabled = false;
-                    btn.classList.remove('opacity-50', 'cursor-not-allowed');
+                    delete btn.dataset.atualizando;
+                    atualizarDadosViewConfig();
                 }
             } catch (e) {
                 alert("❌ Erro: " + e.message);
-                btn.innerHTML = '<span>⚡</span> <span>Instalar Versão da Nuvem na Placa</span>';
-                btn.disabled = false;
-                btn.classList.remove('opacity-50', 'cursor-not-allowed');
+                delete btn.dataset.atualizando;
+                atualizarDadosViewConfig();
             }
         }
 
@@ -2122,7 +2155,7 @@
                     window.fwNuvem = fwData.nuvem || '0';
                     window.fwError = fwData.error || '0';
                     window.vFirmware = fwData.vFirmware || '';
-                    window.vFirmwareNuvem = fwData.vFirmwareNuvem || 'v439';
+                    window.vFirmwareNuvem = fwData.vFirmwareNuvem || '--';
                     window.boardModel = fwData.board || 'ESP32-C3';
                     window.canRollback = fwData.canRollback || 0;
                     if (fwData.modoLuz !== undefined) {
