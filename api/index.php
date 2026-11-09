@@ -166,8 +166,6 @@ if ($method === 'POST') {
                 if (isset($row['modoAr'])) @file_put_contents($pDir . '/modo_ar.txt', (string)(int)$row['modoAr']);
                 if (isset($row['otaError']) && $row['otaError'] == 1) @file_put_contents($pDir . '/fw_error.txt', '1');
             }
-        } else {
-            @unlink(__DIR__ . '/fw_error.txt');
         }
 
         // Se o ESP32 gravou o UNIX timestamp (offline), usamos ele. Senão, hora de agora.
@@ -216,14 +214,26 @@ if ($method === 'POST') {
         $resposta['cfg_ver'] = (int)$rCfg['atualizado_em'];
     }
 
+    // BLINDAGEM MÁXIMA: Lê comandos da Fila do MySQL (100% imune a divergência de caminhos em disco)
+    $cmd = null;
+    if (!$envioEmLote) {
+        $resCmdDb = $conn->query("SELECT valor FROM config_sistema WHERE chave = 'comando_pendente'");
+        if ($resCmdDb && $rowCmdDb = $resCmdDb->fetch_assoc()) {
+            $parsedDb = json_decode($rowCmdDb['valor'], true);
+            if ($parsedDb && !empty($parsedDb)) {
+                $cmd = $parsedDb;
+                $conn->query("DELETE FROM config_sistema WHERE chave = 'comando_pendente'");
+            }
+        }
+    }
+
     $candidatos_cmd = [
         __DIR__ . '/comando_pendente.json',
         __DIR__ . '/../../api/comando_pendente.json',
         __DIR__ . '/../api/comando_pendente.json',
         __DIR__ . '/../grow.alquimistasmagicos.com.br/api/comando_pendente.json'
     ];
-    $cmd = null;
-    if (!$envioEmLote) {
+    if (!$cmd && !$envioEmLote) {
         foreach ($candidatos_cmd as $arqCmd) {
             if (file_exists($arqCmd)) {
                 $fpCmd = fopen($arqCmd, 'c+');
