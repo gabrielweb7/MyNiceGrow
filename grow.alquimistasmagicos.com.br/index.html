@@ -215,7 +215,7 @@
                     <p class="text-xs font-bold">Ar Condicionado</p>
                     <p class="text-[10px] text-slate-400 mt-0.5" id="releArStatus">OFF</p>
                 </div>
-                <div id="releVentoExt" class="hidden"></div>
+                <div id="releVentoExt" class="hidden"><span id="releVentoExtStatus"></span></div>
             </div>
         </section>
 
@@ -1014,6 +1014,7 @@
         function setRele(id, statusId, estadoRele) {
             const el = document.getElementById(id);
             const st = document.getElementById(statusId);
+            if (!el || !st) return;
             const isLuz = (id === 'releLuz');
 
             // Remove qualquer onclick residual
@@ -1990,7 +1991,7 @@
                 setRele('releVento', 'releVentoStatus', parseInt(ultimo.rele_vento));
                 setRele('releExaust', 'releExaustStatus', parseInt(ultimo.rele_exaust));
                 setRele('releAr', 'releArStatus', parseInt(ultimo.rele_ar || 0));
-                setRele('releVentoExt', 'releVentoExtStatus', parseInt(ultimo.rele_vento_ext || 0));
+                // setRele('releVentoExt', 'releVentoExtStatus', parseInt(ultimo.rele_vento_ext || 0));
 
                 // Processa o cérebro / protocolo da Sistema
                 atualizarStatusProtocolos(ultimo);
