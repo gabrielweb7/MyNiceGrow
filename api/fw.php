@@ -71,7 +71,7 @@ echo json_encode([
     "vFirmware" => $vFirmware,
     "board" => $board,
     "canRollback" => $canRollback,
-    "vFirmwareNuvem" => "v439"
+    "vFirmwareNuvem" => "v440"
 ]);
 
 

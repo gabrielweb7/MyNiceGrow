@@ -5,7 +5,7 @@
 //  Versão Atual: v439 (OTA Global Dual-Bank + Auto-Recovery)
 // ============================================================
 
-#define FW_VERSION 439
+#define FW_VERSION 440
 
 #include <Arduino.h>
 #include <ArduinoJson.h>
@@ -61,7 +61,7 @@ const unsigned long FAE_OFF_MS = 58UL * 60 * 1000;
 // --- Nuvem (HostGator) ---
 const char* CLOUD_URL = "https://grow.alquimistasmagicos.com.br/api/index.php";
 const char* CLOUD_KEY = "GrowIA_V4_SuperSecreta!";
-const unsigned long INTERVALO_NUVEM = 10UL * 1000;  // 10 segundos (Máxima responsividade)
+const unsigned long INTERVALO_NUVEM = 5UL * 1000;  // 5 segundos (Alta responsividade em tempo real)
 
 // --- Segurança ---
 const unsigned long TIMEOUT_UMID_MS = 30UL * 60 * 1000;
@@ -816,6 +816,7 @@ void enviarNuvem(unsigned long agora) {
 
       WiFiClientSecure otaClient;
       otaClient.setInsecure();
+      otaClient.setTimeout(30);
       httpUpdate.rebootOnUpdate(false);
 
       String fwUrl = (urlOtaCustom.length() > 10) ? urlOtaCustom : String(OTA_FW_URL);
@@ -941,7 +942,8 @@ void aplicarReles() {
   }
 
   bool corteLuzImediato = (tempInt >= tempCorteLuz || modoLuz == LUZ_FORCADA_OFF || bypassDwellFase);
-  bool corteUmidImediato = (releExaustExt || faseAtual == FASE_STANDBY || faseAtual == FASE_SECAGEM || !sensorIntOk || bypassDwellFase);
+  bool corteStandby = (faseAtual == FASE_STANDBY);
+  bool corteUmidImediato = (releExaustExt || corteStandby || faseAtual == FASE_SECAGEM || !sensorIntOk || bypassDwellFase);
 
   // Luz: Bypass do dwell time quando está DESLIGANDO (false), em corte de emergência ou comando manual forçado
   bool desligandoLuz = (!releLuz && lastReleLuz);
@@ -959,21 +961,21 @@ void aplicarReles() {
     Serial.printf("💡 ACAO: LUZ %s (Estado salvo na NVS)\n", releLuz ? "LIGADA" : "DESLIGADA");
     alterou = true;
   }
-  if (releUmidific != lastReleUmidific && (corteUmidImediato || agora - lastSwitchUmid >= MIN_DWELL_RELE_MS)) {
+  if (releUmidific != lastReleUmidific && (corteUmidImediato || corteStandby || !releUmidific || agora - lastSwitchUmid >= MIN_DWELL_RELE_MS)) {
     lastReleUmidific = releUmidific;
     lastSwitchUmid = agora;
     digitalWrite(PIN_RELE_UMIDIFIC, releUmidific ? LOW : HIGH);
     Serial.printf("💧 ACAO: UMIDIFICADOR %s\n", releUmidific ? "LIGADO" : "DESLIGADO");
     alterou = true;
   }
-  if (releVentoInt != lastReleVento && (bypassDwellFase || agora - lastSwitchVento >= MIN_DWELL_RELE_MS)) {
+  if (releVentoInt != lastReleVento && (corteStandby || !releVentoInt || bypassDwellFase || agora - lastSwitchVento >= MIN_DWELL_RELE_MS)) {
     lastReleVento = releVentoInt;
     lastSwitchVento = agora;
     digitalWrite(PIN_RELE_VENTO_INT, releVentoInt ? LOW : HIGH);
     Serial.printf("💨 ACAO: VENTILADOR INT %s\n", releVentoInt ? "LIGADO" : "DESLIGADO");
     alterou = true;
   }
-  if (releExaustExt != lastReleExaust && (bypassDwellFase || agora - lastSwitchExaust >= MIN_DWELL_RELE_MS)) {
+  if (releExaustExt != lastReleExaust && (corteStandby || !releExaustExt || bypassDwellFase || agora - lastSwitchExaust >= MIN_DWELL_RELE_MS)) {
     lastReleExaust = releExaustExt;
     lastSwitchExaust = agora;
     digitalWrite(PIN_RELE_EXAUST_EXT, releExaustExt ? LOW : HIGH);
@@ -1250,6 +1252,17 @@ void executarMotor(unsigned long agora) {
 }
 
 void aplicarSeguranca() {
+  // BLINDAGEM MODO STANDBY:
+  // Em Standby, rigorosamente NENHUM atuador automático opera.
+  // Apenas aceita operação se Luz ou Ar estiverem explicitamente em modo MANUAL FORÇADO LIGADO.
+  if (faseAtual == FASE_STANDBY) {
+    releUmidific = false;
+    releVentoInt = false;
+    releExaustExt = false;
+    if (modoLuz != LUZ_FORCADA_ON) releLuz = false;
+    if (modoAr != AR_FORCADA_ON) releArCond = false;
+  }
+
   if (modoLuz == LUZ_FORCADA_ON) releLuz = true;
   if (modoLuz == LUZ_FORCADA_OFF) releLuz = false;
   if (modoAr == AR_FORCADA_ON) releArCond = true;
@@ -1627,7 +1640,11 @@ void loop() {
     } else {
       // FALHA CRÍTICA DO SENSOR SHT30:
       releUmidific = false;  // Não injeta água as cegas
-      releVentoInt = true;   // Mantém ventilação interna sempre
+      if (faseAtual != FASE_STANDBY) {
+        releVentoInt = true;   // Mantém ventilação interna durante cultivo ativo
+      } else {
+        releVentoInt = false;  // Em Standby, fica rigorosamente desligado
+      }
 
       // Em modo cego, executa o FAE (Renovação de ar) baseado no tempo para os cogumelos não sufocarem
       if (faseAtual != FASE_STANDBY && faseAtual != FASE_SECAGEM) {

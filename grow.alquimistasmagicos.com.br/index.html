@@ -1587,21 +1587,55 @@
 
         async function enviarOTA() {
             const btn = document.getElementById('btnEnviarOta');
-            btn.textContent = "Avisando a Placa...";
+            btn.innerHTML = '<span>⏳</span> <span>Avisando a Placa...</span>';
             btn.disabled = true;
             btn.classList.add('opacity-50', 'cursor-not-allowed');
 
             try {
                 if (await enviarComando({ota: 1})) {
-                    alert("✅ Sucesso! A placa já foi avisada.\nEla vai baixar o novo binário da nuvem e reiniciar em ~45 segundos.");
-                    fecharConfig();
+                    let segundosRestantes = 40;
+                    btn.innerHTML = `<span>⚡</span> <span>Atualizando Placa (${segundosRestantes}s)...</span>`;
+                    const intervaloOta = setInterval(async () => {
+                        segundosRestantes -= 3;
+                        if (segundosRestantes > 0) {
+                            btn.innerHTML = `<span>⚡</span> <span>Baixando & Gravando (${segundosRestantes}s)...</span>`;
+                        } else {
+                            btn.innerHTML = `<span>🔄</span> <span>Reiniciando Placa...</span>`;
+                        }
+                        try {
+                            const res = await fetch('api/fw.php?nocache=' + Date.now());
+                            if (res.ok) {
+                                const fw = await res.json();
+                                if (fw.vFirmware && fw.vFirmwareNuvem && fw.vFirmware === fw.vFirmwareNuvem) {
+                                    clearInterval(intervaloOta);
+                                    btn.innerHTML = `<span>✅</span> <span>Atualizado (${fw.vFirmware})!</span>`;
+                                    setTimeout(() => {
+                                        btn.innerHTML = '<span>⚡</span> <span>Instalar Versão da Nuvem na Placa</span>';
+                                        btn.disabled = false;
+                                        btn.classList.remove('opacity-50', 'cursor-not-allowed');
+                                        atualizarDadosViewConfig();
+                                    }, 3000);
+                                    alert(`🎉 Sucesso! A placa foi atualizada para a versão ${fw.vFirmware}!`);
+                                    return;
+                                }
+                            }
+                        } catch(err) {}
+                        if (segundosRestantes <= -30) {
+                            clearInterval(intervaloOta);
+                            btn.innerHTML = '<span>⚡</span> <span>Instalar Versão da Nuvem na Placa</span>';
+                            btn.disabled = false;
+                            btn.classList.remove('opacity-50', 'cursor-not-allowed');
+                        }
+                    }, 3000);
                 } else {
                     alert("⚠️ Houve uma falha ao comunicar com a nuvem.");
+                    btn.innerHTML = '<span>⚡</span> <span>Instalar Versão da Nuvem na Placa</span>';
+                    btn.disabled = false;
+                    btn.classList.remove('opacity-50', 'cursor-not-allowed');
                 }
             } catch (e) {
                 alert("❌ Erro: " + e.message);
-            } finally {
-                btn.textContent = "Instalar Versão da Nuvem na Placa";
+                btn.innerHTML = '<span>⚡</span> <span>Instalar Versão da Nuvem na Placa</span>';
                 btn.disabled = false;
                 btn.classList.remove('opacity-50', 'cursor-not-allowed');
             }
@@ -1628,14 +1662,29 @@
         }
 
         async function mudarFase(f) { 
+            const mapaReverso = {0: "Standby", 1: "Pinagem", 2: "Frutificacao", 4: "Secagem Total"};
+            fasePendenteTempo = Date.now();
+            fasePendenteAlvo = mapaReverso[f];
+            
+            // Optimistic UI imediata: altera cor do botão e texto na hora!
+            atualizarBotoesFase(f, true);
+            const valFaseEl = document.getElementById('valFase');
+            if (valFaseEl) valFaseEl.textContent = (mapaReverso[f] || "Fase " + f) + " ⏳";
+            
+            // Se o usuário selecionou Standby, desliga imediatamente os relés visuais automáticos:
+            if (f === 0) {
+                setRele('releUmid', 'releUmidStatus', 0);
+                setRele('releVento', 'releVentoStatus', 0);
+                setRele('releExaust', 'releExaustStatus', 0);
+                if (luzState === 0) setRele('releLuz', 'releLuzStatus', 0);
+                if (arState === 0) setRele('releAr', 'releArStatus', 0);
+                const txtProt = document.getElementById('txtProtocoloTitulo');
+                if (txtProt) txtProt.textContent = "Modo Standby (Sincronizando ⚡)";
+            }
+
             if (await enviarComando({fase: f})) {
-                fasePendenteTempo = Date.now();
-                const mapaReverso = {0: "Standby", 1: "Pinagem", 2: "Frutificacao", 4: "Secagem Total"};
-                fasePendenteAlvo = mapaReverso[f];
-                
-                document.getElementById('valFase').textContent = "Pendente ⏳";
-                atualizarBotoesFase(f, true);
-                loopDados(2000); // Força refresh rápido
+                loopDados(1000); // Polling acelerado a cada 1s para capturar a resposta imediata da placa
+                setTimeout(() => loopDados(2500), 1200);
             }
         }
 
