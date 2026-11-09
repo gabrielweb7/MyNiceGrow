@@ -5,7 +5,7 @@
 //  Versão Atual: v435 (Blindagem Total Anti-Travamento & Auto-Recovery)
 // ============================================================
 
-#define FW_VERSION 435
+#define FW_VERSION 436
 
 #include <Arduino.h>
 #include <ArduinoJson.h>
@@ -956,7 +956,9 @@ void aplicarReles() {
       }
     } else {
       // Quer DESLIGAR compressor: respeita tempo mínimo ligado de 60 segundos
-      if (compressorUltimaPartida == 0 || agora - compressorUltimaPartida >= AC_MIN_RUN_MS || modoAr == AR_FORCADA_OFF) {
+      // EXCEÇÃO DE EMERGÊNCIA: Se forçado OFF pelo usuário ou ativada a trava de segurança Anti-Congelamento, desliga no milissegundo!
+      bool corteEmergenciaAr = (modoAr == AR_FORCADA_OFF || (sensorIntOk && tempInt <= tempMinCongelamento));
+      if (compressorUltimaPartida == 0 || agora - compressorUltimaPartida >= AC_MIN_RUN_MS || corteEmergenciaAr) {
         podeComutarAr = true;
       }
     }
@@ -1054,12 +1056,17 @@ void executarMotor(unsigned long agora) {
   // para estabilizar e fixar a climatização do ambiente antes de desligar.
   static bool modoRefrigeracaoAtivo = false;
   static unsigned long tempoAlvoAtingido = 0;
+  static unsigned long descansoPreventivoAte = 0;
 
-  if (tempInt >= pf.tempMax) {
+  if (agora < descansoPreventivoAte) {
+    modoRefrigeracaoAtivo = false;
+    tempoAlvoAtingido = 0;
+  } else if (tempInt >= pf.tempMax) {
     // Se o compressor estiver rodando direto por mais do tempo máximo configurado (ex: 45 min),
-    // dá uma pausa de alívio para proteger a bobina do relé e o motor do ar
+    // dá uma pausa de alívio e descanso preventivo obrigatório de 10 min para proteger a bobina do relé e o motor do ar
     if (modoRefrigeracaoAtivo && compressorUltimaPartida > 0 && (agora - compressorUltimaPartida >= maxRunContinuoArMs)) {
-      Serial.printf("⏳ SEGURANÇA: Ar Condicionado atingiu limite contínuo de %lu min. Pausa preventiva de descanso...\n", maxRunContinuoArMs / 60000UL);
+      Serial.printf("⏳ SEGURANÇA: Ar Condicionado atingiu limite contínuo de %lu min. Pausa preventiva de 10 min de descanso...\n", maxRunContinuoArMs / 60000UL);
+      descansoPreventivoAte = agora + (10UL * 60UL * 1000UL);
       modoRefrigeracaoAtivo = false;
       tempoAlvoAtingido = 0;
     } else {

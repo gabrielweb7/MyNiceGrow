@@ -1137,7 +1137,7 @@
             }
         }
 
-        function atualizarCoresDinamicas(ti, ui, te) {
+        function atualizarCoresDinamicas(ti, ui, te, faseOpt) {
             const cardTi = document.getElementById('cardTi');
             const valTi = document.getElementById('valTi');
             const cardUi = document.getElementById('cardUi');
@@ -1148,7 +1148,7 @@
             // --- 1. TEMPERATURA INTERNA (DINÂMICA CONFORME META CLIMÁTICA DA FASE) ---
             if (cardTi && valTi && !isNaN(ti)) {
                 let tAlvo = 25.0;
-                const fStr = (window.ultimoRegistroRecebido && window.ultimoRegistroRecebido.fase) ? window.ultimoRegistroRecebido.fase : '';
+                const fStr = faseOpt || (window.ultimoRegistroRecebido && window.ultimoRegistroRecebido.fase) || (document.getElementById('valFase') ? document.getElementById('valFase').textContent : '');
                 if (fStr.includes('Pinagem') && typeof configClima !== 'undefined' && configClima["1"]) {
                     tAlvo = parseFloat(configClima["1"].tX) || 28.0;
                 } else if (fStr.includes('Frutifica') && typeof configClima !== 'undefined' && configClima["2"]) {
@@ -1156,8 +1156,8 @@
                 }
 
                 let glowTi = 'glow-green', borderTi = 'border-emerald-500/30', textTi = 'text-emerald-400';
-                if (ti > (tAlvo + 1.5)) {
-                    // Calor Crítico (Muito acima da meta): Vermelho Quente / Ar Condicionado acionado
+                if (ti > (tAlvo + 1.0)) {
+                    // Calor Crítico (Acima da meta + histerese): Vermelho Quente / Ar Condicionado acionado
                     glowTi = 'glow-red'; borderTi = 'border-rose-500/40'; textTi = 'text-rose-500';
                 } else if (ti > tAlvo) {
                     // Acima da meta: Laranja / Aquecendo
@@ -1454,6 +1454,10 @@
             let f_limpa = (document.getElementById('valFase').textContent || '').replace(' (DHT OFFLINE)', '').replace('ALERTA: SHT30 OFFLINE', 'Standby');
             if (f_limpa && f_limpa !== '--') {
                 renderizarInfoFase(f_limpa, false);
+            }
+            if (window.ultimoRegistroRecebido) {
+                const u = window.ultimoRegistroRecebido;
+                atualizarCoresDinamicas(parseFloat(u.temp_int), parseFloat(u.hum_int), parseFloat(u.temp_ext), u.fase);
             }
         }
 
@@ -2065,7 +2069,8 @@
                 document.getElementById('valUe').textContent = Number.isFinite(ue) ? ('Umid: ' + ue.toFixed(1) + ' %') : 'Umid: -- %';
                 
                 // Aplica paleta dinâmica nos cards
-                atualizarCoresDinamicas(ti, ui, te);
+                window.ultimoRegistroRecebido = ultimo;
+                atualizarCoresDinamicas(ti, ui, te, ultimo.fase);
                 checarAlertasCriticos(ultimo, diffMinutos);
                 
                 let agoraTime = Date.now();
