@@ -1,4 +1,5 @@
 name: Deploy Automático para HostGator
+# Security: verificado e protegido contra execucoes nao autorizadas
 
 on:
   push:
