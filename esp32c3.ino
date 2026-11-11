@@ -2,10 +2,10 @@
 //  GROW IA - Firmware Inteligente + Nuvem IoT
 //  Placa: ESP32-C3 SuperMini (Produção) / ESP32-S3 Dual-Core
 //  Autor: Gabriel + Antigravity AI
-//  Versão Atual: v447 (Blindagem RTC/NVS ciclo AC + paridade máxima AC/Pós-AC e projeção Quarto Newton/2 estágios)
+//  Versão Atual: v448 (Pré-Resfriamento Evaporativo Inteligente Antes do AC + Paridade Total Painel)
 // ============================================================
 
-#define FW_VERSION 447
+#define FW_VERSION 448
 
 #include <Arduino.h>
 #include <ArduinoJson.h>
@@ -57,6 +57,9 @@ float tempSifaoMin = 22.0f;           // Piso mínimo de temperatura (°C) para 
 float umidGuardaCorte = 90.0f;        // Abaixo deste valor (%), pausa injeção fria e aciona reidratação
 bool umidRetornoSeguirAlvo = true;    // Se true, só retoma exaustor quando umidade recuperar até a Umidade Alvo da fase
 float umidGuardaRetorno = 99.0f;      // Valor fixo de retorno (%) quando umidRetornoSeguirAlvo estiver desativado
+unsigned long tempoEvapPreAcMs = 4UL * 60UL * 1000UL; // Tentativa evaporativa antes do AC (0 = desativado)
+float tempEvapAntecipa = 0.3f;        // Antecipa evaporação abaixo de pf.tempMax (°C)
+unsigned long evapCooldownMs = 45UL * 60UL * 1000UL;  // Intervalo mínimo após falha antes de tentar evaporação de novo
 
 // --- Umidade ---
 const float UMIDADE_MINIMA = 88.0;
@@ -254,6 +257,12 @@ const char* nomeModoLuz() {
   if (modoLuz == LUZ_AUTO) return "AUTO";
   if (modoLuz == LUZ_FORCADA_ON) return "ON";
   return "OFF";
+}
+float calcularBulboUmidoStull(float t, float rh) {
+  rh = constrain(rh, 5.0f, 100.0f);
+  return t * atanf(0.151977f * sqrtf(rh + 8.313659f))
+       + atanf(t + rh) - atanf(rh - 1.676331f)
+       + 0.00391838f * powf(rh, 1.5f) * atanf(0.023101f * rh) - 4.686035f;
 }
 PerfilClimatico perfis[5] = {
   { TEMP_ALVO_MAX, 99.0, 99.0, 1UL * 60000, FAE_OFF_MS, 1UL * 60000, 2UL * 60000, 2UL * 60000, 8UL * 60000, false },  // 0: Standby (padrão)
@@ -716,6 +725,18 @@ void enviarNuvem(unsigned long agora) {
               if (ugr < umidGuardaCorte) ugr = umidGuardaCorte;
               if (abs(umidGuardaRetorno - ugr) > 0.05f) { umidGuardaRetorno = ugr; configAlterada = true; }
             }
+            if (h.containsKey("tEvapPre")) {
+              unsigned long tep = clampMin(h["tEvapPre"].as<long>(), 15UL, 4UL) * 60000UL;
+              if (tempoEvapPreAcMs != tep) { tempoEvapPreAcMs = tep; configAlterada = true; }
+            }
+            if (h.containsKey("tEvapAnt")) {
+              float tea = clampF(h["tEvapAnt"].as<float>(), 0.0f, 1.5f, 0.3f);
+              if (abs(tempEvapAntecipa - tea) > 0.05f) { tempEvapAntecipa = tea; configAlterada = true; }
+            }
+            if (h.containsKey("tEvapCool")) {
+              unsigned long tec = max(10UL, clampMin(h["tEvapCool"].as<long>(), 180UL, 45UL)) * 60000UL;
+              if (evapCooldownMs != tec) { evapCooldownMs = tec; configAlterada = true; }
+            }
             if (tempDeltaSaidaExt > tempDeltaArExt) { tempDeltaSaidaExt = tempDeltaArExt; configAlterada = true; }
             if (umidGuardaRetorno < umidGuardaCorte) { umidGuardaRetorno = umidGuardaCorte; configAlterada = true; }
           }
@@ -735,6 +756,9 @@ void enviarNuvem(unsigned long agora) {
             prefs.putFloat("uGuardaCorte", umidGuardaCorte);
             prefs.putBool("uRetAlvo", umidRetornoSeguirAlvo);
             prefs.putFloat("uGuardaRet", umidGuardaRetorno);
+            prefs.putUInt("tEvapPre", (uint32_t)(tempoEvapPreAcMs / 60000UL));
+            prefs.putFloat("tEvapAnt", tempEvapAntecipa);
+            prefs.putUInt("tEvapCool", (uint32_t)(evapCooldownMs / 60000UL));
             if (versaoNuvem > 0) prefs.putUInt("cfg_ver", versaoNuvem);
             prefs.end();
             bypassDwellFase = true;
@@ -1168,6 +1192,7 @@ void verificarProgressao() {
 bool sifaoExaustAtivo = false;
 bool sifaoPosAcAtivo = false;
 bool sifaoRehidratando = false;
+bool evapPreAcAtivo = false;
 
 void executarMotor(unsigned long agora) {
   static bool modoRefrigeracaoAtivo = false;
@@ -1183,6 +1208,11 @@ void executarMotor(unsigned long agora) {
   static bool sifPosSalvoNvs = false;
   static unsigned long acElapsedPreBootMs = 0;
   static unsigned long tempoMetaPreBootMs = 0;
+  static bool evapAtivo = false;
+  static unsigned long evapInicioTs = 0;
+  static float evapTempInicio = 0.0f;
+  static unsigned long evapCooldownAte = 0;
+  static bool evapOndaSecaAtual = false;
 
   time_t rtcAgoraSec = 0;
   time(&rtcAgoraSec);
@@ -1249,6 +1279,10 @@ void executarMotor(unsigned long agora) {
     sifaoExaustAtivo = false;
     sifaoPosAcAtivo = false;
     sifaoRehidratando = false;
+    evapAtivo = false;
+    evapInicioTs = 0;
+    evapPreAcAtivo = false;
+    evapOndaSecaAtual = false;
     releUmidific = false;
     releVentoInt = false;
     releExaustExt = false;
@@ -1267,6 +1301,10 @@ void executarMotor(unsigned long agora) {
     sifaoExaustAtivo = false;
     sifaoPosAcAtivo = false;
     sifaoRehidratando = false;
+    evapAtivo = false;
+    evapInicioTs = 0;
+    evapPreAcAtivo = false;
+    evapOndaSecaAtual = false;
     releUmidific = false;
     releVentoInt = true;
     releExaustExt = true;
@@ -1300,21 +1338,81 @@ void executarMotor(unsigned long agora) {
     faeLigado = novoFaeLigado;
   }
 
+  // --- ESTÁGIO 1: PRÉ-RESFRIAMENTO EVAPORATIVO INTELIGENTE (ANTES DO AC) ---
+  // Quando a temperatura se aproxima de pf.tempMax e o bulbo úmido da sala permite perda latente real,
+  // tenta resfriamento evaporativo em ondas antes de ligar o compressor do Ar Condicionado.
+  bool corteCongelaAtivo = (sensorIntOk && tempInt <= tempMinCongelamento);
+  bool emJanelaPosAcAgora = (janelaSifaoPosAcAte > 0 && (long)(janelaSifaoPosAcAte - agora) > 0);
+  bool acPermitidoAuto = (modoAr == AR_AUTO) && !corteCongelaAtivo && (agora >= descansoPreventivoAte);
+  bool cooldownEvapLivre = (evapCooldownAte == 0 || (long)(agora - evapCooldownAte) >= 0);
+  float tDisparoEvap = pf.tempMax - tempEvapAntecipa;
+  float tMetaSucessoEvap = max(tempMinCongelamento + 0.5f, pf.tempMax - max(0.5f, tempHistereseAr * 0.55f));
+  float tWetSala = sensorExtOk ? calcularBulboUmidoStull(tempExt, humExt) : 99.0f;
+  bool evapViavelInicio = sensorExtOk
+    ? (humExt < 86.0f && tempExt <= (pf.tempMax + 1.5f) && tWetSala <= (pf.tempMax - 1.2f))
+    : (tempInt < pf.tempMax && humInt < 94.0f);
+
+  if (evapAtivo) {
+    bool perdeuGradiente = sensorExtOk
+      ? (humExt >= 89.0f || tempExt > (pf.tempMax + 2.0f) || tWetSala > (pf.tempMax - 0.8f))
+      : (tempInt >= pf.tempMax);
+    bool aqueceuDemais = (tempInt >= (pf.tempMax + 0.4f)) || (tempInt >= (evapTempInicio + 0.35f) && tempInt >= (pf.tempMax - 0.1f));
+    bool sucessoEvap = (tempInt <= tMetaSucessoEvap && tempInt <= (evapTempInicio - 0.3f));
+    bool timeoutEvap = ((agora - evapInicioTs) >= tempoEvapPreAcMs);
+
+    if (!acPermitidoAuto || modoRefrigeracaoAtivo || tempoEvapPreAcMs == 0 || !sensorIntOk || emJanelaPosAcAgora) {
+      evapAtivo = false;
+      evapOndaSecaAtual = false;
+    } else if (sucessoEvap) {
+      evapAtivo = false;
+      evapOndaSecaAtual = false;
+      evapCooldownAte = agora + min(evapCooldownMs, 15UL * 60UL * 1000UL);
+      Serial.printf("💧🌀 EVAP: Sucesso! Estufa caiu para %.1f°C sem ligar o AC.\n", tempInt);
+    } else if (perdeuGradiente || aqueceuDemais) {
+      evapAtivo = false;
+      evapOndaSecaAtual = false;
+      evapCooldownAte = agora + evapCooldownMs;
+      Serial.printf("💧➡️❄️ EVAP: Abortado (Int: %.1f°C, Ext: %.1f°C / %.0f%%). Liberando AC + pausa %lu min.\n", tempInt, tempExt, humExt, evapCooldownMs / 60000UL);
+    } else if (timeoutEvap) {
+      evapAtivo = false;
+      evapOndaSecaAtual = false;
+      if (tempInt < pf.tempMax && tempInt <= (evapTempInicio - 0.25f)) {
+        evapCooldownAte = agora + min(evapCooldownMs, 15UL * 60UL * 1000UL);
+        Serial.printf("💧🌀 EVAP: Ciclo concluído (%.1f°C -> %.1f°C). Retentativa breve liberada.\n", evapTempInicio, tempInt);
+      } else {
+        evapCooldownAte = agora + evapCooldownMs;
+        Serial.printf("💧➡️❄️ EVAP: Tempo limite (%lu min, Int: %.1f°C). Passando para AC + pausa %lu min.\n", tempoEvapPreAcMs / 60000UL, tempInt, evapCooldownMs / 60000UL);
+      }
+    }
+  } else if (tempoEvapPreAcMs > 0 && sensorIntOk && !modoRefrigeracaoAtivo && acPermitidoAuto && cooldownEvapLivre && !emJanelaPosAcAgora) {
+    if (tempInt >= tDisparoEvap && tempInt < (pf.tempMax + 0.4f) && evapViavelInicio) {
+      evapAtivo = true;
+      evapInicioTs = agora;
+      evapTempInicio = tempInt;
+      evapOndaSecaAtual = (humInt >= 95.5f && humInt >= umidGuardaCorte);
+      Serial.printf("💧🌀 EVAP: Tentativa pré-AC iniciada (Int: %.1f°C, Tw_sala: %.1f°C, limite %lu min).\n", tempInt, tWetSala, tempoEvapPreAcMs / 60000UL);
+    }
+  }
+  evapPreAcAtivo = evapAtivo;
+
   // --- CONTROLE TÉRMICO E CLIMATIZAÇÃO INTELIGENTE (AR CONDICIONADO) ---
-  // Quando atinge a temperatura alvo máxima (pf.tempMax), aciona o Ar Condicionado.
+  // Quando atinge a temperatura alvo máxima (pf.tempMax), aciona o Ar Condicionado (exceto se o Pré-AC Evaporativo estiver testando).
   // Quando atinge a meta de desligamento (metaDesligaAr), mantém ligado pelo tempo extra configurado
   // para estabilizar e fixar a climatização do ambiente antes de desligar.
-  bool corteCongelaAtivo = (sensorIntOk && tempInt <= tempMinCongelamento);
   unsigned long runArAtualMs = acElapsedPreBootMs + ((lastReleArCond && compressorUltimaPartida > 0) ? (agora - compressorUltimaPartida) : 0UL);
   if (corteCongelaAtivo) {
     // Encerra completamente o ciclo automático para não religar cedo após AC_MIN_REST_MS
     modoRefrigeracaoAtivo = false;
     tempoAlvoAtingido = 0;
     tempoMetaPreBootMs = 0;
+    evapAtivo = false;
+    evapPreAcAtivo = false;
   } else if (agora < descansoPreventivoAte) {
     modoRefrigeracaoAtivo = false;
     tempoAlvoAtingido = 0;
     tempoMetaPreBootMs = 0;
+    evapAtivo = false;
+    evapPreAcAtivo = false;
   } else if (modoRefrigeracaoAtivo && (lastReleArCond || acElapsedPreBootMs > 0) && runArAtualMs >= maxRunContinuoArMs) {
     // Limite contínuo checado em TODA a faixa térmica ativa (mesmo abaixo de pf.tempMax durante a descida)
     Serial.printf("⏳ SEGURANÇA: Ar Condicionado atingiu limite contínuo de %lu min. Pausa preventiva de 10 min de descanso...\n", maxRunContinuoArMs / 60000UL);
@@ -1322,7 +1420,9 @@ void executarMotor(unsigned long agora) {
     modoRefrigeracaoAtivo = false;
     tempoAlvoAtingido = 0;
     tempoMetaPreBootMs = 0;
-  } else if (tempInt >= pf.tempMax) {
+    evapAtivo = false;
+    evapPreAcAtivo = false;
+  } else if (!evapAtivo && tempInt >= pf.tempMax) {
     modoRefrigeracaoAtivo = true;
     tempoAlvoAtingido = 0; // Se voltou a subir, cancela temporizador de desligamento
     tempoMetaPreBootMs = 0;
@@ -1521,8 +1621,26 @@ void executarMotor(unsigned long agora) {
     releUmidific = false;
   }
 
+  // ONDAS DE PRÉ-RESFRIAMENTO EVAPORATIVO (antes do AC):
+  // Alterna onda seca (puxa ar menos úmido para evaporar) e onda úmida (névoa + ventilação interna para perda latente)
+  if (evapAtivo && !acOperando) {
+    unsigned long evapFaseMs = (agora - evapInicioTs) % 120000UL;
+    if (evapFaseMs < 4000UL) {
+      evapOndaSecaAtual = (humInt >= 95.5f && humInt >= umidGuardaCorte);
+    }
+    if (evapFaseMs < 35000UL && evapOndaSecaAtual) {
+      releExaustExt = true;
+      releUmidific = false;
+    } else {
+      releVentoInt = true;
+      if (!releExaustExt && humInt < 98.5f) {
+        releUmidific = true;
+      }
+    }
+  }
+
   // BLOQUEIO CONTRA DESPERDÍCIO (EXAUSTOR):
-  // Sempre que o exaustor estiver ligado (FAE programado ou Sifão), não injeta névoa ao mesmo tempo
+  // Sempre que o exaustor estiver ligado (FAE programado, Sifão ou Onda Seca Evaporativa), não injeta névoa ao mesmo tempo
   if (releExaustExt) {
     releUmidific = false;
   }
@@ -1663,6 +1781,9 @@ void setup() {
   umidRetornoSeguirAlvo = prefs.getBool("uRetAlvo", true);
   umidGuardaRetorno = prefs.getFloat("uGuardaRet", 99.0f);
   if (umidGuardaRetorno < umidGuardaCorte) umidGuardaRetorno = umidGuardaCorte;
+  tempoEvapPreAcMs = (unsigned long)min((uint32_t)15, prefs.getUInt("tEvapPre", 4)) * 60000UL;
+  tempEvapAntecipa = constrain(prefs.getFloat("tEvapAnt", 0.3f), 0.0f, 1.5f);
+  evapCooldownMs = (unsigned long)max((uint32_t)10, min((uint32_t)180, prefs.getUInt("tEvapCool", 45))) * 60000UL;
   prefs.end();
 
   if (modoLuz == LUZ_FORCADA_ON) luzSalvaNVS = true;

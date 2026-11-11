@@ -797,6 +797,44 @@
                                 </div>
                             </div>
 
+                            <!-- Pré-Resfriamento Evaporativo Inteligente (Antes do AC) -->
+                            <div class="bg-slate-950/60 border border-emerald-500/20 rounded-xl p-4 space-y-4">
+                                <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                                    <h4 class="text-xs font-bold text-emerald-300 uppercase tracking-wider flex items-center gap-1.5">
+                                        <span>💧🌀</span> Pré-Resfriamento Evaporativo (Antes do AC)
+                                    </h4>
+                                    <span id="badgeEvapPreAc" class="text-[11px] font-semibold px-2.5 py-1 rounded-lg bg-emerald-500/10 text-emerald-300 border border-emerald-500/25">
+                                        Testa antes de ligar o compressor
+                                    </span>
+                                </div>
+                                <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                                    <div>
+                                        <label for="cfgTEvapPre" class="text-xs text-slate-300 block mb-1.5 font-medium">Tentativa Antes do AC</label>
+                                        <div class="relative">
+                                            <input type="number" step="1" min="0" max="15" id="cfgTEvapPre" value="4" oninput="sincronizarUiEvap()" class="w-full bg-slate-900/90 text-emerald-300 text-lg font-extrabold border border-slate-700 rounded-xl p-2.5 pr-10 text-center outline-none focus:border-emerald-500 transition">
+                                            <span class="absolute right-3 top-3 text-xs text-slate-500 font-bold">min</span>
+                                        </div>
+                                        <span class="text-[11px] text-slate-400 mt-1.5 block">Segura o AC p/ testar evaporação (0 = desativa).</span>
+                                    </div>
+                                    <div>
+                                        <label for="cfgTEvapAnt" class="text-xs text-slate-300 block mb-1.5 font-medium">Antecipar Abaixo da T.Máx</label>
+                                        <div class="relative">
+                                            <input type="number" step="0.1" min="0" max="1.5" id="cfgTEvapAnt" value="0.3" oninput="sincronizarUiEvap()" class="w-full bg-slate-900/90 text-cyan-300 text-lg font-extrabold border border-slate-700 rounded-xl p-2.5 pr-8 text-center outline-none focus:border-cyan-500 transition">
+                                            <span class="absolute right-3 top-3 text-xs text-slate-500 font-bold">°C</span>
+                                        </div>
+                                        <span class="text-[11px] text-slate-400 mt-1.5 block">Começa antes de bater a máxima da fase.</span>
+                                    </div>
+                                    <div>
+                                        <label for="cfgTEvapCool" class="text-xs text-slate-300 block mb-1.5 font-medium">Pausa se Não Der Conta</label>
+                                        <div class="relative">
+                                            <input type="number" step="5" min="10" max="180" id="cfgTEvapCool" value="45" oninput="sincronizarUiEvap()" class="w-full bg-slate-900/90 text-amber-300 text-lg font-extrabold border border-slate-700 rounded-xl p-2.5 pr-10 text-center outline-none focus:border-amber-500 transition">
+                                            <span class="absolute right-3 top-3 text-xs text-slate-500 font-bold">min</span>
+                                        </div>
+                                        <span class="text-[11px] text-slate-400 mt-1.5 block">Alterna com AC e só tenta de novo após esta pausa.</span>
+                                    </div>
+                                </div>
+                            </div>
+
                             <!-- Ação Salvar HVAC -->
                             <div class="pt-4 border-t border-slate-800 flex flex-col sm:flex-row items-center justify-between gap-3">
                                 <span class="text-xs text-slate-400">Salvo direto na memória da placa, sem precisar reiniciar.</span>
@@ -1922,6 +1960,35 @@
             badge.textContent = `${prefixo} (${tRef.toFixed(1)}°C): Puxa se quarto ≤ ${tLigaSala.toFixed(1)}°C • Para na dif. de ${dDesliga.toFixed(1)}°C`;
         }
 
+        function calculaBulboUmidoStull(t, rh) {
+            const rhC = Math.max(5, Math.min(100, rh));
+            return t * Math.atan(0.151977 * Math.sqrt(rhC + 8.313659))
+                 + Math.atan(t + rhC) - Math.atan(rhC - 1.676331)
+                 + 0.00391838 * Math.pow(rhC, 1.5) * Math.atan(0.023101 * rhC) - 4.686035;
+        }
+
+        function sincronizarUiEvap() {
+            const badge = document.getElementById('badgeEvapPreAc');
+            if (!badge) return;
+            const parseNum = (el, min, max, def) => {
+                if (!el) return def;
+                const v = parseFloat(String(el.value).replace(',', '.'));
+                return Number.isFinite(v) ? Math.max(min, Math.min(max, v)) : def;
+            };
+            const tPre = Math.round(parseNum(document.getElementById('cfgTEvapPre'), 0, 15, 4));
+            const tAnt = parseNum(document.getElementById('cfgTEvapAnt'), 0, 1.5, 0.3);
+            const tCool = Math.round(parseNum(document.getElementById('cfgTEvapCool'), 10, 180, 45));
+            const info = obterConfigFaseAtiva();
+            const tRef = info.tX;
+            const tLiga = tRef - tAnt;
+            const prefixo = info.temFaseClima ? info.nome : `Ex. ${info.nome}`;
+            if (tPre === 0) {
+                badge.textContent = `${prefixo} (${tRef.toFixed(1)}°C): Desativado • AC entra direto em ${tRef.toFixed(1)}°C`;
+            } else {
+                badge.textContent = `${prefixo} (${tRef.toFixed(1)}°C): Testa em ≥ ${tLiga.toFixed(1)}°C por ${tPre} min • Pausa ${tCool} min`;
+            }
+        }
+
         function sincronizarUiSifaoRetorno() {
             const chk = document.getElementById('cfgURetornoAlvo');
             const inpRet = document.getElementById('cfgUGuardaRetorno');
@@ -1976,9 +2043,13 @@
             if (document.getElementById('cfgUGuardaCorte')) document.getElementById('cfgUGuardaCorte').value = hv.uGuardaCorte !== undefined ? hv.uGuardaCorte : 90.0;
             if (document.getElementById('cfgURetornoAlvo')) document.getElementById('cfgURetornoAlvo').checked = (hv.uRetornoAlvo === undefined || parseInt(hv.uRetornoAlvo, 10) !== 0);
             if (document.getElementById('cfgUGuardaRetorno')) document.getElementById('cfgUGuardaRetorno').value = hv.uGuardaRetorno !== undefined ? hv.uGuardaRetorno : 99.0;
+            if (document.getElementById('cfgTEvapPre')) document.getElementById('cfgTEvapPre').value = hv.tEvapPre !== undefined ? hv.tEvapPre : 4;
+            if (document.getElementById('cfgTEvapAnt')) document.getElementById('cfgTEvapAnt').value = hv.tEvapAnt !== undefined ? hv.tEvapAnt : 0.3;
+            if (document.getElementById('cfgTEvapCool')) document.getElementById('cfgTEvapCool').value = hv.tEvapCool !== undefined ? hv.tEvapCool : 45;
             sincronizarUiSifaoRetorno();
             sincronizarUiMetaAr();
             sincronizarUiSifaoDelta();
+            sincronizarUiEvap();
         }
 
         async function salvarFormClima() {
@@ -2015,6 +2086,9 @@
             let uRetornoAlvoVal = (document.getElementById('cfgURetornoAlvo') && !document.getElementById('cfgURetornoAlvo').checked) ? 0 : 1;
             let uGuardaRetornoVal = Math.round(clampVal(document.getElementById('cfgUGuardaRetorno') ? document.getElementById('cfgUGuardaRetorno').value : uAlvoVal, 80.0, 100.0, uAlvoVal) * 10) / 10;
             if (uGuardaRetornoVal < uGuardaCorteVal) uGuardaRetornoVal = uGuardaCorteVal;
+            let tEvapPreVal = Math.round(clampVal(document.getElementById('cfgTEvapPre') ? document.getElementById('cfgTEvapPre').value : 4, 0, 15, 4));
+            let tEvapAntVal = Math.round(clampVal(document.getElementById('cfgTEvapAnt') ? document.getElementById('cfgTEvapAnt').value : 0.3, 0.0, 1.5, 0.3) * 10) / 10;
+            let tEvapCoolVal = Math.round(clampVal(document.getElementById('cfgTEvapCool') ? document.getElementById('cfgTEvapCool').value : 45, 10, 180, 45));
 
             // Atualiza os inputs na tela caso algum valor tenha sido corrigido pelo clamp
             document.getElementById('cfgTx').value = tXVal;
@@ -2035,9 +2109,13 @@
             if (document.getElementById('cfgUGuardaCorte')) document.getElementById('cfgUGuardaCorte').value = uGuardaCorteVal;
             if (document.getElementById('cfgURetornoAlvo')) document.getElementById('cfgURetornoAlvo').checked = (uRetornoAlvoVal === 1);
             if (document.getElementById('cfgUGuardaRetorno')) document.getElementById('cfgUGuardaRetorno').value = uGuardaRetornoVal;
+            if (document.getElementById('cfgTEvapPre')) document.getElementById('cfgTEvapPre').value = tEvapPreVal;
+            if (document.getElementById('cfgTEvapAnt')) document.getElementById('cfgTEvapAnt').value = tEvapAntVal;
+            if (document.getElementById('cfgTEvapCool')) document.getElementById('cfgTEvapCool').value = tEvapCoolVal;
             sincronizarUiSifaoRetorno();
             sincronizarUiMetaAr();
             sincronizarUiSifaoDelta();
+            sincronizarUiEvap();
 
             configClima[f].tX = tXVal;
             configClima[f].uA = uAlvoVal;
@@ -2061,7 +2139,10 @@
                 tSifaoTempMin: tSifaoTempMinVal,
                 uGuardaCorte: uGuardaCorteVal,
                 uRetornoAlvo: uRetornoAlvoVal,
-                uGuardaRetorno: uGuardaRetornoVal
+                uGuardaRetorno: uGuardaRetornoVal,
+                tEvapPre: tEvapPreVal,
+                tEvapAnt: tEvapAntVal,
+                tEvapCool: tEvapCoolVal
             };
             
             const btns = [
@@ -2887,6 +2968,7 @@
                     sincronizarUiMetaAr();
                     sincronizarUiSifaoRetorno();
                     sincronizarUiSifaoDelta();
+                    sincronizarUiEvap();
                 }
 
                 // Min/Max do período com indicador de Meta Alvo
@@ -3091,6 +3173,9 @@
                 const uAlvoSim = (cfgProj && (cfgProj.uA !== undefined || cfgProj.uN !== undefined)) ? parseFloat(cfgProj.uA !== undefined ? cfgProj.uA : cfgProj.uN) : 95.0;
                 const uRetornoAlvoSim = (hvac.uRetornoAlvo === undefined || parseInt(hvac.uRetornoAlvo, 10) !== 0);
                 const uGuardaRetornoSim = Math.max(uGuardaCorteSim, uRetornoAlvoSim ? uAlvoSim : parseFloat(hvac.uGuardaRetorno !== undefined ? hvac.uGuardaRetorno : 99.0));
+                const tEvapPreMin = (hvac.tEvapPre !== undefined) ? Math.max(0, Math.min(15, parseInt(hvac.tEvapPre, 10))) : 4;
+                const tEvapAntecipaSim = (hvac.tEvapAnt !== undefined) ? Math.max(0, Math.min(1.5, parseFloat(hvac.tEvapAnt))) : 0.3;
+                const tEvapCooldownMin = (hvac.tEvapCool !== undefined) ? Math.max(10, Math.min(180, parseInt(hvac.tEvapCool, 10))) : 45;
 
                 // Analisa todo o histórico real (AC na sala e estufa, rebote pós-AC 2 estágios, regressão de Newton, perfil horário, FAE puro vs Sifão e umidade)
                 const FAE_LEN = 18;
@@ -3583,6 +3668,11 @@
                 }
                 let simHumInt = (lastHi !== null) ? lastHi : uAlvoSim;
                 let simUmidHist = (simHumInt < uAlvoSim);
+                let simEvapAtivo = false;
+                let simEvapInicioTs = 0;
+                let simEvapTempInicio = (lastTi !== null) ? lastTi : tMeta;
+                let simEvapCooldownAteTs = 0;
+                let simEvapOndaSeca = false;
 
                 let primeiroAcTrigger = (simArOn && arState === 0 && lastArOn) ? simArInicioTs : null;
                 let primeiroAcDesligaTs = null;
@@ -3660,6 +3750,45 @@
                     const simEmJanelaSifao = (simSifaoAteTs > 0 && t < simSifaoAteTs);
                     const simAproveitandoFrio = !!cfgProj && (simArOn || simEmJanelaSifao);
 
+                    // Pré-Resfriamento Evaporativo (Estágio 1 antes do AC)
+                    const tWetSalaSim = calculaBulboUmidoStull(tExtSim, hExtSim);
+                    const tDisparoEvapSim = tMeta - tEvapAntecipaSim;
+                    const tMetaSucessoEvapSim = Math.max(tCongelaSim + 0.5, tMeta - Math.max(0.5, tHistereseArSim * 0.55));
+                    const evapViavelSim = (hExtSim < 86.0 && tExtSim <= (tMeta + 1.5) && tWetSalaSim <= (tMeta - 1.2));
+                    if (simEvapAtivo) {
+                        const perdeuGrad = (hExtSim >= 89.0 || tExtSim > (tMeta + 2.0) || tWetSalaSim > (tMeta - 0.8));
+                        const aqueceuDemais = (tIntBase !== null) && ((tIntBase >= tMeta + 0.4) || (tIntBase >= simEvapTempInicio + 0.35 && tIntBase >= tMeta - 0.1));
+                        const sucessoEvap = (tIntBase !== null) && (tIntBase <= tMetaSucessoEvapSim && tIntBase <= simEvapTempInicio - 0.3);
+                        const timeoutEvap = ((t - simEvapInicioTs) >= tEvapPreMin * 60000);
+                        if (arState !== 0 || simArOn || simEmJanelaSifao || tEvapPreMin <= 0 || tIntBase === null || tIntBase <= tCongelaSim || t < simDescansoPreventivoAteTs) {
+                            simEvapAtivo = false;
+                            simEvapOndaSeca = false;
+                        } else if (sucessoEvap) {
+                            simEvapAtivo = false;
+                            simEvapOndaSeca = false;
+                            simEvapCooldownAteTs = t + Math.min(tEvapCooldownMin, 15) * 60000;
+                        } else if (perdeuGrad || aqueceuDemais) {
+                            simEvapAtivo = false;
+                            simEvapOndaSeca = false;
+                            simEvapCooldownAteTs = t + (tEvapCooldownMin * 60000);
+                        } else if (timeoutEvap) {
+                            simEvapAtivo = false;
+                            simEvapOndaSeca = false;
+                            if (tIntBase < tMeta && tIntBase <= simEvapTempInicio - 0.25) {
+                                simEvapCooldownAteTs = t + Math.min(tEvapCooldownMin, 15) * 60000;
+                            } else {
+                                simEvapCooldownAteTs = t + (tEvapCooldownMin * 60000);
+                            }
+                        }
+                    } else if (cfgProj && arState === 0 && tEvapPreMin > 0 && !simArOn && !simEmJanelaSifao && tIntBase !== null && tIntBase > tCongelaSim && t >= simDescansoPreventivoAteTs && t >= simEvapCooldownAteTs) {
+                        if (tIntBase >= tDisparoEvapSim && tIntBase < (tMeta + 0.4) && evapViavelSim) {
+                            simEvapAtivo = true;
+                            simEvapInicioTs = t;
+                            simEvapTempInicio = tIntBase;
+                            simEvapOndaSeca = (simHumInt >= 95.5 && simHumInt >= uGuardaCorteSim);
+                        }
+                    }
+
                     if (!simAproveitandoFrio || tIntBase === null || tIntBase <= tSifaoMinSim) {
                         simInjecaoTermoOk = false;
                     } else if (tExtSim <= (tIntBase - tDeltaExtSim)) {
@@ -3676,7 +3805,7 @@
                         simGuardaUmidOk = true;
                     }
 
-                    // FAE programado + Sifão de Ar Frio em Ondas
+                    // FAE programado + Sifão de Ar Frio + Ondas Evaporativas
                     let isFaeProgOn = false;
                     if (cfgProj && cfgProj.fO > 0) {
                         if (cfgProj.fF == 0) isFaeProgOn = true;
@@ -3686,7 +3815,19 @@
                         }
                     }
                     const isSifaoExaustOn = simAproveitandoFrio && simInjecaoTermoOk && simGuardaUmidOk;
-                    const isExaustOn = isFaeProgOn || isSifaoExaustOn;
+                    let isEvapExaustOn = false;
+                    let isEvapUmidOn = false;
+                    if (simEvapAtivo) {
+                        const cicloEvapMin = Math.floor((t - simEvapInicioTs) / 60000);
+                        if (cicloEvapMin % 2 === 0) {
+                            simEvapOndaSeca = (simHumInt >= 95.5 && simHumInt >= uGuardaCorteSim);
+                            if (simEvapOndaSeca) isEvapExaustOn = true;
+                            else isEvapUmidOn = true;
+                        } else {
+                            isEvapUmidOn = true;
+                        }
+                    }
+                    const isExaustOn = isFaeProgOn || isSifaoExaustOn || isEvapExaustOn;
                     if (isFaeProgOn && !simPrevExaustOn && !simArOn && !simEmJanelaSifao) {
                         simFaeStartTs = t;
                     }
@@ -3701,14 +3842,19 @@
                             if ((t % cVento) < (cfgProj.vO * 60000)) isVentoOn = true;
                         }
                     }
+                    if (simEvapAtivo && !isEvapExaustOn) isVentoOn = true;
 
-                    // Umidificador (espelha histerese 0.5%, trava de brisa em 99.5% e recuperação no Sifão)
+                    // Umidificador (espelha histerese 0.5%, trava de brisa em 99.5%, Sifão e Evaporação)
                     const tetoBrisaUmid = Math.min(99.5, uAlvoSim + 0.5);
                     if (simHumInt < uAlvoSim) simUmidHist = true;
                     else if (simHumInt >= tetoBrisaUmid) simUmidHist = false;
                     let isUmidOn = simUmidHist;
                     if (cfgProj && cfgProj.vU == 1 && isVentoOn && simHumInt < tetoBrisaUmid) isUmidOn = true;
                     if (simAproveitandoFrio && !simGuardaUmidOk && simHumInt < 99.5) {
+                        isUmidOn = true;
+                        isVentoOn = true;
+                    }
+                    if (isEvapUmidOn && simHumInt < 98.5) {
                         isUmidOn = true;
                         isVentoOn = true;
                     }
@@ -3797,9 +3943,15 @@
                                     }
                                 }
                             } else {
-                                tIntBase += dNaturalStep;
+                                if (simEvapAtivo) {
+                                    const gapWet = Math.max(0, tIntBase - tWetSalaSim);
+                                    const evapStep = Math.min(0.24, gapWet * 0.045) * subDtMin;
+                                    tIntBase += dNaturalStep - evapStep;
+                                } else {
+                                    tIntBase += dNaturalStep;
+                                }
                                 tIntPlot = tIntBase + faeOffset;
-                                if ((t >= simDescansoPreventivoAteTs) && (t - simArUltimoDesligTs >= 3 * 60000) && (tIntPlot >= tMeta) && (tIntPlot > tCongelaSim)) {
+                                if (!simEvapAtivo && (t >= simDescansoPreventivoAteTs) && (t - simArUltimoDesligTs >= 3 * 60000) && (tIntPlot >= tMeta) && (tIntPlot > tCongelaSim)) {
                                     simArOn = true;
                                     simArInicioTs = t;
                                     simArAbaixoMetaTs = 0;
@@ -3820,8 +3972,8 @@
                         if (tIntPlot > maxTempIntPrev) maxTempIntPrev = tIntPlot;
                     }
 
-                    const motivoExaust = isExaustOn ? (isSifaoExaustOn ? (simArOn ? 'Puxando Ar Frio (AC ON)' : 'Puxando Ar Frio (Pós-AC)') : 'FAE Programado') : null;
-                    const motivoUmid = isUmidOn ? ((simAproveitandoFrio && !simGuardaUmidOk) ? 'Reidratando (Pós-Frio)' : (simHumInt < uAlvoSim ? 'Recuperando Alvo' : 'Brisa c/ Névoa')) : null;
+                    const motivoExaust = isExaustOn ? (isSifaoExaustOn ? (simArOn ? 'Puxando Ar Frio (AC ON)' : 'Puxando Ar Frio (Pós-AC)') : (isEvapExaustOn ? 'Evaporação (Onda Seca)' : 'FAE Programado')) : null;
+                    const motivoUmid = isUmidOn ? ((simAproveitandoFrio && !simGuardaUmidOk) ? 'Reidratando (Pós-Frio)' : (isEvapUmidOn ? 'Evaporação (Névoa Fria)' : (simHumInt < uAlvoSim ? 'Recuperando Alvo' : 'Brisa c/ Névoa'))) : null;
 
                     accLuz = accLuz || isLuzOn;
                     accUmid = accUmid || isUmidOn;
@@ -3965,15 +4117,21 @@
             else if (faseLimpa === "Secagem Total") cId = "4";
             
             const cfg = (typeof configClima !== 'undefined' && configClima[cId]) ? configClima[cId] : null;
+            const hvacCfg = (typeof configClima !== 'undefined' && configClima.hvac) ? configClima.hvac : {};
+            const tempCorteLuzCfg = (hvacCfg.tCorteLuz !== undefined) ? parseFloat(hvacCfg.tCorteLuz) : 34.0;
+            const tEvapPreCfg = (hvacCfg.tEvapPre !== undefined) ? parseInt(hvacCfg.tEvapPre, 10) : 4;
+            const tEvapAntCfg = (hvacCfg.tEvapAnt !== undefined) ? parseFloat(hvacCfg.tEvapAnt) : 0.3;
+            const tDeltaSaidaCfg = (hvacCfg.tDeltaSaida !== undefined) ? parseFloat(hvacCfg.tDeltaSaida) : 0.1;
             const tempMax = cfg ? parseFloat(cfg.tX) : 35.0;
             const umidAlvo = cfg ? parseFloat(cfg.uA || cfg.uN || 95.0) : 95.0;
+            const emFaixaEvap = (tEvapPreCfg > 0 && !isNaN(tI) && tI >= (tempMax - tEvapAntCfg) && tI < (tempMax + 0.4));
 
             if (faseLimpa === "Standby") {
                 status = "💤 Modo Standby"; desc = "Estufa inativa aguardando comandos."; cor = "text-slate-400";
             } else if (faseLimpa === "Secagem Total") {
                 status = "🏜️ Secagem Total Ativa"; desc = "Umidificador travado e fluxo contínuo de ar para desidratar a estufa."; cor = "text-amber-400";
-            } else if (tI >= 34.0 && rLuz === 0) {
-                status = "🔥 Corte Térmico de Emergência"; desc = "Temperatura crítica (≥ 34°C)! Luz desligada preventivamente."; cor = "text-rose-500";
+            } else if (tI >= tempCorteLuzCfg && rLuz === 0) {
+                status = "🔥 Corte Térmico de Emergência"; desc = `Temperatura crítica (≥ ${tempCorteLuzCfg.toFixed(1)}°C)! Luz desligada preventivamente.`; cor = "text-rose-500";
             } else if (rAr === 1) {
                 if (rExaust === 1) {
                     status = "❄️💨 Climatização Ativa: Injeção de Ar Frio";
@@ -3985,14 +4143,35 @@
                     cor = "text-cyan-400";
                 }
             } else if (rExaust === 1) {
-                status = "💨 Troca de Ar (FAE)"; 
-                desc = "Expulsando o CO2 acumulado e trazendo oxigênio fresco conforme o ciclo programado."; 
-                cor = "text-teal-400";
+                const fOnM = cfg && cfg.fO !== undefined ? parseInt(cfg.fO, 10) : 2;
+                const fOffM = cfg && cfg.fF !== undefined ? parseInt(cfg.fF, 10) : 40;
+                const agoraSegSt = Math.floor(Date.now() / 1000);
+                const cycSec = (fOnM + fOffM) * 60;
+                const emFaeSt = (fOnM > 0 && (fOffM === 0 || (cycSec > 0 && (agoraSegSt % cycSec) < (fOnM * 60))));
+                if (emFaeSt) {
+                    status = "💨 Troca de Ar (FAE)";
+                    desc = "Expulsando o CO2 acumulado e trazendo oxigênio fresco conforme o ciclo programado.";
+                    cor = "text-teal-400";
+                } else if (emFaixaEvap && !isNaN(tE) && tE > (tI - tDeltaSaidaCfg)) {
+                    status = "💧🌀 Pré-Resfriamento Evaporativo (Onda Seca)";
+                    desc = `Evaporando umidade acumulada antes de ligar o AC (Int: ${tI.toFixed(1)}°C).`;
+                    cor = "text-emerald-300";
+                } else {
+                    status = "❄️💨 Pós-AC: Puxando Ar Frio";
+                    desc = "Aproveitando o ar frio residual do quarto após o desligamento do AC com guarda contínua de umidade.";
+                    cor = "text-cyan-300";
+                }
             } else if (rVento === 1) {
                 if (rUmid === 1) {
-                    status = "🌀 Vento Interno com Névoa em Execução";
-                    desc = "Ciclo programado de circulação interna com injeção de névoa viva para oxigenar e hidratar.";
-                    cor = "text-cyan-300";
+                    if (emFaixaEvap) {
+                        status = "💧🌀 Pré-Resfriamento Evaporativo (Névoa Fria)";
+                        desc = `Tentando resfriar a estufa por evaporação antes do AC (Int: ${tI.toFixed(1)}°C).`;
+                        cor = "text-emerald-300";
+                    } else {
+                        status = "🌀 Vento Interno com Névoa em Execução";
+                        desc = "Ciclo programado de circulação interna com injeção de névoa viva para oxigenar e hidratar.";
+                        cor = "text-cyan-300";
+                    }
                 } else {
                     status = "🌀 Vento Interno Preventivo em Execução";
                     desc = "Ciclo programado de circulação interna para quebrar bolsões de CO2 pesado acumulados no fundo.";
@@ -4003,9 +4182,9 @@
                 desc = `Umidificador acionado para atingir a umidade alvo (${umidAlvo}%).`;
                 cor = "text-blue-300";
             } else {
-                if (tI > tempMax) {
+                if (tI >= tempMax) {
                     status = "🌡️ Temperatura Acima do Alvo";
-                    desc = `Temperatura interna (${tI.toFixed(1)}°C) acima do limite programado (${tempMax}°C). Climatização em espera / anti-ciclo curto.`;
+                    desc = `Temperatura interna (${tI.toFixed(1)}°C) no limite programado (${tempMax}°C). Climatização em espera / anti-ciclo curto.`;
                     cor = "text-amber-400";
                 } else {
                     status = "✅ Clima Estabilizado";

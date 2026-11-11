@@ -163,7 +163,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             "tSifaoTempMin" => round($clampNum($srcHvac['tSifaoTempMin'] ?? null, 15.0, 30.0, 22.0), 1),
             "uGuardaCorte" => $uGuardaCorte,
             "uRetornoAlvo" => $uRetornoAlvo,
-            "uGuardaRetorno" => $uGuardaRetorno
+            "uGuardaRetorno" => $uGuardaRetorno,
+            "tEvapPre" => (int)round($clampNum($srcHvac['tEvapPre'] ?? null, 0, 15, 4)),
+            "tEvapAnt" => round($clampNum($srcHvac['tEvapAnt'] ?? null, 0.0, 1.5, 0.3), 1),
+            "tEvapCool" => (int)round($clampNum($srcHvac['tEvapCool'] ?? null, 10, 180, 45))
         ];
 
         $jsonSanitizado = json_encode($sanitized);
