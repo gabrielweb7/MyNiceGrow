@@ -200,6 +200,16 @@
                     <span id="iaProximoAr" class="text-white font-bold">--</span>
                 </div>
             </div>
+
+            <!-- RADAR METEOROLÓGICO & SIMULAÇÃO DO DIA (Open-Meteo + Gêmeo Térmico) -->
+            <div id="climaRadarBar" class="hidden mt-2.5 pt-2.5 border-t border-slate-700/40 flex flex-wrap items-center gap-2 text-[11px]">
+                <div id="climaBadgeCidade" class="flex items-center gap-1.5 bg-slate-800/80 px-2.5 py-1 rounded-md border border-slate-700/50 text-slate-200 font-semibold">
+                    <span id="climaIcone">--</span>
+                    <span id="climaResumoCidade">Carregando clima...</span>
+                </div>
+                <div id="climaBadgeAviso" class="hidden flex items-center gap-1.5 px-2.5 py-1 rounded-md border font-semibold"></div>
+                <div id="climaBadgeSimulacao" class="hidden flex items-center gap-1.5 bg-cyan-950/35 px-2.5 py-1 rounded-md border border-cyan-500/30 text-cyan-200 font-semibold"></div>
+            </div>
         </div>
 
         <!-- STATUS DOS RELÉS -->
@@ -367,9 +377,10 @@
                         <h2 class="text-sm font-bold text-slate-300">💧 Umidade</h2>
                         <span class="sm:hidden text-[9px] text-slate-500 font-medium">Toque p/ ler ponto</span>
                     </div>
-                    <div class="flex gap-2 text-[10px] font-bold text-slate-400 mb-2">
+                    <div class="flex flex-wrap gap-2.5 text-[10px] font-bold text-slate-400 mb-2">
                         <span class="flex items-center gap-1"><span style="background:#00c8ff" class="w-3 h-[2px] inline-block rounded"></span> Interna</span>
                         <span class="flex items-center gap-1"><span style="background:#c084fc" class="w-3 h-[2px] inline-block rounded"></span> Externa</span>
+                        <span class="flex items-center gap-1 text-purple-300/80"><span style="border-top:2px dashed #c084fc" class="w-3 h-0 inline-block"></span> Prev. Ext</span>
                     </div>
                     <div class="chart-touch-wrap relative h-[215px] sm:h-[280px]"><canvas id="canvasUmid"></canvas></div>
                 </div>
@@ -378,9 +389,11 @@
                         <h2 class="text-sm font-bold text-slate-300">🌡️ Temperatura</h2>
                         <span class="sm:hidden text-[9px] text-slate-500 font-medium">Pinça/arraste p/ zoom</span>
                     </div>
-                    <div class="flex gap-2 text-[10px] font-bold text-slate-400 mb-2">
+                    <div class="flex flex-wrap gap-2.5 text-[10px] font-bold text-slate-400 mb-2">
                         <span class="flex items-center gap-1"><span style="background:#00ffaa" class="w-3 h-[2px] inline-block rounded"></span> Interna</span>
                         <span class="flex items-center gap-1"><span style="background:#ff4d6d" class="w-3 h-[2px] inline-block rounded"></span> Externa</span>
+                        <span class="flex items-center gap-1 text-cyan-300/90"><span style="border-top:2px dashed #00e5ff" class="w-3 h-0 inline-block"></span> Prev. Int</span>
+                        <span class="flex items-center gap-1 text-rose-300/80"><span style="border-top:2px dashed rgba(255,77,109,0.75)" class="w-3 h-0 inline-block"></span> Prev. Ext</span>
                     </div>
                     <div class="chart-touch-wrap relative h-[215px] sm:h-[280px]"><canvas id="canvasTemp"></canvas></div>
                 </div>
@@ -395,9 +408,14 @@
                             ⏱️ Total Ligado (24h)
                         </span>
                     </div>
-                    <button id="btnResetZoom" onclick="toggleZoomRange()" class="px-3 py-1.5 sm:px-2.5 sm:py-1 text-xs sm:text-[10px] font-bold bg-slate-800 hover:bg-slate-700 border border-slate-600 rounded-lg sm:rounded text-emerald-400 transition-all shadow-sm active:scale-95">
-                        🔍 Ver 24 Horas
-                    </button>
+                    <div class="flex items-center gap-1.5 flex-wrap">
+                        <button id="btnZoomFuturo" onclick="aplicarZoomRestoDoDia()" class="px-3 py-1.5 sm:px-2.5 sm:py-1 text-xs sm:text-[10px] font-bold bg-cyan-950/60 hover:bg-cyan-900/70 border border-cyan-500/40 rounded-lg sm:rounded text-cyan-300 transition-all shadow-sm active:scale-95">
+                            🔮 Resto do Dia
+                        </button>
+                        <button id="btnResetZoom" onclick="toggleZoomRange()" class="px-3 py-1.5 sm:px-2.5 sm:py-1 text-xs sm:text-[10px] font-bold bg-slate-800 hover:bg-slate-700 border border-slate-600 rounded-lg sm:rounded text-emerald-400 transition-all shadow-sm active:scale-95">
+                            🔍 Ver 24 Horas
+                        </button>
+                    </div>
                 </div>
 
             <!-- Horímetro / Legenda Interativa com Filtros Clicáveis -->
@@ -986,6 +1004,7 @@
         }
 
         let zoomAtivo3h = true;
+        let zoomAtivoFuturo = false;
         let zoomManualUsuario = false;
 
         function aplicarZoom3Horas() {
@@ -1023,6 +1042,29 @@
                 }
             });
             zoomAtivo3h = true;
+            zoomAtivoFuturo = false;
+            atualizarTextoBtnZoom();
+        }
+
+        function aplicarZoomRestoDoDia() {
+            if (!chartUmid || !chartTemp || !chartReles) return;
+            const tsAgora = window.tsUltimoDadoReal || Date.now();
+            const minTs = tsAgora - (1 * 3600 * 1000);
+            const maxTs = tsAgora + (10 * 3600 * 1000);
+
+            [chartUmid, chartTemp, chartReles].forEach(c => {
+                if (c) {
+                    c.options.scales.x.min = minTs;
+                    c.options.scales.x.max = maxTs;
+                    if (typeof c.zoomScale === 'function') {
+                        c.zoomScale('x', { min: minTs, max: maxTs }, 'none');
+                    }
+                    c.update('none');
+                }
+            });
+            zoomAtivo3h = false;
+            zoomAtivoFuturo = true;
+            zoomManualUsuario = true;
             atualizarTextoBtnZoom();
         }
 
@@ -1036,6 +1078,7 @@
                 }
             });
             zoomAtivo3h = false;
+            zoomAtivoFuturo = false;
             atualizarTextoBtnZoom();
         }
 
@@ -1051,15 +1094,179 @@
 
         function atualizarTextoBtnZoom() {
             const btn = document.getElementById('btnResetZoom');
+            const btnFut = document.getElementById('btnZoomFuturo');
+            if (btnFut) {
+                btnFut.className = zoomAtivoFuturo
+                    ? "px-3 py-1.5 sm:px-2.5 sm:py-1 text-xs sm:text-[10px] font-bold bg-cyan-600 hover:bg-cyan-500 border border-cyan-400 rounded-lg sm:rounded text-white transition-all shadow-sm active:scale-95"
+                    : "px-3 py-1.5 sm:px-2.5 sm:py-1 text-xs sm:text-[10px] font-bold bg-cyan-950/60 hover:bg-cyan-900/70 border border-cyan-500/40 rounded-lg sm:rounded text-cyan-300 transition-all shadow-sm active:scale-95";
+            }
             if (!btn) return;
             btn.classList.remove('hidden');
             if (zoomAtivo3h) {
                 btn.innerHTML = (limitAtual === 10080 ? '🔍 Ver 7 Dias' : '🔍 Ver 24 Horas');
-                btn.className = "px-2.5 py-1 text-[10px] font-bold bg-slate-800 hover:bg-slate-700 border border-slate-600 rounded text-emerald-400 transition-all shadow-sm";
+                btn.className = "px-3 py-1.5 sm:px-2.5 sm:py-1 text-xs sm:text-[10px] font-bold bg-slate-800 hover:bg-slate-700 border border-slate-600 rounded-lg sm:rounded text-emerald-400 transition-all shadow-sm active:scale-95";
             } else {
                 btn.innerHTML = '🔍 Focar no Meio (Agora)';
-                btn.className = "px-2.5 py-1 text-[10px] font-bold bg-emerald-700 hover:bg-emerald-600 border border-emerald-500 rounded text-white transition-all shadow-sm";
+                btn.className = "px-3 py-1.5 sm:px-2.5 sm:py-1 text-xs sm:text-[10px] font-bold bg-emerald-700 hover:bg-emerald-600 border border-emerald-500 rounded-lg sm:rounded text-white transition-all shadow-sm active:scale-95";
             }
+        }
+
+        // MOTOR METEOROLÓGICO OPEN-METEO (Tiradentes, Campo Grande - MS) com cache de 30min
+        const METEO_CACHE_KEY = 'grow_meteo_cache_v1';
+        const METEO_COORDS = { lat: -20.478, lon: -54.582, nome: 'Campo Grande - MS' };
+        window.climaLocalData = null;
+
+        function interpretarWmoCode(code) {
+            const c = parseInt(code, 10);
+            if (c === 0) return { ico: '☀️', desc: 'Céu Limpo' };
+            if (c >= 1 && c <= 2) return { ico: '⛅', desc: 'Poucas Nuvens' };
+            if (c === 3) return { ico: '☁️', desc: 'Nublado' };
+            if (c === 45 || c === 48) return { ico: '🌫️', desc: 'Neblina' };
+            if (c >= 51 && c <= 57) return { ico: '🌦️', desc: 'Garoa' };
+            if (c >= 61 && c <= 67) return { ico: '🌧️', desc: 'Chuva' };
+            if (c >= 80 && c <= 82) return { ico: '🌦️', desc: 'Pancadas de Chuva' };
+            if (c >= 95) return { ico: '⛈️', desc: 'Tempestade / Raios' };
+            return { ico: '🌤️', desc: 'Tempo Variável' };
+        }
+
+        function prepararClimaLocal(raw) {
+            if (!raw || !raw.hourly || !Array.isArray(raw.hourly.time)) return null;
+            raw.hourly.timeMs = raw.hourly.time.map(s => s * 1000);
+            return raw;
+        }
+
+        function interpolarClimaEm(tsMs, hintIdx = 0) {
+            const h = window.climaLocalData && window.climaLocalData.hourly;
+            if (!h || !h.timeMs || h.timeMs.length === 0) return null;
+            const arr = h.timeMs;
+            let idx = Math.max(0, Math.min(arr.length - 1, hintIdx));
+            while (idx < arr.length - 1 && arr[idx + 1] <= tsMs) idx++;
+            const idxNext = Math.min(arr.length - 1, idx + 1);
+            const span = Math.max(1, arr[idxNext] - arr[idx]);
+            const frac = idx === idxNext ? 0 : Math.min(1, Math.max(0, (tsMs - arr[idx]) / span));
+
+            const t0 = h.temperature_2m[idx], t1 = h.temperature_2m[idxNext];
+            const u0 = h.relative_humidity_2m[idx], u1 = h.relative_humidity_2m[idxNext];
+            const p0 = h.precipitation_probability ? h.precipitation_probability[idx] : 0;
+            const r0 = h.precipitation ? h.precipitation[idx] : 0;
+            const c0 = h.weather_code ? h.weather_code[idx] : 0;
+
+            return {
+                idx,
+                tRua: t0 + (t1 - t0) * frac,
+                hRua: u0 + (u1 - u0) * frac,
+                rainProb: p0 || 0,
+                rainMm: r0 || 0,
+                wCode: c0 || 0
+            };
+        }
+
+        function atualizarRadarClimaUI(simResumo = null) {
+            const bar = document.getElementById('climaRadarBar');
+            const elIco = document.getElementById('climaIcone');
+            const elCidade = document.getElementById('climaResumoCidade');
+            const elAviso = document.getElementById('climaBadgeAviso');
+            const elSim = document.getElementById('climaBadgeSimulacao');
+            if (!bar) return;
+
+            if (simResumo) window.ultimoSimResumo = simResumo;
+            else simResumo = window.ultimoSimResumo || null;
+
+            const meteo = window.climaLocalData;
+            if (meteo && meteo.hourly && meteo.hourly.timeMs) {
+                const agora = Date.now();
+                const atual = interpolarClimaEm(agora, 0);
+                const wInfo = interpretarWmoCode(atual ? atual.wCode : (meteo.daily?.weather_code?.[0] ?? 0));
+                const tMin = meteo.daily?.temperature_2m_min?.[0];
+                const tMax = meteo.daily?.temperature_2m_max?.[0];
+
+                if (elIco) elIco.textContent = wInfo.ico;
+                if (elCidade) {
+                    const faixa = (tMin != null && tMax != null) ? ` • ${Number(tMin).toFixed(0)}°/${Number(tMax).toFixed(0)}°C` : '';
+                    const tempAgoraRua = atual ? ` (${atual.tRua.toFixed(1)}°C rua)` : '';
+                    elCidade.textContent = `${METEO_COORDS.nome}: ${wInfo.desc}${tempAgoraRua}${faixa}`;
+                }
+
+                // Analisa risco de chuva/tempestade nas próximas 12h
+                if (elAviso) {
+                    const fim12h = agora + (12 * 3600 * 1000);
+                    let maxProb = 0, peakTs = 0, totalMm = 0, hasStorm = false;
+                    const tMs = meteo.hourly.timeMs;
+                    for (let i = 0; i < tMs.length; i++) {
+                        if (tMs[i] >= agora - 1800000 && tMs[i] <= fim12h) {
+                            const prob = meteo.hourly.precipitation_probability?.[i] || 0;
+                            const mm = meteo.hourly.precipitation?.[i] || 0;
+                            const code = meteo.hourly.weather_code?.[i] || 0;
+                            totalMm += mm;
+                            if (code >= 95) hasStorm = true;
+                            if (prob > maxProb) { maxProb = prob; peakTs = tMs[i]; }
+                        }
+                    }
+                    const dailyProb = meteo.daily?.precipitation_probability_max?.[0] || 0;
+                    const probFinal = Math.max(maxProb, dailyProb);
+
+                    if (hasStorm) {
+                        const hStr = peakTs ? new Date(peakTs).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }) : 'hoje';
+                        elAviso.className = "flex items-center gap-1.5 px-2.5 py-1 rounded-md border bg-amber-500/15 border-amber-400/40 text-amber-300 font-semibold";
+                        elAviso.textContent = `⛈️ Alerta de Tempestade (~${hStr}, ${probFinal}%): atenção a picos de energia/Wi-Fi`;
+                        elAviso.classList.remove('hidden');
+                    } else if (probFinal >= 45 || totalMm >= 0.8) {
+                        const hStr = peakTs ? new Date(peakTs).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }) : 'hoje';
+                        const mmStr = totalMm >= 0.5 ? ` (~${totalMm.toFixed(1)}mm)` : '';
+                        elAviso.className = "flex items-center gap-1.5 px-2.5 py-1 rounded-md border bg-blue-500/15 border-blue-400/40 text-blue-300 font-semibold";
+                        elAviso.textContent = `🌧️ Chuva prev. ~${hStr} (${probFinal}%${mmStr}) • FAE seca menos o grow`;
+                        elAviso.classList.remove('hidden');
+                    } else {
+                        elAviso.className = "flex items-center gap-1.5 px-2.5 py-1 rounded-md border bg-slate-800/70 border-slate-700/60 text-slate-300 font-medium";
+                        elAviso.textContent = `☀️ Sem chuva prev. (12h) • Ar externo mais seco no FAE`;
+                        elAviso.classList.remove('hidden');
+                    }
+                }
+                bar.classList.remove('hidden');
+            }
+
+            if (elSim && simResumo) {
+                elSim.className = "flex items-center gap-1.5 bg-cyan-950/35 px-2.5 py-1 rounded-md border border-cyan-500/30 text-cyan-200 font-semibold";
+                elSim.textContent = simResumo.texto;
+                elSim.classList.remove('hidden');
+                bar.classList.remove('hidden');
+            }
+        }
+
+        async function buscarClimaLocal(forcar = false) {
+            const agora = Date.now();
+            try {
+                const rawCache = localStorage.getItem(METEO_CACHE_KEY);
+                if (rawCache) {
+                    const parsed = JSON.parse(rawCache);
+                    if (parsed && parsed.ts && (agora - parsed.ts < 30 * 60 * 1000) && !forcar) {
+                        window.climaLocalData = prepararClimaLocal(parsed.data);
+                        atualizarRadarClimaUI();
+                        return window.climaLocalData;
+                    }
+                    if (!window.climaLocalData && parsed && parsed.data && (agora - parsed.ts < 3 * 3600 * 1000)) {
+                        window.climaLocalData = prepararClimaLocal(parsed.data);
+                        atualizarRadarClimaUI();
+                    }
+                }
+            } catch (e) {}
+
+            try {
+                const url = `https://api.open-meteo.com/v1/forecast?latitude=${METEO_COORDS.lat}&longitude=${METEO_COORDS.lon}&hourly=temperature_2m,relative_humidity_2m,precipitation_probability,precipitation,weather_code&daily=temperature_2m_max,temperature_2m_min,precipitation_probability_max,precipitation_sum,weather_code&timezone=America%2FCampo_Grande&timeformat=unixtime&forecast_days=2`;
+                const res = await fetchComTimeout(url, {}, 6500);
+                if (res && res.ok) {
+                    const json = await res.json();
+                    window.climaLocalData = prepararClimaLocal(json);
+                    try { localStorage.setItem(METEO_CACHE_KEY, JSON.stringify({ ts: agora, data: json })); } catch (e) {}
+                    atualizarRadarClimaUI();
+                    if (window.dadosTelemetriaAtuais && window.dadosTelemetriaAtuais.length > 0 && typeof carregarDados === 'function') {
+                        carregarDados(limitAtual, false);
+                    }
+                }
+            } catch (e) {
+                console.warn("Open-Meteo indisponível no momento:", e);
+            }
+            return window.climaLocalData;
         }
 
         async function enviarComando(params) {
@@ -1868,6 +2075,7 @@
             const max = sourceChart.scales.x.max;
             zoomManualUsuario = true;
             zoomAtivo3h = false;
+            zoomAtivoFuturo = false;
             atualizarTextoBtnZoom();
             if (syncZoomRaf) cancelAnimationFrame(syncZoomRaf);
             syncZoomRaf = requestAnimationFrame(() => {
@@ -1953,17 +2161,19 @@
             const ptTi = dsTemp[0]?.data?.[dataIndex];
             const ptTe = dsTemp[1]?.data?.[dataIndex];
             const ptTp = dsTemp[2]?.data?.[dataIndex];
+            const ptTePrev = dsTemp[3]?.data?.[dataIndex];
             const ptHi = dsUmid[0]?.data?.[dataIndex];
             const ptHe = dsUmid[1]?.data?.[dataIndex];
+            const ptHePrev = dsUmid[2]?.data?.[dataIndex];
             const ptLuz = dsReles[0]?.data?.[dataIndex];
             const ptAr  = dsReles[4]?.data?.[dataIndex];
 
-            const ts = ptTi?.x || ptTe?.x || ptTp?.x || ptHi?.x || ptLuz?.x;
+            const ts = ptTi?.x || ptTe?.x || ptTp?.x || ptTePrev?.x || ptHi?.x || ptLuz?.x;
             if (!ts) return;
 
             const d = new Date(ts);
             const horaStr = d.toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' });
-            const isGhost = !!(ptLuz?.ghost || ptAr?.ghost || (ptTi?.y == null && ptTp?.y != null));
+            const isGhost = !!(ptLuz?.ghost || ptAr?.ghost || (ptTi?.y == null && (ptTp?.y != null || ptTePrev?.y != null)));
 
             const elHora = document.getElementById('inspHora');
             const elGhost = document.getElementById('inspGhostTag');
@@ -1988,9 +2198,31 @@
                     elTi.className = 'text-slate-500';
                 }
             }
-            if (elTe) elTe.textContent = (ptTe?.y != null) ? Number(ptTe.y).toFixed(1) + '°' : '--';
+            if (elTe) {
+                if (ptTe?.y != null) {
+                    elTe.textContent = Number(ptTe.y).toFixed(1) + '°';
+                    elTe.className = 'text-[#ff4d6d]';
+                } else if (ptTePrev?.y != null) {
+                    elTe.textContent = '~' + Number(ptTePrev.y).toFixed(1) + '°';
+                    elTe.className = 'text-rose-300/80';
+                } else {
+                    elTe.textContent = '--';
+                    elTe.className = 'text-slate-500';
+                }
+            }
             if (elHi) elHi.textContent = (ptHi?.y != null) ? Number(ptHi.y).toFixed(0) + '%' : '--';
-            if (elHe) elHe.textContent = (ptHe?.y != null) ? Number(ptHe.y).toFixed(0) + '%' : '--';
+            if (elHe) {
+                if (ptHe?.y != null) {
+                    elHe.textContent = Number(ptHe.y).toFixed(0) + '%';
+                    elHe.className = 'text-[#c084fc]';
+                } else if (ptHePrev?.y != null) {
+                    elHe.textContent = '~' + Number(ptHePrev.y).toFixed(0) + '%';
+                    elHe.className = 'text-purple-300/80';
+                } else {
+                    elHe.textContent = '--';
+                    elHe.className = 'text-slate-500';
+                }
+            }
 
             if (elReles) {
                 const relesMeta = [
@@ -2078,6 +2310,7 @@
                     decimation: { enabled: true, algorithm: 'lttb' },
                     tooltip: { 
                         enabled: !touchMode,
+                        filter: (item) => item.parsed && item.parsed.y !== null,
                         backgroundColor: 'rgba(15, 23, 42, 0.95)', 
                         borderColor: '#334155', 
                         borderWidth: 1, 
@@ -2151,7 +2384,8 @@
                 type: 'line',
                 data: { datasets: [
                     { label: 'Umid Int (%)', data: [], borderColor: '#00c8ff', backgroundColor: 'rgba(0,200,255,0.07)', borderWidth: 2.5, pointRadius: 0, tension: 0.25, fill: true },
-                    { label: 'Umid Ext (%)', data: [], borderColor: '#c084fc', backgroundColor: 'rgba(192,132,252,0.05)', borderWidth: 2, pointRadius: 0, tension: 0.25, fill: false }
+                    { label: 'Umid Ext (%)', data: [], borderColor: '#c084fc', backgroundColor: 'rgba(192,132,252,0.05)', borderWidth: 2, pointRadius: 0, tension: 0.25, fill: false },
+                    { label: 'Previsão Umid Ext (%)', data: [], borderColor: 'rgba(192, 132, 252, 0.55)', backgroundColor: 'transparent', borderDash: [4, 4], borderWidth: 1.75, pointRadius: 0, tension: 0.2, fill: false }
                 ]},
                 options: baseOptions({ min: 50, max: 105, grid: { color: 'rgba(255,255,255,0.04)' }, ticks: { color: '#00c8ff', font: { size: 10 }, callback: v => v + '%' } }),
                 plugins: [crosshairPlugin, agoraLinePlugin]
@@ -2162,7 +2396,8 @@
                 data: { datasets: [
                     { label: 'Temp Int (°C)', data: [], borderColor: '#00ffaa', backgroundColor: 'rgba(0,255,170,0.07)', borderWidth: 2.5, pointRadius: 0, tension: 0.25, fill: true },
                     { label: 'Temp Ext (°C)', data: [], borderColor: '#ff4d6d', backgroundColor: 'rgba(255,77,109,0.05)', borderWidth: 2.5, pointRadius: 0, tension: 0.4, fill: false },
-                    { label: 'Previsão Temp Int (°C)', data: [], borderColor: 'rgba(0, 229, 255, 0.7)', backgroundColor: 'transparent', borderDash: [6, 4], borderWidth: 2, pointRadius: 0, tension: 0, fill: false }
+                    { label: 'Previsão Temp Int (°C)', data: [], borderColor: 'rgba(0, 229, 255, 0.8)', backgroundColor: 'transparent', borderDash: [6, 4], borderWidth: 2, pointRadius: 0, tension: 0.15, fill: false },
+                    { label: 'Previsão Temp Ext (°C)', data: [], borderColor: 'rgba(255, 77, 109, 0.6)', backgroundColor: 'transparent', borderDash: [4, 4], borderWidth: 1.75, pointRadius: 0, tension: 0.2, fill: false }
                 ]},
                 options: baseOptions({ grid: { color: 'rgba(255,255,255,0.04)' }, ticks: { color: '#00ffaa', font: { size: 10 }, callback: v => v.toFixed(0) + '°C' } }),
                 plugins: [crosshairPlugin, agoraLinePlugin]
@@ -2195,6 +2430,9 @@
             relesOpts.grouped = false;
             relesOpts.scales.x.stacked = false;
             relesOpts.scales.y.stacked = false;
+            if (relesOpts.plugins && relesOpts.plugins.tooltip) {
+                relesOpts.plugins.tooltip.filter = () => true;
+            }
 
             chartReles = new Chart(document.getElementById('canvasReles').getContext('2d'), {
                 type: 'bar',
@@ -2547,10 +2785,11 @@
                 });
                 const amostras = Array.from(porIntervalo.values());
 
-                const dTempInt = [], dTempExt = [], dTempProj = [], dHumInt = [], dHumExt = [];
+                const dTempInt = [], dTempExt = [], dTempProj = [], dTempExtProj = [];
+                const dHumInt = [], dHumExt = [], dHumExtProj = [];
                 const dLuz = [], dUmid = [], dVento = [], dExaust = [], dAr = [];
 
-                let lastTi = null, lastTe = null;
+                let lastTi = null, lastTe = null, lastHi = null, lastHe = null;
 
                 amostras.forEach(d => {
                     const ts = d.unix_ts_min || (d.unix_ts ? d.unix_ts * 1000 : new Date(d.timestamp.replace(' ', 'T')).getTime());
@@ -2561,12 +2800,16 @@
 
                     if (tI > -40 && tI < 60) lastTi = tI;
                     if (tE > -40 && tE < 60) lastTe = tE;
+                    if (hI > 0 && hI <= 100) lastHi = hI;
+                    if (hE > 0 && hE <= 100) lastHe = hE;
 
                     dTempInt.push({ x: ts, y: lastTi });
                     dTempExt.push({ x: ts, y: lastTe });
                     dTempProj.push({ x: ts, y: null });
+                    dTempExtProj.push({ x: ts, y: null });
                     dHumInt.push({ x: ts, y: (hI > 0 && hI <= 100) ? hI : null });
                     dHumExt.push({ x: ts, y: (hE > 0 && hE <= 100) ? hE : null });
+                    dHumExtProj.push({ x: ts, y: null });
 
                     // Relés em 5 pistas horizontais independentes (Swimlanes):
                     // Pista 4 = Ar Condicionado [3.65, 4.35]
@@ -2598,242 +2841,281 @@
                 // Pega exatamente o timestamp do último ponto traçado no gráfico (momento atual real)
                 const maxTs = dExaust.length > 0 ? dExaust[dExaust.length - 1].x : Date.now();
                 window.tsUltimoDadoReal = maxTs;
-                const tStart = maxTs + passoMs; // Começa no próximo intervalo após o último dado
-                const tEnd = tStart + (3 * 3600 * 1000); // 3 horas pra frente
+                const tStart = maxTs + passoMs;
+                const tEnd = maxTs + (10 * 3600 * 1000); // Simulação das próximas 10 horas (Resto do dia sem lag)
 
-                // PROJEÇÃO TÉRMICA DO AR CONDICIONADO (baseada na tendência real de temp_int + histórico de ciclos)
-                const calcPrevisaoAr = () => {
-                    const hvac = (configClima && configClima.hvac) ? configClima.hvac : {};
-                    const tMeta = (cfgProj && cfgProj.tX) ? parseFloat(cfgProj.tX) : 28.0;
-                    const tPosMetaMin = Math.max(1, parseInt(hvac.tPosMeta || 5, 10));
-                    const tMaxRunMin = Math.max(10, parseInt(hvac.tMaxRun || 45, 10));
-                    const infoBase = { ativo: false, sempreOn: false, temLinhaTemp: false, tInicio: 0, tFim: 0, motivo: '', status: 'inativo', tMeta, lastTi, tempEm: () => null };
+                // PARÂMETROS DO MOTOR TÉRMICO ACOPLADO (AC + FAE EVAPORATIVO + OPEN-METEO QUARTO)
+                const hvac = (configClima && configClima.hvac) ? configClima.hvac : {};
+                const tMeta = (cfgProj && cfgProj.tX) ? parseFloat(cfgProj.tX) : 28.0;
+                const tPosMetaMin = Math.max(1, parseInt(hvac.tPosMeta || 5, 10));
+                const tMaxRunMin = Math.max(10, parseInt(hvac.tMaxRun || 45, 10));
 
-                    if (!cfgProj && arState === 0) return infoBase;
-                    if (arState === 1) {
-                        return { ...infoBase, sempreOn: true, motivo: 'Manual ON', status: 'manual_on' };
-                    }
-                    if (arState === 2) {
-                        return { ...infoBase, status: 'manual_off' };
-                    }
-                    if (lastTi === null || amostras.length === 0) return infoBase;
-
-                    // Mede duração média histórica de ciclos completos do AC presentes no recorte
-                    const duracoesCicloMin = [];
-                    let blocoInicio = null;
-                    let ultimoDesligamentoTs = 0;
-                    for (let i = 0; i < amostras.length; i++) {
-                        const tsItem = amostras[i].unix_ts_min || (amostras[i].unix_ts ? amostras[i].unix_ts * 1000 : new Date(amostras[i].timestamp.replace(' ', 'T')).getTime());
-                        const arOn = parseInt(amostras[i].rele_ar) === 1;
-                        if (arOn && blocoInicio === null) blocoInicio = tsItem;
-                        if (!arOn && blocoInicio !== null) {
-                            const durMin = Math.round((tsItem - blocoInicio) / 60000);
-                            if (durMin >= 3 && durMin <= tMaxRunMin) duracoesCicloMin.push(durMin);
-                            ultimoDesligamentoTs = tsItem;
-                            blocoInicio = null;
+                // Analisa ciclos históricos reais do AC (duração e queda térmica por minuto)
+                const duracoesCicloMin = [], coolRatesObs = [], dropsObs = [];
+                let blocoInicio = null, tempInicioAc = null, minTempAc = Infinity, ultimoDesligamentoTs = 0;
+                for (let i = 0; i < amostras.length; i++) {
+                    const tsItem = amostras[i].unix_ts_min || (amostras[i].unix_ts ? amostras[i].unix_ts * 1000 : new Date(amostras[i].timestamp.replace(' ', 'T')).getTime());
+                    const arOn = parseInt(amostras[i].rele_ar) === 1;
+                    const tItem = parseFloat(amostras[i].temp_int);
+                    if (arOn) {
+                        if (blocoInicio === null) {
+                            blocoInicio = tsItem;
+                            tempInicioAc = (tItem > -40 && tItem < 60) ? tItem : null;
+                            minTempAc = tempInicioAc !== null ? tempInicioAc : Infinity;
+                        } else if (tItem > -40 && tItem < 60 && tItem < minTempAc) {
+                            minTempAc = tItem;
                         }
-                    }
-                    const lastArOn = parseInt(amostras[amostras.length - 1].rele_ar) === 1;
-                    let estDuracaoMin = Math.min(tMaxRunMin, Math.max(15, tPosMetaMin + 12));
-                    if (duracoesCicloMin.length > 0) {
-                        const ultDur = duracoesCicloMin[duracoesCicloMin.length - 1];
-                        estDuracaoMin = Math.max(tPosMetaMin + 5, Math.min(tMaxRunMin, ultDur));
-                    }
-
-                    // Caso 1: AC já está LIGADO agora
-                    if (lastArOn) {
-                        const inicioAtual = blocoInicio || maxTs;
-                        const jaLigadoMin = Math.max(0, Math.round((maxTs - inicioAtual) / 60000));
-                        const restanteRaw = (lastTi < tMeta)
-                            ? Math.max(2, Math.min(tPosMetaMin, tPosMetaMin - 1))
-                            : Math.max(tPosMetaMin + 2, estDuracaoMin - jaLigadoMin);
-                        const restanteMin = Math.max(1, Math.min(Math.max(1, tMaxRunMin - jaLigadoMin), restanteRaw));
-                        const tFim = maxTs + (restanteMin * 60000);
-                        const tAlvoPos = Math.max(18.0, Math.min(lastTi - 0.3, tMeta - 0.8));
-                        return {
-                            ...infoBase,
-                            ativo: true,
-                            temLinhaTemp: true,
-                            tInicio: tStart,
-                            tFim,
-                            restanteMin,
-                            motivo: 'Ciclo ativo + pós-meta',
-                            status: 'ligado',
-                            tempEm: (t) => {
-                                if (t > tFim) return null;
-                                const frac = Math.min(1, Math.max(0, (t - maxTs) / Math.max(60000, tFim - maxTs)));
-                                return parseFloat((lastTi + (tAlvoPos - lastTi) * frac).toFixed(2));
+                    } else if (blocoInicio !== null) {
+                        const durMin = Math.round((tsItem - blocoInicio) / 60000);
+                        if (durMin >= 3 && durMin <= tMaxRunMin) {
+                            duracoesCicloMin.push(durMin);
+                            if (tempInicioAc !== null && minTempAc < tempInicioAc) {
+                                const drop = tempInicioAc - minTempAc;
+                                dropsObs.push(drop);
+                                coolRatesObs.push(drop / durMin);
                             }
-                        };
-                    }
-
-                    // Caso 2: AC está DESLIGADO — calcula tendência térmica recente (últimos 45 min sem AC ativo)
-                    const janelaInicio = maxTs - (45 * 60000);
-                    const pts = [];
-                    for (let i = amostras.length - 1; i >= 0; i--) {
-                        const tsItem = amostras[i].unix_ts_min || (amostras[i].unix_ts ? amostras[i].unix_ts * 1000 : new Date(amostras[i].timestamp.replace(' ', 'T')).getTime());
-                        if (tsItem < janelaInicio) break;
-                        if (parseInt(amostras[i].rele_ar) === 1) break;
-                        const vT = parseFloat(amostras[i].temp_int);
-                        if (!isNaN(vT) && vT > -40 && vT < 60) pts.push({ ts: tsItem, t: vT });
-                    }
-                    pts.reverse();
-
-                    let slopePerMin = 0;
-                    if (pts.length >= 4 && (pts[pts.length - 1].ts - pts[0].ts) >= 4 * 60000) {
-                        const t0 = pts[0].ts;
-                        let sumX = 0, sumY = 0, sumXY = 0, sumXX = 0;
-                        pts.forEach(p => {
-                            const x = (p.ts - t0) / 60000;
-                            sumX += x; sumY += p.t; sumXY += x * p.t; sumXX += x * x;
-                        });
-                        const denom = (pts.length * sumXX) - (sumX * sumX);
-                        if (denom > 0) slopePerMin = ((pts.length * sumXY) - (sumX * sumY)) / denom;
-                    }
-
-                    const cooldownRestanteMs = ultimoDesligamentoTs > 0 ? Math.max(0, (3 * 60000) - (maxTs - ultimoDesligamentoTs)) : 0;
-
-                    if (lastTi >= tMeta) {
-                        const tInicio = maxTs + Math.max(passoMs, cooldownRestanteMs);
-                        const tFim = tInicio + (estDuracaoMin * 60000);
-                        const tAlvoPos = Math.max(18.0, tMeta - 0.8);
-                        return {
-                            ...infoBase,
-                            ativo: true,
-                            temLinhaTemp: true,
-                            tInicio,
-                            tFim,
-                            tTrigger: tInicio,
-                            minutosAteMeta: Math.ceil(cooldownRestanteMs / 60000),
-                            motivo: cooldownRestanteMs > 0 ? 'Aguardando 3m compressor' : `Meta ${tMeta.toFixed(1)}°C atingida`,
-                            status: 'agendado',
-                            tempEm: (t) => {
-                                if (t > tFim) return null;
-                                if (t <= tInicio) return parseFloat(lastTi.toFixed(2));
-                                const frac = (t - tInicio) / Math.max(60000, tFim - tInicio);
-                                return parseFloat((lastTi + (tAlvoPos - lastTi) * frac).toFixed(2));
-                            }
-                        };
-                    }
-
-                    if (slopePerMin > 0.0015) {
-                        const minAteMeta = (tMeta - lastTi) / slopePerMin;
-                        if (minAteMeta <= 180) {
-                            const delayMs = Math.max(cooldownRestanteMs, Math.round(minAteMeta) * 60000);
-                            const tInicio = maxTs + Math.max(passoMs, delayMs);
-                            const tFim = tInicio + (estDuracaoMin * 60000);
-                            const tAlvoPos = Math.max(18.0, tMeta - 0.8);
-                            return {
-                                ...infoBase,
-                                ativo: true,
-                                temLinhaTemp: true,
-                                tInicio,
-                                tFim,
-                                tTrigger: tInicio,
-                                minutosAteMeta: Math.max(1, Math.round(delayMs / 60000)),
-                                slopePerHour: slopePerMin * 60,
-                                estDuracaoMin,
-                                motivo: `Prev. ${tMeta.toFixed(1)}°C (+${(slopePerMin * 60).toFixed(1)}°C/h)`,
-                                status: 'agendado',
-                                tempEm: (t) => {
-                                    if (t > tFim) return null;
-                                    if (t <= tInicio) {
-                                        const frac = (t - maxTs) / Math.max(60000, tInicio - maxTs);
-                                        return parseFloat((lastTi + (tMeta - lastTi) * frac).toFixed(2));
-                                    }
-                                    const frac = (t - tInicio) / Math.max(60000, tFim - tInicio);
-                                    return parseFloat((tMeta + (tAlvoPos - tMeta) * frac).toFixed(2));
-                                }
-                            };
                         }
-                        return { ...infoBase, status: 'longe', slopePerHour: slopePerMin * 60 };
+                        ultimoDesligamentoTs = tsItem;
+                        blocoInicio = null;
+                        tempInicioAc = null;
+                        minTempAc = Infinity;
                     }
-
-                    return { ...infoBase, status: (tMeta - lastTi <= 0.4) ? 'perto_estavel' : 'estavel' };
-                };
-
-                const previsaoAr = calcPrevisaoAr();
-                window.previsaoArInfo = previsaoAr;
-                if (previsaoAr.temLinhaTemp && dTempProj.length > 0 && lastTi !== null) {
-                    dTempProj[dTempProj.length - 1] = { x: maxTs, y: lastTi };
                 }
-                
-                // Sincroniza a fase da projeção de luz com a realidade usando os últimos dados históricos!
-                // Verifica se a luz real no último ponto histórico estava acesa:
+
+                const lastArOn = amostras.length > 0 && parseInt(amostras[amostras.length - 1].rele_ar) === 1;
+                const avgCoolRate = coolRatesObs.length > 0
+                    ? Math.max(0.035, Math.min(0.14, coolRatesObs.reduce((a, b) => a + b, 0) / coolRatesObs.length))
+                    : 0.065;
+                const avgDropPostMeta = dropsObs.length > 0
+                    ? Math.max(0.6, Math.min(1.5, (dropsObs[dropsObs.length - 1] * 0.55)))
+                    : 0.8;
+                const tAlvoPos = Math.max(18.0, tMeta - avgDropPostMeta);
+
+                // Tendência térmica recente (últimos 40 min sem AC ativo) para transição suave
+                let slopePerMin = 0;
+                const janelaInicio = maxTs - (40 * 60000);
+                const pts = [];
+                for (let i = amostras.length - 1; i >= 0; i--) {
+                    const tsItem = amostras[i].unix_ts_min || (amostras[i].unix_ts ? amostras[i].unix_ts * 1000 : new Date(amostras[i].timestamp.replace(' ', 'T')).getTime());
+                    if (tsItem < janelaInicio) break;
+                    if (parseInt(amostras[i].rele_ar) === 1) break;
+                    const vT = parseFloat(amostras[i].temp_int);
+                    if (!isNaN(vT) && vT > -40 && vT < 60) pts.push({ ts: tsItem, t: vT });
+                }
+                pts.reverse();
+                if (pts.length >= 4 && (pts[pts.length - 1].ts - pts[0].ts) >= 4 * 60000) {
+                    const t0 = pts[0].ts;
+                    let sumX = 0, sumY = 0, sumXY = 0, sumXX = 0;
+                    for (let i = 0; i < pts.length; i++) {
+                        const x = (pts[i].ts - t0) / 60000;
+                        sumX += x; sumY += pts[i].t; sumXY += x * pts[i].t; sumXX += x * x;
+                    }
+                    const denom = (pts.length * sumXX) - (sumX * sumX);
+                    if (denom > 0) slopePerMin = ((pts.length * sumXY) - (sumX * sumY)) / denom;
+                }
+
+                // Ancoragem Open-Meteo (calibra curva da cidade ao delta real do quarto)
+                const meteoBase = interpolarClimaEm(maxTs, 0);
+                let meteoIdx = meteoBase ? meteoBase.idx : 0;
+                const tExtAnchor = (lastTe !== null) ? lastTe : (meteoBase ? meteoBase.tRua : (lastTi !== null ? lastTi : 26.0));
+                const hExtAnchor = (lastHe !== null) ? lastHe : (meteoBase ? meteoBase.hRua : 70.0);
+
+                // Pontos de costura em "AGORA" para todas as linhas pontilhadas continuarem sem degrau
+                if (amostras.length > 0) {
+                    const lastIdx = amostras.length - 1;
+                    if (lastTi !== null) dTempProj[lastIdx] = { x: maxTs, y: lastTi };
+                    if (lastTe !== null || meteoBase) dTempExtProj[lastIdx] = { x: maxTs, y: tExtAnchor };
+                    if (lastHe !== null || meteoBase) dHumExtProj[lastIdx] = { x: maxTs, y: hExtAnchor };
+                }
+
                 const lastRealLuzOn = dLuz.length > 0 && dLuz[dLuz.length - 1].y !== null;
-                
+                let tIntSim = lastTi;
+                let simArOn = (arState === 1) ? true : ((arState === 2 || !cfgProj) ? false : lastArOn);
+                let simArInicioTs = simArOn ? (blocoInicio || maxTs) : 0;
+                let simArAbaixoMetaTs = (simArOn && tIntSim !== null && tIntSim < tMeta) ? maxTs : 0;
+                let simArUltimoDesligTs = ultimoDesligamentoTs || 0;
+
+                let primeiroAcTrigger = (simArOn && arState === 0 && lastArOn) ? simArInicioTs : null;
+                let primeiroAcDesligaTs = null;
+                let minTempPrimeiroCiclo = (tIntSim !== null) ? tIntSim : tAlvoPos;
+                let emPrimeiroCicloAc = simArOn;
+                let qtdCiclosAcPrev = (simArOn && arState === 0 && lastArOn) ? 1 : 0;
+                let maxTempIntPrev = (tIntSim !== null) ? tIntSim : -99;
 
                 for (let t = tStart; t <= tEnd; t += passoMs) {
-                    let dObj = new Date(t);
-                    // BUG CORRIGIDO: usar estritamente GMT-3 (fuso do cultivo) para evitar
-                    // projeção errada quando o painel é aberto de outro fuso horário.
-                    let hGMT3 = (dObj.getUTCHours() - 3 + 24) % 24;
-                    
-                    // Luz: se já está acesa no dado real, mantém acesa a noite inteira sem buraco até as 8h da manhã
+                    // Hora exata GMT-3 em aritmética pura (zero alocações no loop)
+                    const hGMT3 = Math.floor(((t - 10800000) % 86400000 + 86400000) % 86400000 / 3600000);
+
+                    // Luz
                     let isLuzOn = false;
-                    if (luzState === 1) {
-                        isLuzOn = true;
-                    } else if (luzState === 2) {
-                        isLuzOn = false;
-                    } else {
-                        if (lastRealLuzOn) {
-                            // Luz já estava ON: considera ciclo começando mais cedo (18h) para suavizar transição
-                            isLuzOn = (hGMT3 >= 18 || hGMT3 < 8);
-                        } else {
-                            // Ciclo padrão do firmware: liga às 20h, desliga às 8h (GMT-3)
-                            isLuzOn = (hGMT3 >= 20 || hGMT3 < 8);
-                        }
-                    }
-                    
+                    if (luzState === 1) isLuzOn = true;
+                    else if (luzState === 2) isLuzOn = false;
+                    else isLuzOn = lastRealLuzOn ? (hGMT3 >= 18 || hGMT3 < 8) : (hGMT3 >= 20 || hGMT3 < 8);
+
                     // FAE / Exaustor
                     let isExaustOn = false;
                     if (cfgProj && cfgProj.fO > 0) {
-                        let cFAE = (cfgProj.fO + cfgProj.fF) * 60000;
-                        let offset = t % cFAE;
-                        if (offset < (cfgProj.fO * 60000)) isExaustOn = true;
+                        const cFAE = (cfgProj.fO + cfgProj.fF) * 60000;
+                        if ((t % cFAE) < (cfgProj.fO * 60000)) isExaustOn = true;
                     }
-                    
-                    // Vento
+
+                    // Vento Interno
                     let isVentoOn = false;
                     if (cfgProj && cfgProj.vO > 0) {
-                        if (cfgProj.vF == 0) {
-                            isVentoOn = true;
-                        } else {
-                            let cVento = (cfgProj.vO + cfgProj.vF) * 60000;
-                            let offsetVento = t % cVento;
-                            if (offsetVento < (cfgProj.vO * 60000)) isVentoOn = true;
+                        if (cfgProj.vF == 0) isVentoOn = true;
+                        else {
+                            const cVento = (cfgProj.vO + cfgProj.vF) * 60000;
+                            if ((t % cVento) < (cfgProj.vO * 60000)) isVentoOn = true;
                         }
                     }
-                    
-                    // Umidificador: segue a regra real da placa!
-                    // Se o modo atual está com "Injetar Névoa na Brisa" (vU == 1), o umidificador liga SEMPRE junto com o vento!
-                    let isUmidOn = false;
-                    if (cfgProj && cfgProj.vU == 1) {
-                        isUmidOn = isVentoOn && !isExaustOn; // Exaustor corta o umidificador
+
+                    // Umidificador
+                    const isUmidOn = (cfgProj && cfgProj.vU == 1) ? (isVentoOn && !isExaustOn) : false;
+
+                    // Previsão externa calibrada (Open-Meteo + Offset real do quarto)
+                    let tExtSim = tExtAnchor;
+                    let hExtSim = hExtAnchor;
+                    if (meteoBase) {
+                        const mPt = interpolarClimaEm(t, meteoIdx);
+                        if (mPt) {
+                            meteoIdx = mPt.idx;
+                            tExtSim = parseFloat((tExtAnchor + (mPt.tRua - meteoBase.tRua) * 0.65).toFixed(2));
+                            hExtSim = parseFloat(Math.max(25, Math.min(99, hExtAnchor + (mPt.hRua - meteoBase.hRua) * 0.70)).toFixed(1));
+                        }
                     }
-                    
-                    const isArPrevOn = previsaoAr.sempreOn || (previsaoAr.ativo && t >= previsaoAr.tInicio && t < previsaoAr.tFim);
+
+                    // Simulação termodinâmica da estufa + máquina de estados do Ar Condicionado
+                    let motivoAr = null;
+                    if (tIntSim !== null) {
+                        const elapsedMin = (t - maxTs) / 60000;
+                        const weightSlope = Math.max(0, 1 - (elapsedMin / 35));
+                        const dSlope = (slopePerMin > -0.05 && slopePerMin < 0.08) ? (slopePerMin * passoMin * weightSlope) : 0;
+                        const roomFactor = (tIntSim < tExtSim - 0.35) ? 0.026 : 0.018;
+                        const dRoom = (tExtSim - tIntSim) * roomFactor * passoMin;
+                        const dLuzGain = isLuzOn ? (0.007 * passoMin) : 0;
+
+                        // Resfriamento evaporativo quando FAE sopra ar externo menos úmido em câmara úmida
+                        let dEvap = 0;
+                        if (isExaustOn && !simArOn && hExtSim < 88 && (lastHi === null || lastHi >= 85)) {
+                            const wetBulbProxy = tExtSim - Math.max(0, (90 - hExtSim) * 0.14);
+                            dEvap = Math.max(0, (tIntSim - wetBulbProxy)) * 0.075 * passoMin;
+                        }
+
+                        if (arState === 1) {
+                            simArOn = true;
+                            motivoAr = 'Manual ON';
+                            tIntSim = Math.max(18.0, tIntSim - (avgCoolRate * 0.7 * passoMin));
+                        } else if (arState === 2 || !cfgProj) {
+                            simArOn = false;
+                            tIntSim += dSlope + dRoom + dLuzGain - dEvap;
+                        } else {
+                            if (simArOn) {
+                                const stepCool = Math.min(avgCoolRate * passoMin, Math.max(0, tIntSim - (tAlvoPos - 0.15)));
+                                tIntSim = tIntSim - stepCool + (dRoom * 0.18);
+                                if (emPrimeiroCicloAc && tIntSim < minTempPrimeiroCiclo) minTempPrimeiroCiclo = tIntSim;
+                                motivoAr = (tIntSim < tMeta) ? `Pós-meta (~${tAlvoPos.toFixed(1)}°C)` : `Resfriando (meta ${tMeta.toFixed(1)}°C)`;
+
+                                if (tIntSim < tMeta) {
+                                    if (!simArAbaixoMetaTs) simArAbaixoMetaTs = t;
+                                } else {
+                                    simArAbaixoMetaTs = 0;
+                                }
+
+                                const passouMaxRun = (t - simArInicioTs) >= (tMaxRunMin * 60000);
+                                const passouPosMeta = (simArAbaixoMetaTs > 0) && ((t - simArAbaixoMetaTs) >= (tPosMetaMin * 60000));
+                                if (passouMaxRun || passouPosMeta) {
+                                    simArOn = false;
+                                    simArUltimoDesligTs = t;
+                                    simArAbaixoMetaTs = 0;
+                                    if (emPrimeiroCicloAc) {
+                                        primeiroAcDesligaTs = t;
+                                        emPrimeiroCicloAc = false;
+                                    }
+                                }
+                            } else {
+                                tIntSim += dSlope + dRoom + dLuzGain - dEvap;
+                                if ((t - simArUltimoDesligTs >= 3 * 60000) && (tIntSim >= tMeta)) {
+                                    simArOn = true;
+                                    simArInicioTs = t;
+                                    simArAbaixoMetaTs = 0;
+                                    qtdCiclosAcPrev++;
+                                    if (!primeiroAcTrigger) {
+                                        primeiroAcTrigger = t;
+                                        emPrimeiroCicloAc = true;
+                                        minTempPrimeiroCiclo = tIntSim;
+                                    }
+                                    motivoAr = `Arma em ${tMeta.toFixed(1)}°C (~${tAlvoPos.toFixed(1)}°C)`;
+                                }
+                            }
+                        }
+
+                        tIntSim = Math.max(14.0, Math.min(42.0, tIntSim));
+                        if (tIntSim > maxTempIntPrev) maxTempIntPrev = tIntSim;
+                    }
+
+                    const isArPrevOn = simArOn;
+                    const tIntVal = (tIntSim !== null) ? parseFloat(tIntSim.toFixed(2)) : null;
 
                     dLuz.push({ x: t, y: isLuzOn ? [2.65, 3.35] : null, ghost: true });
                     dExaust.push({ x: t, y: isExaustOn ? [-0.35, 0.35] : null, ghost: true });
                     dVento.push({ x: t, y: isVentoOn ? [0.65, 1.35] : null, ghost: true });
                     dUmid.push({ x: t, y: isUmidOn ? [1.65, 2.35] : null, ghost: true });
-                    dAr.push({ x: t, y: isArPrevOn ? [3.65, 4.35] : null, ghost: true, motivo: isArPrevOn ? previsaoAr.motivo : null });
-                    
-                    // Empurra nulls (ou curva térmica projetada do AC) para manter comprimento idêntico no eixo X!
+                    dAr.push({ x: t, y: isArPrevOn ? [3.65, 4.35] : null, ghost: true, motivo: motivoAr });
+
                     dTempInt.push({ x: t, y: null });
                     dTempExt.push({ x: t, y: null });
-                    dTempProj.push({ x: t, y: previsaoAr.temLinhaTemp ? previsaoAr.tempEm(t) : null });
+                    dTempProj.push({ x: t, y: tIntVal });
+                    dTempExtProj.push({ x: t, y: tExtSim });
                     dHumInt.push({ x: t, y: null });
                     dHumExt.push({ x: t, y: null });
+                    dHumExtProj.push({ x: t, y: hExtSim });
+                }
+
+                // Alimenta o badge de status do AC e o Radar Meteorológico/Simulação do Dia
+                const previsaoAr = {
+                    ativo: (lastArOn || !!primeiroAcTrigger),
+                    sempreOn: (arState === 1),
+                    tMeta,
+                    lastTi,
+                    slopePerHour: slopePerMin * 60,
+                    restanteMin: (lastArOn && primeiroAcDesligaTs) ? Math.max(1, Math.round((primeiroAcDesligaTs - maxTs) / 60000)) : tPosMetaMin,
+                    tTrigger: (!lastArOn && primeiroAcTrigger) ? primeiroAcTrigger : null,
+                    status: (arState === 1) ? 'manual_on'
+                        : (arState === 2) ? 'manual_off'
+                        : (!cfgProj) ? 'inativo'
+                        : (lastArOn) ? 'ligado'
+                        : (primeiroAcTrigger) ? 'agendado'
+                        : ((maxTempIntPrev > -90 && (tMeta - maxTempIntPrev) <= 0.4) ? 'perto_estavel' : 'estavel')
+                };
+                window.previsaoArInfo = previsaoAr;
+
+                let resumoSimTxt = null;
+                if (maxTempIntPrev > -90) {
+                    if (arState === 1) {
+                        resumoSimTxt = `🔮 Próx. 10h: AC Manual ON • Mín prev ~${minTempPrimeiroCiclo.toFixed(1)}°C`;
+                    } else if (arState === 2) {
+                        resumoSimTxt = `🔮 Próx. 10h: T.Int máx ~${maxTempIntPrev.toFixed(1)}°C (AC Manual OFF)`;
+                    } else if (!cfgProj) {
+                        resumoSimTxt = `🔮 Próx. 10h: T.Int máx ~${maxTempIntPrev.toFixed(1)}°C`;
+                    } else if (lastArOn) {
+                        resumoSimTxt = `🔮 Próx. 10h: AC gelando até ~${minTempPrimeiroCiclo.toFixed(1)}°C • Máx ~${maxTempIntPrev.toFixed(1)}°C`;
+                    } else if (primeiroAcTrigger) {
+                        const horaAc = new Date(primeiroAcTrigger).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+                        resumoSimTxt = `🔮 Próx. 10h: Máx ~${maxTempIntPrev.toFixed(1)}°C • ❄️ AC arma ~${horaAc} (gela até ~${minTempPrimeiroCiclo.toFixed(1)}°C, ${qtdCiclosAcPrev}x)`;
+                    } else {
+                        resumoSimTxt = `🔮 Próx. 10h: T.Int máx ~${maxTempIntPrev.toFixed(1)}°C • ✅ Sem disparo de AC previsto`;
+                    }
+                    atualizarRadarClimaUI({ texto: resumoSimTxt });
                 }
 
                 if (chartUmid && chartTemp && chartReles) {
                     chartTemp.data.datasets[0].data = dTempInt;
                     chartTemp.data.datasets[1].data = dTempExt;
                     chartTemp.data.datasets[2].data = dTempProj;
+                    chartTemp.data.datasets[3].data = dTempExtProj;
                     chartUmid.data.datasets[0].data = dHumInt;
                     chartUmid.data.datasets[1].data = dHumExt;
+                    chartUmid.data.datasets[2].data = dHumExtProj;
                     chartReles.data.datasets[0].data = dLuz;
                     chartReles.data.datasets[1].data = dUmid;
                     chartReles.data.datasets[2].data = dVento;
@@ -2859,6 +3141,10 @@
                         chartTemp.update('none');
                         chartUmid.update('none');
                         chartReles.update('none');
+                    }
+
+                    if (lastHoverIdx >= 0 && isTouchDevice()) {
+                        atualizarInspetorGrafico(lastHoverIdx);
                     }
                 }
 
@@ -2990,7 +3276,13 @@
         // =======================================================
         function formatarMinSeg(segundos) {
             if (segundos < 0) segundos = 0;
-            const m = Math.floor(segundos / 60);
+            const totalMin = Math.floor(segundos / 60);
+            if (totalMin >= 60) {
+                const h = Math.floor(totalMin / 60);
+                const mRest = totalMin % 60;
+                return mRest > 0 ? `${h}h ${mRest}m` : `${h}h`;
+            }
+            const m = totalMin;
             const s = Math.floor(segundos % 60);
             if (m === 0) return `${s}s`;
             if (s === 0) return `${m}m`;
@@ -3441,6 +3733,7 @@
         // Ao desbloquear o celular ou retornar para a aba, puxa dados imediatamente!
         document.addEventListener('visibilitychange', () => {
             if (!document.hidden) {
+                buscarClimaLocal();
                 loopDados(100);
             }
         });
@@ -3558,6 +3851,9 @@
             if (window.location.hash.includes('config')) {
                 navegarView('config');
             }
+
+            buscarClimaLocal();
+            setInterval(() => buscarClimaLocal(), 30 * 60 * 1000);
 
             fetchConfigClima().then(() => {
                 initCharts();
