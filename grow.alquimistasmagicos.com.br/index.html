@@ -1808,6 +1808,8 @@
                 const faseTxt = document.getElementById('valFase')?.textContent || '--';
                 cfgFaseBanner.textContent = 'Fase: ' + faseTxt;
             }
+            sincronizarUiMetaAr();
+            sincronizarUiSifaoRetorno();
 
             // Atualiza status do modo de luz na página de config
             const cfgStatusLuz = document.getElementById('cfgStatusLuzTexto');
@@ -1845,8 +1847,43 @@
             }
         }
 
+        function obterConfigFaseAtiva() {
+            const valFaseTxt = document.getElementById('valFase')?.textContent || '';
+            const fStr = fasePendenteAlvo || (window.ultimoRegistroRecebido && window.ultimoRegistroRecebido.fase) || valFaseTxt || '';
+            let key = null;
+            let nome = null;
+            if (fStr.includes('Pinagem')) { key = '1'; nome = 'Pinagem'; }
+            else if (fStr.includes('Frutifica')) { key = '2'; nome = 'Frutificação'; }
+
+            const selFase = document.getElementById('selConfigFase');
+            const editKey = selFase ? selFase.value : '1';
+            const ativaKey = key || editKey || '1';
+            const ativaNome = nome || (ativaKey === '1' ? 'Pinagem' : 'Frutificação');
+
+            let tX = (configClima[ativaKey] && configClima[ativaKey].tX !== undefined)
+                ? parseFloat(configClima[ativaKey].tX)
+                : (ativaKey === '1' ? 28.0 : 29.0);
+            let uA = (configClima[ativaKey] && (configClima[ativaKey].uA !== undefined || configClima[ativaKey].uN !== undefined))
+                ? parseFloat(configClima[ativaKey].uA !== undefined ? configClima[ativaKey].uA : configClima[ativaKey].uN)
+                : (ativaKey === '1' ? 95.0 : 92.0);
+
+            if (editKey === ativaKey) {
+                const inpTx = document.getElementById('cfgTx');
+                if (inpTx && inpTx.value !== '') {
+                    const v = parseFloat(String(inpTx.value).replace(',', '.'));
+                    if (Number.isFinite(v)) tX = Math.max(15.0, Math.min(35.0, v));
+                }
+                const inpUa = document.getElementById('cfgUa');
+                if (inpUa && inpUa.value !== '') {
+                    const v = parseFloat(String(inpUa.value).replace(',', '.'));
+                    if (Number.isFinite(v)) uA = Math.max(40.0, Math.min(99.0, v));
+                }
+            }
+
+            return { key: ativaKey, nome: ativaNome, temFaseClima: !!key, tX, uA };
+        }
+
         function sincronizarUiMetaAr() {
-            const inpTx = document.getElementById('cfgTx');
             const inpCong = document.getElementById('cfgTCongela');
             const inpHist = document.getElementById('cfgTHistereseAr');
             const badge = document.getElementById('badgeMetaDesligaAr');
@@ -1856,22 +1893,25 @@
                 const v = parseFloat(String(el.value).replace(',', '.'));
                 return Number.isFinite(v) ? Math.max(min, Math.min(max, v)) : def;
             };
-            const tX = parseF(inpTx, 15.0, 35.0, 28.0);
+            const info = obterConfigFaseAtiva();
+            const tX = info.tX;
             const tCong = parseF(inpCong, 5.0, 25.0, 15.0);
             const tHist = parseF(inpHist, 0.0, 5.0, 1.0);
             const metaDesliga = Math.max(tCong + 0.2, tX - tHist);
-            badge.textContent = `Liga ${tX.toFixed(1)}°C ➔ Desliga < ${metaDesliga.toFixed(1)}°C`;
+            const prefixo = info.temFaseClima ? info.nome : `Ex. ${info.nome}`;
+            badge.textContent = `${prefixo}: Liga ${tX.toFixed(1)}°C ➔ Desliga < ${metaDesliga.toFixed(1)}°C`;
         }
 
         function sincronizarUiSifaoRetorno() {
             const chk = document.getElementById('cfgURetornoAlvo');
             const inpRet = document.getElementById('cfgUGuardaRetorno');
-            const inpUa = document.getElementById('cfgUa');
             const badge = document.getElementById('badgeSifaoUmidadeAlvo');
-            const alvoAtual = inpUa && inpUa.value !== '' ? parseFloat(String(inpUa.value).replace(',', '.')) : 95.0;
-            const alvoVal = Number.isFinite(alvoAtual) ? Math.max(40, Math.min(99, alvoAtual)) : 95.0;
+            const info = obterConfigFaseAtiva();
+            const alvoVal = Math.max(40, Math.min(99, info.uA));
             if (badge) {
-                badge.textContent = (chk && chk.checked) ? `Alvo Fase: ${alvoVal.toFixed(1)}%` : 'Modo Manual';
+                badge.textContent = (chk && chk.checked)
+                    ? `Alvo ${info.nome}: ${alvoVal.toFixed(1)}%`
+                    : 'Modo Manual';
             }
             if (inpRet && chk) {
                 inpRet.disabled = chk.checked;
@@ -2095,6 +2135,8 @@
             atualizarBotoesFase(f, true);
             const valFaseEl = document.getElementById('valFase');
             if (valFaseEl) valFaseEl.textContent = (mapaReverso[f] || "Fase " + f) + " ⏳";
+            sincronizarUiMetaAr();
+            sincronizarUiSifaoRetorno();
             
             // Se o usuário selecionou Standby, desliga imediatamente os relés visuais automáticos:
             if (f === 0) {
@@ -2792,6 +2834,8 @@
                     let f_limpa = f_str.replace(' (DHT OFFLINE)', '').replace('ALERTA: SHT30 OFFLINE', 'Standby');
                     atualizarBotoesFase(f_limpa, false);
                     fasePendenteAlvo = null; // limpa por precaução
+                    sincronizarUiMetaAr();
+                    sincronizarUiSifaoRetorno();
                 }
 
                 // Min/Max do período com indicador de Meta Alvo
