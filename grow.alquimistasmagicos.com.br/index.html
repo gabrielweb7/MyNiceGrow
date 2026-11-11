@@ -574,7 +574,7 @@
                                         <div>
                                             <label for="cfgTx" class="text-xs text-slate-300 block mb-1.5 font-medium">Temp. Máxima</label>
                                             <div class="relative">
-                                                <input type="number" step="0.1" id="cfgTx" class="w-full bg-slate-900/90 text-amber-400 text-lg font-extrabold border border-slate-700 rounded-xl p-2.5 pr-8 text-center outline-none focus:border-amber-500 transition">
+                                                <input type="number" step="0.1" id="cfgTx" oninput="sincronizarUiMetaAr()" class="w-full bg-slate-900/90 text-amber-400 text-lg font-extrabold border border-slate-700 rounded-xl p-2.5 pr-8 text-center outline-none focus:border-amber-500 transition">
                                                 <span class="absolute right-3 top-3 text-xs text-slate-500 font-bold">°C</span>
                                             </div>
                                             <span class="text-[11px] text-slate-400 mt-1.5 block">Aciona o AC acima deste valor</span>
@@ -742,15 +742,26 @@
                             <!-- Bloco 2: Compressor & Segurança Térmica -->
                             <div class="grid grid-cols-1 md:grid-cols-2 gap-5">
                                 <div class="bg-slate-800/40 p-5 rounded-xl border border-slate-700/60 space-y-4">
-                                    <span class="text-xs font-bold uppercase tracking-wider text-slate-200 flex items-center gap-2"><span>⏱️</span> Tempos do Compressor (AC)</span>
-                                    <div class="grid grid-cols-2 gap-3.5">
+                                    <div class="flex flex-wrap items-center justify-between gap-2">
+                                        <span class="text-xs font-bold uppercase tracking-wider text-slate-200 flex items-center gap-2"><span>⏱️</span> Tempos do Compressor (AC)</span>
+                                        <span id="badgeMetaDesligaAr" class="text-[11px] text-sky-300 bg-sky-500/10 border border-sky-500/20 px-2.5 py-0.5 rounded-full font-semibold">Liga 28.0°C ➔ Desliga &lt; 27.0°C</span>
+                                    </div>
+                                    <div class="grid grid-cols-1 sm:grid-cols-3 gap-3.5">
+                                        <div>
+                                            <label for="cfgTHistereseAr" class="text-xs text-slate-300 block mb-1.5 font-medium">Queda p/ Desligar AC</label>
+                                            <div class="relative">
+                                                <input type="number" step="0.1" min="0.0" max="5.0" id="cfgTHistereseAr" value="1.0" oninput="sincronizarUiMetaAr()" class="w-full bg-slate-900/90 text-sky-300 text-lg font-extrabold border border-slate-700 rounded-xl p-2.5 pr-8 text-center outline-none focus:border-sky-500 transition">
+                                                <span class="absolute right-3 top-3 text-xs text-slate-500 font-bold">°C</span>
+                                            </div>
+                                            <span class="text-[11px] text-slate-400 mt-1.5 block">Abaixo da T.Máx antes do pós-meta</span>
+                                        </div>
                                         <div>
                                             <label for="cfgTPosMeta" class="text-xs text-slate-300 block mb-1.5 font-medium">Pós-Resfriamento</label>
                                             <div class="relative">
-                                                <input type="number" step="1" min="1" max="60" id="cfgTPosMeta" value="5" class="w-full bg-slate-900/90 text-cyan-300 text-lg font-extrabold border border-slate-700 rounded-xl p-2.5 pr-10 text-center outline-none focus:border-cyan-500 transition">
+                                                <input type="number" step="1" min="0" max="60" id="cfgTPosMeta" value="5" class="w-full bg-slate-900/90 text-cyan-300 text-lg font-extrabold border border-slate-700 rounded-xl p-2.5 pr-10 text-center outline-none focus:border-cyan-500 transition">
                                                 <span class="absolute right-3 top-3 text-xs text-slate-500 font-bold">min</span>
                                             </div>
-                                            <span class="text-[11px] text-slate-400 mt-1.5 block">Tempo extra após bater a meta</span>
+                                            <span class="text-[11px] text-slate-400 mt-1.5 block">Extra após meta (0 = desliga na hora)</span>
                                         </div>
                                         <div>
                                             <label for="cfgTMaxRun" class="text-xs text-slate-300 block mb-1.5 font-medium">Limite Contínuo</label>
@@ -769,7 +780,7 @@
                                         <div>
                                             <label for="cfgTCongela" class="text-xs text-slate-300 block mb-1.5 font-medium">Anti-Congelamento</label>
                                             <div class="relative">
-                                                <input type="number" step="0.1" min="5" max="25" id="cfgTCongela" value="15.0" class="w-full bg-slate-900/90 text-cyan-300 text-lg font-extrabold border border-slate-700 rounded-xl p-2.5 pr-8 text-center outline-none focus:border-cyan-500 transition">
+                                                <input type="number" step="0.1" min="5" max="25" id="cfgTCongela" value="15.0" oninput="sincronizarUiMetaAr()" class="w-full bg-slate-900/90 text-cyan-300 text-lg font-extrabold border border-slate-700 rounded-xl p-2.5 pr-8 text-center outline-none focus:border-cyan-500 transition">
                                                 <span class="absolute right-3 top-3 text-xs text-slate-500 font-bold">°C</span>
                                             </div>
                                             <span class="text-[11px] text-slate-400 mt-1.5 block">Desliga o AC abaixo desta temp.</span>
@@ -1834,6 +1845,24 @@
             }
         }
 
+        function sincronizarUiMetaAr() {
+            const inpTx = document.getElementById('cfgTx');
+            const inpCong = document.getElementById('cfgTCongela');
+            const inpHist = document.getElementById('cfgTHistereseAr');
+            const badge = document.getElementById('badgeMetaDesligaAr');
+            if (!badge) return;
+            const parseF = (el, min, max, def) => {
+                if (!el || el.value === '') return def;
+                const v = parseFloat(String(el.value).replace(',', '.'));
+                return Number.isFinite(v) ? Math.max(min, Math.min(max, v)) : def;
+            };
+            const tX = parseF(inpTx, 15.0, 35.0, 28.0);
+            const tCong = parseF(inpCong, 5.0, 25.0, 15.0);
+            const tHist = parseF(inpHist, 0.0, 5.0, 1.0);
+            const metaDesliga = Math.max(tCong + 0.2, tX - tHist);
+            badge.textContent = `Liga ${tX.toFixed(1)}°C ➔ Desliga < ${metaDesliga.toFixed(1)}°C`;
+        }
+
         function sincronizarUiSifaoRetorno() {
             const chk = document.getElementById('cfgURetornoAlvo');
             const inpRet = document.getElementById('cfgUGuardaRetorno');
@@ -1869,6 +1898,7 @@
             // Carrega travas de segurança, guarda de umidade e Sifão Térmico Pós-AC
             const hv = configClima.hvac || {};
             if (document.getElementById('cfgTCongela')) document.getElementById('cfgTCongela').value = hv.tCongela !== undefined ? hv.tCongela : 15.0;
+            if (document.getElementById('cfgTHistereseAr')) document.getElementById('cfgTHistereseAr').value = hv.tHistereseAr !== undefined ? hv.tHistereseAr : 1.0;
             if (document.getElementById('cfgTPosMeta')) document.getElementById('cfgTPosMeta').value = hv.tPosMeta !== undefined ? hv.tPosMeta : 5;
             if (document.getElementById('cfgTMaxRun')) document.getElementById('cfgTMaxRun').value = hv.tMaxRun !== undefined ? hv.tMaxRun : 45;
             if (document.getElementById('cfgTCorteLuz')) document.getElementById('cfgTCorteLuz').value = hv.tCorteLuz !== undefined ? hv.tCorteLuz : 34.0;
@@ -1880,6 +1910,7 @@
             if (document.getElementById('cfgURetornoAlvo')) document.getElementById('cfgURetornoAlvo').checked = (hv.uRetornoAlvo === undefined || parseInt(hv.uRetornoAlvo, 10) !== 0);
             if (document.getElementById('cfgUGuardaRetorno')) document.getElementById('cfgUGuardaRetorno').value = hv.uGuardaRetorno !== undefined ? hv.uGuardaRetorno : 99.0;
             sincronizarUiSifaoRetorno();
+            sincronizarUiMetaAr();
         }
 
         async function salvarFormClima() {
@@ -1903,7 +1934,8 @@
 
             // Travas de segurança, Sifão Térmico Pós-AC & HVAC
             let tCongelaVal = Math.round(clampVal(document.getElementById('cfgTCongela') ? document.getElementById('cfgTCongela').value : 15.0, 5.0, 25.0, 15.0) * 10) / 10;
-            let tPosMetaVal = Math.round(clampVal(document.getElementById('cfgTPosMeta') ? document.getElementById('cfgTPosMeta').value : 5, 1, 60, 5));
+            let tHistereseArVal = Math.round(clampVal(document.getElementById('cfgTHistereseAr') ? document.getElementById('cfgTHistereseAr').value : 1.0, 0.0, 5.0, 1.0) * 10) / 10;
+            let tPosMetaVal = Math.round(clampVal(document.getElementById('cfgTPosMeta') ? document.getElementById('cfgTPosMeta').value : 5, 0, 60, 5));
             let tMaxRunVal = Math.round(clampVal(document.getElementById('cfgTMaxRun') ? document.getElementById('cfgTMaxRun').value : 45, 10, 180, 45));
             let tCorteLuzVal = Math.round(clampVal(document.getElementById('cfgTCorteLuz') ? document.getElementById('cfgTCorteLuz').value : 34.0, 25.0, 45.0, 34.0) * 10) / 10;
             let tDeltaExtVal = Math.round(clampVal(document.getElementById('cfgTDeltaExt') ? document.getElementById('cfgTDeltaExt').value : 0.4, 0.1, 5.0, 0.4) * 10) / 10;
@@ -1924,6 +1956,7 @@
             document.getElementById('cfgVo').value = vOVal;
             document.getElementById('cfgVf').value = vFVal;
             if (document.getElementById('cfgTCongela')) document.getElementById('cfgTCongela').value = tCongelaVal;
+            if (document.getElementById('cfgTHistereseAr')) document.getElementById('cfgTHistereseAr').value = tHistereseArVal;
             if (document.getElementById('cfgTPosMeta')) document.getElementById('cfgTPosMeta').value = tPosMetaVal;
             if (document.getElementById('cfgTMaxRun')) document.getElementById('cfgTMaxRun').value = tMaxRunVal;
             if (document.getElementById('cfgTCorteLuz')) document.getElementById('cfgTCorteLuz').value = tCorteLuzVal;
@@ -1935,6 +1968,7 @@
             if (document.getElementById('cfgURetornoAlvo')) document.getElementById('cfgURetornoAlvo').checked = (uRetornoAlvoVal === 1);
             if (document.getElementById('cfgUGuardaRetorno')) document.getElementById('cfgUGuardaRetorno').value = uGuardaRetornoVal;
             sincronizarUiSifaoRetorno();
+            sincronizarUiMetaAr();
 
             configClima[f].tX = tXVal;
             configClima[f].uA = uAlvoVal;
@@ -1948,6 +1982,7 @@
 
             configClima.hvac = {
                 tCongela: tCongelaVal,
+                tHistereseAr: tHistereseArVal,
                 tPosMeta: tPosMetaVal,
                 tMaxRun: tMaxRunVal,
                 tCorteLuz: tCorteLuzVal,
@@ -2934,7 +2969,10 @@
                 // PARÂMETROS DO MOTOR TÉRMICO ACOPLADO (AC + SIFÃO PÓS-AC + FAE + OPEN-METEO QUARTO)
                 const hvac = (configClima && configClima.hvac) ? configClima.hvac : {};
                 const tMeta = (cfgProj && cfgProj.tX) ? parseFloat(cfgProj.tX) : 28.0;
-                const tPosMetaMin = Math.max(1, parseInt(hvac.tPosMeta || 5, 10));
+                const tCongelaSim = (hvac.tCongela !== undefined) ? parseFloat(hvac.tCongela) : 15.0;
+                const tHistereseArSim = (hvac.tHistereseAr !== undefined) ? Math.max(0, Math.min(5.0, parseFloat(hvac.tHistereseAr))) : 1.0;
+                const tMetaOff = Math.max(tCongelaSim + 0.2, tMeta - tHistereseArSim);
+                const tPosMetaMin = (hvac.tPosMeta !== undefined) ? Math.max(0, Math.min(60, parseInt(hvac.tPosMeta, 10))) : 5;
                 const tMaxRunMin = Math.max(10, parseInt(hvac.tMaxRun || 45, 10));
                 const tSifaoPosAcMin = (hvac.tSifaoPosAc !== undefined) ? Math.max(0, Math.min(60, parseInt(hvac.tSifaoPosAc, 10))) : 15;
                 const tDeltaExtSim = (hvac.tDeltaExt !== undefined) ? parseFloat(hvac.tDeltaExt) : 0.4;
@@ -3112,7 +3150,7 @@
                 const avgDropPostMeta = dropsObs.length > 0
                     ? Math.max(0.6, Math.min(1.5, (dropsObs[dropsObs.length - 1] * 0.55)))
                     : 0.8;
-                const tAlvoPos = Math.max(18.0, tMeta - avgDropPostMeta);
+                const tAlvoPos = Math.max(tCongelaSim + 0.1, tMetaOff - (tPosMetaMin > 0 ? Math.min(1.0, avgDropPostMeta * 0.5) : 0));
 
                 // Tendência térmica recente (últimos 30 min sem AC nem FAE ativo) para transição suave em AGORA
                 let slopePerMin = 0;
@@ -3326,17 +3364,20 @@
                                 tIntBase = tIntBase - stepCool + (dCouple * 0.15);
                                 tIntPlot = tIntBase;
                                 if (emPrimeiroCicloAc && tIntPlot < minTempPrimeiroCiclo) minTempPrimeiroCiclo = tIntPlot;
-                                motivoAr = (tIntPlot < tMeta) ? `Pós-meta (~${tAlvoPos.toFixed(1)}°C)` : `Resfriando (meta ${tMeta.toFixed(1)}°C)`;
+                                motivoAr = (tIntPlot < tMetaOff)
+                                    ? (tPosMetaMin > 0 ? `Pós-meta (< ${tMetaOff.toFixed(1)}°C)` : `Meta ${tMetaOff.toFixed(1)}°C atingida`)
+                                    : `Resfriando (desliga < ${tMetaOff.toFixed(1)}°C)`;
 
-                                if (tIntPlot < tMeta) {
+                                if (tIntPlot < tMetaOff) {
                                     if (!simArAbaixoMetaTs) simArAbaixoMetaTs = t;
                                 } else {
                                     simArAbaixoMetaTs = 0;
                                 }
 
                                 const passouMaxRun = (t - simArInicioTs) >= (tMaxRunMin * 60000);
-                                const passouPosMeta = (simArAbaixoMetaTs > 0) && ((t - simArAbaixoMetaTs) >= (tPosMetaMin * 60000));
-                                if (passouMaxRun || passouPosMeta) {
+                                const passouCongela = tIntPlot <= tCongelaSim;
+                                const passouPosMeta = (simArAbaixoMetaTs > 0) && (tPosMetaMin === 0 || ((t - simArAbaixoMetaTs) >= (tPosMetaMin * 60000)));
+                                if (passouMaxRun || passouCongela || passouPosMeta) {
                                     simArOn = false;
                                     simArUltimoDesligTs = t;
                                     simArAbaixoMetaTs = 0;
@@ -3359,7 +3400,7 @@
                                         emPrimeiroCicloAc = true;
                                         minTempPrimeiroCiclo = tIntPlot;
                                     }
-                                    motivoAr = `Arma em ${tMeta.toFixed(1)}°C (~${tAlvoPos.toFixed(1)}°C)`;
+                                    motivoAr = `Arma em ${tMeta.toFixed(1)}°C (desliga < ${tMetaOff.toFixed(1)}°C)`;
                                 }
                             }
                         }

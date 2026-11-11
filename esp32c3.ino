@@ -2,10 +2,10 @@
 //  GROW IA - Firmware Inteligente + Nuvem IoT
 //  Placa: ESP32-C3 SuperMini (Produção) / ESP32-S3 Dual-Core
 //  Autor: Gabriel + Antigravity AI
-//  Versão Atual: v444 (Sifão Térmico em Ondas Pós-AC + Histerese Dinâmica)
+//  Versão Atual: v445 (Histerese Dinâmica p/ Desligar AC + Sifão Térmico Pós-AC)
 // ============================================================
 
-#define FW_VERSION 444
+#define FW_VERSION 445
 
 #include <Arduino.h>
 #include <ArduinoJson.h>
@@ -47,7 +47,8 @@ const float TEMP_ALVO_MAX = 29.0;
 const float TEMP_CRITICA = 32.0;    // Aumentado para evitar spam no calor de MS
 float tempCorteLuz = 34.0f;           // Desliga luz por segurança térmica extrema
 float tempMinCongelamento = 15.0f;    // Desliga ar condicionado por segurança anti-congelamento
-unsigned long tempoExtraRefrigeracaoMs = 5UL * 60UL * 1000UL; // 5 minutos pós-meta
+float tempHistereseAr = 1.0f;         // Queda abaixo da Temp. Máxima para desligar o AC (ex: liga 28.0°C, meta OFF < 27.0°C)
+unsigned long tempoExtraRefrigeracaoMs = 5UL * 60UL * 1000UL; // 5 minutos pós-meta (0 = desliga imediato na meta)
 unsigned long maxRunContinuoArMs = 45UL * 60UL * 1000UL;      // Limite máximo contínuo (45 min)
 unsigned long tempoSifaoPosAcMs = 15UL * 60UL * 1000UL;       // Janela pós-AC para continuar sugando ar frio da sala (15 min)
 float tempDeltaArExt = 0.4f;          // Diferença mínima sala vs estufa (°C) para iniciar injeção fria
@@ -669,6 +670,10 @@ void enviarNuvem(unsigned long agora) {
               float tc = clampF(h["tCongela"].as<float>(), 5.0f, 25.0f, 15.0f);
               if (abs(tempMinCongelamento - tc) > 0.05f) { tempMinCongelamento = tc; configAlterada = true; }
             }
+            if (h.containsKey("tHistereseAr")) {
+              float tha = clampF(h["tHistereseAr"].as<float>(), 0.0f, 5.0f, 1.0f);
+              if (abs(tempHistereseAr - tha) > 0.05f) { tempHistereseAr = tha; configAlterada = true; }
+            }
             if (h.containsKey("tPosMeta")) {
               unsigned long tpm = clampMin(h["tPosMeta"].as<long>(), 60UL, 5UL) * 60000UL;
               if (tempoExtraRefrigeracaoMs != tpm) { tempoExtraRefrigeracaoMs = tpm; configAlterada = true; }
@@ -719,6 +724,7 @@ void enviarNuvem(unsigned long agora) {
             salvarPerfisNVS();
             prefs.begin("grow", false);
             prefs.putFloat("tCongela", tempMinCongelamento);
+            prefs.putFloat("tHisterAr", tempHistereseAr);
             prefs.putUInt("tPosMeta", (uint32_t)(tempoExtraRefrigeracaoMs / 60000UL));
             prefs.putUInt("tMaxRun", (uint32_t)(maxRunContinuoArMs / 60000UL));
             prefs.putFloat("tCorteLuz", tempCorteLuz);
@@ -1252,14 +1258,23 @@ void executarMotor(unsigned long agora) {
       tempoAlvoAtingido = 0; // Se voltou a subir, cancela temporizador de desligamento
     }
   } else if (modoRefrigeracaoAtivo) {
-    // Alvo atingido (tempInt < pf.tempMax)!
-    if (tempoAlvoAtingido == 0) {
-      tempoAlvoAtingido = agora;
-      Serial.printf("❄️ CLIMATIZAÇÃO: Meta atingida (%.1f°C < %.1f°C)! Mantendo Ar ligado por mais %lu min para fixação...\n", tempInt, pf.tempMax, tempoExtraRefrigeracaoMs / 60000UL);
-    } else if (agora - tempoAlvoAtingido >= tempoExtraRefrigeracaoMs) {
-      modoRefrigeracaoAtivo = false;
-      tempoAlvoAtingido = 0;
-      Serial.printf("❄️ CLIMATIZAÇÃO: %lu minutos de pós-resfriamento concluídos. Desligando Ar Condicionado.\n", tempoExtraRefrigeracaoMs / 60000UL);
+    // Meta de desligamento dinâmica: pf.tempMax - tempHistereseAr (limitada acima do anti-congelamento)
+    float metaDesligaAr = max(tempMinCongelamento + 0.2f, pf.tempMax - tempHistereseAr);
+    if (tempInt < metaDesligaAr) {
+      if (tempoExtraRefrigeracaoMs == 0) {
+        modoRefrigeracaoAtivo = false;
+        tempoAlvoAtingido = 0;
+        Serial.printf("❄️ CLIMATIZAÇÃO: Meta de desligamento atingida (%.1f°C < %.1f°C)! Desligando Ar Condicionado.\n", tempInt, metaDesligaAr);
+      } else if (tempoAlvoAtingido == 0) {
+        tempoAlvoAtingido = agora;
+        Serial.printf("❄️ CLIMATIZAÇÃO: Meta atingida (%.1f°C < %.1f°C)! Mantendo Ar ligado por mais %lu min para fixação...\n", tempInt, metaDesligaAr, tempoExtraRefrigeracaoMs / 60000UL);
+      } else if (agora - tempoAlvoAtingido >= tempoExtraRefrigeracaoMs) {
+        modoRefrigeracaoAtivo = false;
+        tempoAlvoAtingido = 0;
+        Serial.printf("❄️ CLIMATIZAÇÃO: %lu minutos de pós-resfriamento concluídos (%.1f°C < %.1f°C). Desligando Ar Condicionado.\n", tempoExtraRefrigeracaoMs / 60000UL, tempInt, metaDesligaAr);
+      }
+    } else {
+      tempoAlvoAtingido = 0; // Ainda entre metaDesligaAr e pf.tempMax: segue resfriando antes de contar pós-meta
     }
   }
 
@@ -1528,6 +1543,7 @@ void setup() {
 
   // Carrega Travas de Segurança Térmica e Climatização NVS
   tempMinCongelamento = prefs.getFloat("tCongela", 15.0f);
+  tempHistereseAr = prefs.getFloat("tHisterAr", 1.0f);
   tempoExtraRefrigeracaoMs = (unsigned long)prefs.getUInt("tPosMeta", 5) * 60000UL;
   maxRunContinuoArMs = (unsigned long)prefs.getUInt("tMaxRun", 45) * 60000UL;
   tempoSifaoPosAcMs = (unsigned long)prefs.getUInt("tSifaoPosAc", 15) * 60000UL;

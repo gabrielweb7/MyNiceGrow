@@ -1,6 +1,6 @@
-# 🍄 Grow do Txai — Sistema Inteligente de Automação IoT (v1.6.3 / FW v444 Oficial)
+# 🍄 Grow do Txai — Sistema Inteligente de Automação IoT (v1.6.4 / FW v445 Oficial)
 
-[![Release v1.6.3](https://img.shields.io/badge/Release-v1.6.3%20(FW%20v444)-gold?style=for-the-badge&logo=target)](https://github.com/gabrielweb7/MyNiceGrow)
+[![Release v1.6.4](https://img.shields.io/badge/Release-v1.6.4%20(FW%20v445)-gold?style=for-the-badge&logo=target)](https://github.com/gabrielweb7/MyNiceGrow)
 [![Hardware](https://img.shields.io/badge/Hardware-ESP32--C3%20%2F%20ESP32--S3%20Dual--Board-brightgreen?style=for-the-badge&logo=espressif)](https://www.espressif.com/)
 [![Firmware](https://img.shields.io/badge/Firmware-Arduino%20%2F%20C%2B%2B%20%2B%20Dual--Bank%20OTA-blue?style=for-the-badge&logo=arduino)](https://www.arduino.cc/)
 [![FreeRTOS](https://img.shields.io/badge/RTOS-FreeRTOS%20Watchdog-red?style=for-the-badge&logo=freertos)](https://www.freertos.org/)
@@ -407,7 +407,8 @@ Instale através de **Ferramentas > Gerenciar Bibliotecas** (*Ctrl + Shift + I*)
 
 ## 🤖 Diretrizes para Desenvolvedores & Futuras IAs
 
-1. **ESTRATÉGIA DE UMIDADE & SIFÃO PÓS-AC (`v444`):**
+1. **ESTRATÉGIA DE HISTERESE DO AC, UMIDADE & SIFÃO PÓS-AC (`v445`):**
+   - **Histerese de Desligamento do AC (`tHistereseAr`):** Configurável em **Configurações -> AC & Proteções** (`0.0°C–5.0°C`, padrão `1.0°C`), define quanto abaixo da `Temp. Máxima (tX)` o AC deve resfriar antes de iniciar o `tPosMeta` (`0–60 min`, `0 = desliga na hora`). Ex.: `tX = 28.0°C` e `tHistereseAr = 1.0°C` ➔ Liga em `>= 28.0°C` e só inicia contagem/desligamento abaixo de `27.0°C` (limitado acima de `tCongela + 0.2°C`).
    - A meta base da fase (`uA`) permanece alta (ex.: `95%–99%`), com névoa na brisa (`vU = 1`).
    - Durante o **Sifão Térmico (AC + Pós-AC)**, todos os limiares são dinâmicos e editáveis em **Configurações -> AC & Proteções**: `uGuardaCorte` (padrão `90.0%`), `uRetornoAlvo` (padrão `1` = seguir `Umidade Alvo` da fase) / `uGuardaRetorno` manual, `tSifaoPosAc` (padrão `15 min`), `tDeltaExt` (padrão `0.4°C`), `tDeltaSaida` (padrão `0.1°C`) e `tSifaoTempMin` (padrão `22.0°C`).
    - Quando a umidade cai abaixo de `uGuardaCorte`, o Sifão pausa sem bloquear FAE programado e reidrata rapidamente até recuperar a `Umidade Alvo`, nunca operando exaustor e umidificador ao mesmo tempo.
