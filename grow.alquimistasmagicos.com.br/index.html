@@ -2,22 +2,23 @@
 <html lang="pt-BR">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
     <title>🍄 Grow do Txai - Painel de Controle</title>
     <!-- Meta Tags Sociais / Open Graph -->
     <meta property="og:title" content="🍄 Grow do Txai - Automação Micológica">
     <meta property="og:description" content="Painel de controle IoT em tempo real. Monitore o clima, temperatura e umidade da estufa de cultivo.">
-    <meta property="og:image" content="https://grow.alquimistasmagicos.com.br/grow.alquimistasmagicos.com.br/thumb.png">
+    <meta property="og:image" content="https://grow.alquimistasmagicos.com.br/thumb.png">
     <meta property="og:url" content="https://grow.alquimistasmagicos.com.br/">
     <meta property="og:type" content="website">
     <meta name="description" content="Painel de controle IoT em tempo real para estufa de cultivo micológico.">
     <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🍄</text></svg>">
-    <link rel="manifest" href="grow.alquimistasmagicos.com.br/manifest.json">
+    <link rel="manifest" href="manifest.json">
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <meta name="apple-mobile-web-app-title" content="Grow Txai">
+    <meta name="mobile-web-app-capable" content="yes">
     <meta name="theme-color" content="#060913">
-    <link rel="apple-touch-icon" href="grow.alquimistasmagicos.com.br/icon.png">
+    <link rel="apple-touch-icon" href="icon.png">
     <script src="https://cdn.tailwindcss.com"></script>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
@@ -52,11 +53,22 @@
         .rele-on { background: linear-gradient(135deg, #10b981, #059669); box-shadow: 0 0 12px rgba(16, 185, 129, 0.4); }
         .rele-off { background: rgba(51, 65, 85, 0.5); }
         ::-webkit-scrollbar { width: 6px; } ::-webkit-scrollbar-track { background: #0f172a; } ::-webkit-scrollbar-thumb { background: #334155; border-radius: 3px; }
+        .no-scrollbar::-webkit-scrollbar { display: none; }
+        .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+        .safe-top { padding-top: max(0.65rem, env(safe-area-inset-top)); }
+        .safe-bottom { padding-bottom: max(0.5rem, env(safe-area-inset-bottom)); }
+        .chart-touch-wrap { touch-action: pan-y; -webkit-user-select: none; user-select: none; }
+        .chart-touch-wrap canvas { touch-action: pan-y; }
+        * { -webkit-tap-highlight-color: transparent; }
+        @media (max-width: 767px) {
+            .glass { backdrop-filter: blur(6px); background: rgba(15, 23, 42, 0.88); }
+            input, select, textarea { font-size: 16px !important; }
+        }
         .apexcharts-tooltip { background: #1e293b !important; border: 1px solid rgba(255,255,255,0.1) !important; color: #f8fafc !important; }
         .apexcharts-tooltip-title { background: #0f172a !important; border-bottom: 1px solid rgba(255,255,255,0.05) !important; color: #94a3b8 !important; }
     </style>
 </head>
-<body class="min-h-screen text-slate-200 font-sans relative overflow-x-hidden">
+<body class="min-h-screen text-slate-200 font-sans relative" style="overflow-x: clip;">
 
     <!-- FUNDO CÓSMICO / REDE MICELIAL PROFUNDA (Ultra Leve / Zero Lag) -->
     <div class="fixed inset-0 pointer-events-none -z-10 overflow-hidden">
@@ -70,52 +82,52 @@
     </div>
 
     <!-- HEADER -->
-    <header class="sticky top-0 z-50 glass border-b border-slate-700/50 px-4 md:px-8 py-3">
-        <div class="max-w-7xl mx-auto flex flex-col sm:flex-row justify-between items-center gap-3">
-            <div class="flex items-center gap-3">
-                <div class="text-3xl cursor-pointer" onclick="navegarView('dashboard')" title="Ir para o Painel">🍄</div>
+    <header class="sticky top-0 z-50 glass border-b border-slate-700/50 px-3 sm:px-4 md:px-8 pb-2.5 sm:py-3 safe-top">
+        <div class="max-w-7xl mx-auto flex flex-wrap justify-between items-center gap-2 sm:gap-3">
+            <div class="flex items-center gap-2 sm:gap-3">
+                <div class="text-2xl sm:text-3xl cursor-pointer leading-none" onclick="navegarView('dashboard')" title="Ir para o Painel">🍄</div>
                 <div>
-                    <h1 class="text-xl md:text-2xl font-bold bg-gradient-to-r from-emerald-400 to-cyan-400 bg-clip-text text-transparent cursor-pointer" onclick="navegarView('dashboard')">Grow do Txai</h1>
-                    <p class="text-[10px] md:text-xs text-slate-500 font-medium tracking-wider uppercase">Painel de Controle IoT</p>
+                    <h1 class="text-base sm:text-xl md:text-2xl font-bold bg-gradient-to-r from-emerald-400 to-cyan-400 bg-clip-text text-transparent cursor-pointer leading-tight" onclick="navegarView('dashboard')">Grow do Txai</h1>
+                    <p class="hidden sm:block text-[10px] md:text-xs text-slate-500 font-medium tracking-wider uppercase">Painel de Controle IoT</p>
                 </div>
-                <div id="statusDot" class="ml-3 flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-slate-800 text-[10px] font-semibold uppercase tracking-wider">
+                <div id="statusDot" class="ml-1 sm:ml-3 flex items-center gap-1.5 px-2 sm:px-2.5 py-1 rounded-full bg-slate-800 text-[10px] font-semibold uppercase tracking-wider">
                     <span class="w-2 h-2 rounded-full bg-slate-500 pulse-dot" id="dotColor"></span>
                     <span id="statusText" class="text-slate-400">Aguardando...</span>
                 </div>
-                <!-- Alternador SPA de Telas (Painel vs Configurações) -->
-                <div class="flex items-center bg-slate-900/90 p-0.5 rounded-lg border border-slate-700/80 ml-2 shadow-sm">
+                <!-- Alternador SPA de Telas (Desktop: Painel vs Configurações; Mobile usa Bottom Bar) -->
+                <div class="hidden sm:flex items-center bg-slate-900/90 p-0.5 rounded-lg border border-slate-700/80 ml-2 shadow-sm">
                     <button id="navBtnDashboard" onclick="navegarView('dashboard')" class="px-3 py-1 text-xs rounded-md font-semibold tracking-wide flex items-center gap-1.5 transition-all bg-emerald-600 text-white shadow">
-                        <span>📊</span> <span class="hidden sm:inline">Painel</span>
+                        <span>📊</span> <span>Painel</span>
                     </button>
                     <button id="navBtnConfig" onclick="navegarView('config')" class="px-3 py-1 text-xs rounded-md font-semibold tracking-wide flex items-center gap-1.5 transition-all text-slate-400 hover:text-white hover:bg-slate-800">
-                        <span>⚙️</span> <span class="hidden sm:inline">Configurações</span>
+                        <span>⚙️</span> <span>Configurações</span>
                     </button>
                 </div>
             </div>
             <!-- Controles do Header (Monitoramento) -->
-            <div id="headerDashboardControls" class="flex items-center gap-2">
-                <button onclick="filtrar(1440, this)"  class="btn-filter px-3 py-1.5 rounded-lg text-xs font-bold bg-slate-800 hover:bg-slate-700 active">24h</button>
-                <button onclick="filtrar(10080, this)" class="btn-filter px-3 py-1.5 rounded-lg text-xs font-bold bg-slate-800 hover:bg-slate-700">7 Dias</button>
-                <button onclick="exportarCSV()" class="px-2.5 py-1.5 rounded-lg text-xs font-bold bg-slate-800 hover:bg-slate-700 border border-slate-700/60 text-slate-300 hover:text-white flex items-center gap-1.5 transition shadow-sm" title="Exportar dados do gráfico em formato CSV">
-                    <span>📥</span> <span class="hidden sm:inline">CSV</span>
+            <div id="headerDashboardControls" class="flex items-center gap-1.5 sm:gap-2">
+                <button onclick="filtrar(1440, this)"  class="btn-filter px-2.5 sm:px-3 py-1.5 rounded-lg text-xs font-bold bg-slate-800 hover:bg-slate-700 active">24h</button>
+                <button onclick="filtrar(10080, this)" class="btn-filter px-2.5 sm:px-3 py-1.5 rounded-lg text-xs font-bold bg-slate-800 hover:bg-slate-700">7 Dias</button>
+                <button onclick="exportarCSV()" class="hidden sm:flex px-2.5 py-1.5 rounded-lg text-xs font-bold bg-slate-800 hover:bg-slate-700 border border-slate-700/60 text-slate-300 hover:text-white items-center gap-1.5 transition shadow-sm" title="Exportar dados do gráfico em formato CSV">
+                    <span>📥</span> <span>CSV</span>
                 </button>
-                <button id="btnNotificacoes" onclick="toggleNotificacoes()" class="px-2.5 py-1.5 rounded-lg text-xs font-bold bg-slate-800 hover:bg-slate-700 border border-slate-700/60 text-slate-400 hover:text-white flex items-center gap-1.5 transition shadow-sm" title="Alertas Sonoros e Notificações no Navegador">
-                    <span id="iconeNotif">🔔</span> <span id="txtNotif" class="hidden sm:inline">Alertas</span>
+                <button id="btnNotificacoes" onclick="toggleNotificacoes()" class="hidden sm:flex px-2.5 py-1.5 rounded-lg text-xs font-bold bg-slate-800 hover:bg-slate-700 border border-slate-700/60 text-slate-400 hover:text-white items-center gap-1.5 transition shadow-sm" title="Alertas Sonoros e Notificações no Navegador">
+                    <span id="iconeNotif">🔔</span> <span id="txtNotif">Alertas</span>
                 </button>
-                <button onclick="carregarDados(limitAtual)" class="ml-1 p-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 transition" title="Atualizar">
+                <button onclick="carregarDados(limitAtual)" class="p-1.5 sm:ml-1 rounded-lg bg-slate-800 hover:bg-slate-700 transition active:scale-95" title="Atualizar">
                     <svg class="w-4 h-4 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg>
                 </button>
             </div>
             <!-- Controles do Header (quando na tela de Configurações) -->
             <div id="headerConfigControls" class="hidden flex items-center gap-2">
-                <button onclick="navegarView('dashboard')" class="px-3.5 py-1.5 rounded-lg text-xs font-bold bg-emerald-600/20 text-emerald-300 border border-emerald-500/30 hover:bg-emerald-600 hover:text-white flex items-center gap-1.5 transition shadow-sm">
-                    <span>←</span> <span>Voltar ao Painel</span>
+                <button onclick="navegarView('dashboard')" class="px-3 py-1.5 rounded-lg text-xs font-bold bg-emerald-600/20 text-emerald-300 border border-emerald-500/30 hover:bg-emerald-600 hover:text-white flex items-center gap-1.5 transition shadow-sm">
+                    <span>←</span> <span class="hidden sm:inline">Voltar ao Painel</span><span class="sm:hidden">Painel</span>
                 </button>
             </div>
         </div>
     </header>
 
-    <main class="max-w-7xl mx-auto px-4 md:px-8 py-6">
+    <main class="max-w-7xl mx-auto px-3 sm:px-4 md:px-8 pt-4 pb-24 sm:py-6">
 
         <!-- VIEW 1: PAINEL DE MONITORAMENTO (DASHBOARD) -->
         <div id="viewDashboard" class="space-y-6">
@@ -219,7 +231,7 @@
                     <p class="text-[10px] text-slate-400 mt-0.5 font-bold tracking-wider" id="releExaustStatus">OFF</p>
                 </div>
                 <!-- Ar Condicionado (Interativo: clica para alternar AUTO / MANUAL ON / MANUAL OFF) -->
-                <button id="releAr" onclick="ciclarAr()" class="rele-off rounded-lg p-3 text-center transition-all duration-300 cursor-pointer hover:scale-[1.02] focus:outline-none select-none" title="Clique para alternar: AUTO ➔ MANUAL ON ➔ MANUAL OFF">
+                <button id="releAr" onclick="ciclarAr()" class="col-span-2 sm:col-span-1 rele-off rounded-lg p-3 text-center transition-all duration-300 cursor-pointer hover:scale-[1.02] focus:outline-none select-none" title="Clique para alternar: AUTO ➔ MANUAL ON ➔ MANUAL OFF">
                     <div class="text-2xl mb-1">❄️</div>
                     <p class="text-xs font-bold flex items-center justify-center gap-1">
                         <span>Ar Condicionado</span>
@@ -319,7 +331,7 @@
                     <p class="text-xl md:text-2xl font-black text-cyan-300 mt-0.5" id="cntAr24h">--</p>
                     <span class="text-[9px] text-slate-400 block mt-0.5" id="tempoAr24h">--</span>
                 </div>
-                <div class="bg-slate-800/70 p-3 rounded-lg border border-slate-700/40 text-center">
+                <div class="col-span-2 sm:col-span-1 bg-slate-800/70 p-3 rounded-lg border border-slate-700/40 text-center">
                     <span class="text-[10px] font-semibold text-slate-400 block uppercase">Oscilação Térmica</span>
                     <p class="text-xl md:text-2xl font-black text-amber-400 mt-0.5" id="deltaTemp24h">-- °C</p>
                     <span class="text-[9px] text-slate-400 block mt-0.5" id="deltaTempFaixa">Estabilidade alta</span>
@@ -328,39 +340,65 @@
             </div>
         </section>
 
-        <!-- GRÁFICOS (Chart.js) -->
-        <section class="grid grid-cols-1 xl:grid-cols-2 gap-4 md:gap-6 fade-in mb-4">
-            <div class="glass rounded-xl p-4 md:p-5 border border-slate-700/30 relative">
-                <h2 class="text-sm font-bold text-slate-300 mb-1">💧 Umidade</h2>
-                <div class="flex gap-2 text-[10px] font-bold text-slate-400 mb-2">
-                    <span class="flex items-center gap-1"><span style="background:#00c8ff" class="w-3 h-[2px] inline-block rounded"></span> Interna</span>
-                    <span class="flex items-center gap-1"><span style="background:#c084fc" class="w-3 h-[2px] inline-block rounded"></span> Externa</span>
+        <!-- ÁREA DE GRÁFICOS COM INSPETOR EXTERNO STICKY (Mobile-friendly, nunca tampa as curvas) -->
+        <div id="chartsZoneWrapper" class="space-y-4">
+            <!-- Barra Externa de Leitura do Ponto Tocado (sticky abaixo do header ao rolar pelos gráficos) -->
+            <div id="chartInspectorBar" class="hidden sticky top-[54px] sm:top-[64px] z-30 glass rounded-xl px-3 py-2 border border-emerald-500/40 shadow-[0_6px_20px_rgba(0,0,0,0.5)] transition-all">
+                <div class="flex items-center justify-between gap-2 mb-1.5">
+                    <div class="flex items-center gap-2 min-w-0">
+                        <span id="inspHora" class="font-mono text-xs font-bold text-emerald-400 truncate">--/-- --:--</span>
+                        <span id="inspGhostTag" class="hidden text-[9px] font-bold px-1.5 py-0.5 rounded bg-cyan-500/20 text-cyan-300 border border-cyan-500/30 uppercase tracking-wider shrink-0">🔮 Previsão</span>
+                    </div>
+                    <button onclick="fecharInspetorGrafico()" class="px-2 py-0.5 rounded-md bg-slate-800/90 hover:bg-slate-700 text-slate-300 text-[11px] font-bold border border-slate-700/70 shrink-0 active:scale-95" title="Fechar inspetor">✕</button>
                 </div>
-                <div style="position:relative; height:280px;"><canvas id="canvasUmid"></canvas></div>
-            </div>
-            <div class="glass rounded-xl p-4 md:p-5 border border-slate-700/30 relative">
-                <h2 class="text-sm font-bold text-slate-300 mb-1">🌡️ Temperatura</h2>
-                <div class="flex gap-2 text-[10px] font-bold text-slate-400 mb-2">
-                    <span class="flex items-center gap-1"><span style="background:#00ffaa" class="w-3 h-[2px] inline-block rounded"></span> Interna</span>
-                    <span class="flex items-center gap-1"><span style="background:#ff4d6d" class="w-3 h-[2px] inline-block rounded"></span> Externa</span>
+                <div class="flex flex-wrap items-center justify-between gap-x-3 gap-y-1 text-[11px]">
+                    <div class="flex items-center gap-2.5 font-mono font-semibold">
+                        <span class="text-slate-300">🌡️ <span id="inspTempInt" class="text-[#00ffaa]">--</span> <span class="text-slate-500">/</span> <span id="inspTempExt" class="text-[#ff4d6d]">--</span></span>
+                        <span class="text-slate-300">💧 <span id="inspHumInt" class="text-[#00c8ff]">--</span> <span class="text-slate-500">/</span> <span id="inspHumExt" class="text-[#c084fc]">--</span></span>
+                    </div>
+                    <div id="inspReles" class="flex flex-wrap items-center gap-1 text-[10px] font-bold"></div>
                 </div>
-                <div style="position:relative; height:280px;"><canvas id="canvasTemp"></canvas></div>
             </div>
-        </section>
 
-        <!-- GRÁFICO RELÉS -->
-        <section class="fade-in glass rounded-xl p-4 md:p-5 border border-slate-700/30 relative">
-            <div class="flex flex-col sm:flex-row justify-between sm:items-center gap-2 mb-3">
-                <div class="flex items-center gap-2">
-                    <h2 class="text-sm font-bold text-slate-300">⚡ Timeline dos Relés</h2>
-                    <span id="containerFiltroReles" class="text-[10px] text-slate-400 bg-slate-800/90 px-2 py-0.5 rounded border border-slate-700/60 font-semibold">
-                        ⏱️ Total Ligado (24h)
-                    </span>
+            <!-- GRÁFICOS (Chart.js) -->
+            <section class="grid grid-cols-1 xl:grid-cols-2 gap-4 md:gap-6 fade-in">
+                <div class="glass rounded-xl p-3 sm:p-4 md:p-5 border border-slate-700/30 relative">
+                    <div class="flex items-center justify-between gap-2 mb-1">
+                        <h2 class="text-sm font-bold text-slate-300">💧 Umidade</h2>
+                        <span class="sm:hidden text-[9px] text-slate-500 font-medium">Toque p/ ler ponto</span>
+                    </div>
+                    <div class="flex gap-2 text-[10px] font-bold text-slate-400 mb-2">
+                        <span class="flex items-center gap-1"><span style="background:#00c8ff" class="w-3 h-[2px] inline-block rounded"></span> Interna</span>
+                        <span class="flex items-center gap-1"><span style="background:#c084fc" class="w-3 h-[2px] inline-block rounded"></span> Externa</span>
+                    </div>
+                    <div class="chart-touch-wrap relative h-[215px] sm:h-[280px]"><canvas id="canvasUmid"></canvas></div>
                 </div>
-                <button id="btnResetZoom" onclick="toggleZoomRange()" class="px-2.5 py-1 text-[10px] font-bold bg-slate-800 hover:bg-slate-700 border border-slate-600 rounded text-emerald-400 transition-all shadow-sm">
-                    🔍 Ver 24 Horas
-                </button>
-            </div>
+                <div class="glass rounded-xl p-3 sm:p-4 md:p-5 border border-slate-700/30 relative">
+                    <div class="flex items-center justify-between gap-2 mb-1">
+                        <h2 class="text-sm font-bold text-slate-300">🌡️ Temperatura</h2>
+                        <span class="sm:hidden text-[9px] text-slate-500 font-medium">Pinça/arraste p/ zoom</span>
+                    </div>
+                    <div class="flex gap-2 text-[10px] font-bold text-slate-400 mb-2">
+                        <span class="flex items-center gap-1"><span style="background:#00ffaa" class="w-3 h-[2px] inline-block rounded"></span> Interna</span>
+                        <span class="flex items-center gap-1"><span style="background:#ff4d6d" class="w-3 h-[2px] inline-block rounded"></span> Externa</span>
+                    </div>
+                    <div class="chart-touch-wrap relative h-[215px] sm:h-[280px]"><canvas id="canvasTemp"></canvas></div>
+                </div>
+            </section>
+
+            <!-- GRÁFICO RELÉS -->
+            <section class="fade-in glass rounded-xl p-3 sm:p-4 md:p-5 border border-slate-700/30 relative">
+                <div class="flex flex-col sm:flex-row justify-between sm:items-center gap-2 mb-3">
+                    <div class="flex items-center gap-2">
+                        <h2 class="text-sm font-bold text-slate-300">⚡ Timeline dos Relés</h2>
+                        <span id="containerFiltroReles" class="text-[10px] text-slate-400 bg-slate-800/90 px-2 py-0.5 rounded border border-slate-700/60 font-semibold">
+                            ⏱️ Total Ligado (24h)
+                        </span>
+                    </div>
+                    <button id="btnResetZoom" onclick="toggleZoomRange()" class="px-3 py-1.5 sm:px-2.5 sm:py-1 text-xs sm:text-[10px] font-bold bg-slate-800 hover:bg-slate-700 border border-slate-600 rounded-lg sm:rounded text-emerald-400 transition-all shadow-sm active:scale-95">
+                        🔍 Ver 24 Horas
+                    </button>
+                </div>
 
             <!-- Horímetro / Legenda Interativa com Filtros Clicáveis -->
             <div class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-2 mb-3">
@@ -407,8 +445,9 @@
                 <div id="btnLegendaVentoExt" class="hidden"><span id="tempoVentoExt"></span></div>
             </div>
 
-            <div style="position:relative; height:230px;"><canvas id="canvasReles"></canvas></div>
-        </section>
+                <div class="chart-touch-wrap relative h-[195px] sm:h-[230px]"><canvas id="canvasReles"></canvas></div>
+            </section>
+        </div> <!-- /#chartsZoneWrapper -->
 
         </div> <!-- /#viewDashboard -->
 
@@ -885,8 +924,30 @@
 
     </main>
 
+    <!-- BARRA DE NAVEGAÇÃO INFERIOR MOBILE (Thumb-zone estilo App nativo) -->
+    <nav id="mobileBottomNav" class="sm:hidden fixed bottom-0 inset-x-0 z-50 glass border-t border-slate-700/70 safe-bottom shadow-[0_-8px_25px_rgba(0,0,0,0.45)]">
+        <div class="grid grid-cols-4 items-center px-2 pt-1.5 pb-1 gap-1">
+            <button id="mobNavDashboard" onclick="navegarView('dashboard')" class="flex flex-col items-center justify-center py-1.5 rounded-xl bg-emerald-500/15 text-emerald-400 font-bold text-[10px] gap-0.5 transition active:scale-95">
+                <span class="text-base leading-none">📊</span>
+                <span>Painel</span>
+            </button>
+            <button id="mobNavConfig" onclick="navegarView('config')" class="flex flex-col items-center justify-center py-1.5 rounded-xl text-slate-400 hover:text-white font-semibold text-[10px] gap-0.5 transition active:scale-95">
+                <span class="text-base leading-none">⚙️</span>
+                <span>Config</span>
+            </button>
+            <button onclick="exportarCSV()" class="flex flex-col items-center justify-center py-1.5 rounded-xl text-slate-400 hover:text-white font-semibold text-[10px] gap-0.5 transition active:scale-95">
+                <span class="text-base leading-none">📥</span>
+                <span>CSV</span>
+            </button>
+            <button id="mobBtnNotif" onclick="toggleNotificacoes()" class="flex flex-col items-center justify-center py-1.5 rounded-xl text-slate-400 hover:text-white font-semibold text-[10px] gap-0.5 transition active:scale-95">
+                <span id="mobIconeNotif" class="text-base leading-none">🔔</span>
+                <span id="mobTxtNotif">Alertas</span>
+            </button>
+        </div>
+    </nav>
+
     <!-- FOOTER FIXO (SEMPRE PRESENTE NAS DUAS VIEWS) -->
-    <footer class="text-center text-[10px] text-slate-500 py-6 border-t border-slate-800/40 space-y-1">
+    <footer class="text-center text-[10px] text-slate-500 pt-6 pb-24 sm:pb-6 border-t border-slate-800/40 space-y-1">
         <div>Grow do Txai — IoT Cloud System — Dados atualizados a cada 60 segundos</div>
         <div id="txtGitHash" class="text-emerald-400 font-bold tracking-widest text-xs drop-shadow-[0_0_8px_rgba(52,211,153,0.7)]">Versão: 1.5.0</div>
     </footer>
@@ -1306,6 +1367,8 @@
             const viewCfg = document.getElementById('viewConfig');
             const navBtnDash = document.getElementById('navBtnDashboard');
             const navBtnCfg = document.getElementById('navBtnConfig');
+            const mobNavDash = document.getElementById('mobNavDashboard');
+            const mobNavCfg = document.getElementById('mobNavConfig');
             const hdrDashCtrl = document.getElementById('headerDashboardControls');
             const hdrCfgCtrl = document.getElementById('headerConfigControls');
 
@@ -1323,6 +1386,12 @@
                 if (navBtnCfg) {
                     navBtnCfg.className = "px-3 py-1 text-xs rounded-md font-semibold tracking-wide flex items-center gap-1.5 transition-all bg-emerald-600 text-white shadow";
                 }
+                if (mobNavDash) {
+                    mobNavDash.className = "flex flex-col items-center justify-center py-1.5 rounded-xl text-slate-400 hover:text-white font-semibold text-[10px] gap-0.5 transition active:scale-95";
+                }
+                if (mobNavCfg) {
+                    mobNavCfg.className = "flex flex-col items-center justify-center py-1.5 rounded-xl bg-emerald-500/15 text-emerald-400 font-bold text-[10px] gap-0.5 transition active:scale-95";
+                }
                 if (hdrDashCtrl) hdrDashCtrl.classList.add('hidden');
                 if (hdrCfgCtrl) hdrCfgCtrl.classList.remove('hidden');
 
@@ -1338,6 +1407,12 @@
                 }
                 if (navBtnCfg) {
                     navBtnCfg.className = "px-3 py-1 text-xs rounded-md font-semibold tracking-wide flex items-center gap-1.5 transition-all text-slate-400 hover:text-white hover:bg-slate-800";
+                }
+                if (mobNavDash) {
+                    mobNavDash.className = "flex flex-col items-center justify-center py-1.5 rounded-xl bg-emerald-500/15 text-emerald-400 font-bold text-[10px] gap-0.5 transition active:scale-95";
+                }
+                if (mobNavCfg) {
+                    mobNavCfg.className = "flex flex-col items-center justify-center py-1.5 rounded-xl text-slate-400 hover:text-white font-semibold text-[10px] gap-0.5 transition active:scale-95";
                 }
                 if (hdrDashCtrl) hdrDashCtrl.classList.remove('hidden');
                 if (hdrCfgCtrl) hdrCfgCtrl.classList.add('hidden');
@@ -1782,30 +1857,42 @@
             }
         }
 
+        function isTouchDevice() {
+            return (window.matchMedia && window.matchMedia('(hover: none) and (pointer: coarse)').matches)
+                || (('ontouchstart' in window || navigator.maxTouchPoints > 0) && window.innerWidth < 1024);
+        }
+
+        let syncZoomRaf = null;
         function syncZoom(sourceChart) {
             const min = sourceChart.scales.x.min;
             const max = sourceChart.scales.x.max;
-            [chartUmid, chartTemp, chartReles].forEach(c => {
-                if (c && c !== sourceChart) {
-                    if (typeof c.zoomScale === 'function') {
-                        c.zoomScale('x', { min, max }, 'none');
-                    } else {
-                        c.options.scales.x.min = min;
-                        c.options.scales.x.max = max;
-                        c.update('none');
-                    }
-                }
-            });
             zoomManualUsuario = true;
             zoomAtivo3h = false;
             atualizarTextoBtnZoom();
+            if (syncZoomRaf) cancelAnimationFrame(syncZoomRaf);
+            syncZoomRaf = requestAnimationFrame(() => {
+                [chartUmid, chartTemp, chartReles].forEach(c => {
+                    if (c && c !== sourceChart) {
+                        if (typeof c.zoomScale === 'function') {
+                            c.zoomScale('x', { min, max }, 'none');
+                        } else {
+                            c.options.scales.x.min = min;
+                            c.options.scales.x.max = max;
+                            c.update('none');
+                        }
+                    }
+                });
+            });
         }
 
         const crosshairPlugin = {
             id: 'crosshair',
             afterDraw: chart => {
-                if (chart.tooltip?._active?.length) {
-                    let x = chart.tooltip._active[0].element.x;
+                const activeEls = (chart.getActiveElements && chart.getActiveElements().length)
+                    ? chart.getActiveElements()
+                    : chart.tooltip?._active;
+                if (activeEls && activeEls.length) {
+                    let x = activeEls[0].element.x;
                     let yAxis = chart.scales[Object.keys(chart.scales).find(k => k !== 'x')];
                     if (!yAxis) return;
                     let ctx = chart.ctx;
@@ -1814,7 +1901,7 @@
                     ctx.moveTo(x, yAxis.top);
                     ctx.lineTo(x, yAxis.bottom);
                     ctx.lineWidth = 1.5;
-                    ctx.strokeStyle = 'rgba(0, 255, 170, 0.4)'; // Verde Neon
+                    ctx.strokeStyle = 'rgba(0, 255, 170, 0.5)'; // Verde Neon
                     ctx.setLineDash([4, 4]);
                     ctx.stroke();
                     ctx.restore();
@@ -1855,9 +1942,96 @@
         let hoverRaf = null;
         let lastHoverIdx = -1;
 
+        function atualizarInspetorGrafico(dataIndex) {
+            const bar = document.getElementById('chartInspectorBar');
+            if (!bar || dataIndex == null || dataIndex < 0 || !chartTemp || !chartUmid || !chartReles) return;
+
+            const dsTemp = chartTemp.data.datasets;
+            const dsUmid = chartUmid.data.datasets;
+            const dsReles = chartReles.data.datasets;
+
+            const ptTi = dsTemp[0]?.data?.[dataIndex];
+            const ptTe = dsTemp[1]?.data?.[dataIndex];
+            const ptTp = dsTemp[2]?.data?.[dataIndex];
+            const ptHi = dsUmid[0]?.data?.[dataIndex];
+            const ptHe = dsUmid[1]?.data?.[dataIndex];
+            const ptLuz = dsReles[0]?.data?.[dataIndex];
+            const ptAr  = dsReles[4]?.data?.[dataIndex];
+
+            const ts = ptTi?.x || ptTe?.x || ptTp?.x || ptHi?.x || ptLuz?.x;
+            if (!ts) return;
+
+            const d = new Date(ts);
+            const horaStr = d.toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' });
+            const isGhost = !!(ptLuz?.ghost || ptAr?.ghost || (ptTi?.y == null && ptTp?.y != null));
+
+            const elHora = document.getElementById('inspHora');
+            const elGhost = document.getElementById('inspGhostTag');
+            const elTi = document.getElementById('inspTempInt');
+            const elTe = document.getElementById('inspTempExt');
+            const elHi = document.getElementById('inspHumInt');
+            const elHe = document.getElementById('inspHumExt');
+            const elReles = document.getElementById('inspReles');
+
+            if (elHora) elHora.textContent = (isGhost ? '🔮 ' : '📍 ') + horaStr;
+            if (elGhost) elGhost.classList.toggle('hidden', !isGhost);
+
+            if (elTi) {
+                if (ptTi?.y != null) {
+                    elTi.textContent = Number(ptTi.y).toFixed(1) + '°';
+                    elTi.className = 'text-[#00ffaa]';
+                } else if (ptTp?.y != null) {
+                    elTi.textContent = '~' + Number(ptTp.y).toFixed(1) + '°';
+                    elTi.className = 'text-cyan-300';
+                } else {
+                    elTi.textContent = '--';
+                    elTi.className = 'text-slate-500';
+                }
+            }
+            if (elTe) elTe.textContent = (ptTe?.y != null) ? Number(ptTe.y).toFixed(1) + '°' : '--';
+            if (elHi) elHi.textContent = (ptHi?.y != null) ? Number(ptHi.y).toFixed(0) + '%' : '--';
+            if (elHe) elHe.textContent = (ptHe?.y != null) ? Number(ptHe.y).toFixed(0) + '%' : '--';
+
+            if (elReles) {
+                const relesMeta = [
+                    { ico: '💡', pt: dsReles[0]?.data?.[dataIndex], onCls: 'bg-amber-500/20 text-amber-300 border-amber-400/40' },
+                    { ico: '💨', pt: dsReles[1]?.data?.[dataIndex], onCls: 'bg-sky-500/20 text-sky-300 border-sky-400/40' },
+                    { ico: '🌀', pt: dsReles[2]?.data?.[dataIndex], onCls: 'bg-emerald-500/20 text-emerald-300 border-emerald-400/40' },
+                    { ico: '🌬️', pt: dsReles[3]?.data?.[dataIndex], onCls: 'bg-orange-500/20 text-orange-300 border-orange-400/40' },
+                    { ico: '❄️', pt: dsReles[4]?.data?.[dataIndex], onCls: 'bg-cyan-500/20 text-cyan-200 border-cyan-400/40' }
+                ];
+                elReles.innerHTML = relesMeta.map(r => {
+                    const on = !!(r.pt && r.pt.y !== null && Array.isArray(r.pt.y));
+                    const g = !!(r.pt && r.pt.ghost);
+                    const cls = on ? r.onCls : 'bg-slate-800/70 text-slate-500 border-slate-700/50';
+                    const txt = on ? (g ? 'Prev' : 'ON') : 'OFF';
+                    return `<span class="px-1.5 py-0.5 rounded border ${cls}">${r.ico}${txt}</span>`;
+                }).join('');
+            }
+
+            bar.classList.remove('hidden');
+        }
+
+        function fecharInspetorGrafico() {
+            const bar = document.getElementById('chartInspectorBar');
+            if (bar) bar.classList.add('hidden');
+            lastHoverIdx = -1;
+            [chartUmid, chartTemp, chartReles].forEach(c => {
+                if (c) {
+                    c.setActiveElements([]);
+                    if (c.tooltip && typeof c.tooltip.setActiveElements === 'function') {
+                        c.tooltip.setActiveElements([], { x: 0, y: 0 });
+                    }
+                    c.render();
+                }
+            });
+        }
+
         function baseOptions(yScale) {
+            const touchMode = isTouchDevice();
             return {
                 responsive: true, maintainAspectRatio: false, animation: false,
+                devicePixelRatio: Math.min(window.devicePixelRatio || 1, 2),
                 normalized: true, // Pula busca e ordenação interna no Chart.js (ganho massivo de FPS)
                 interaction: { mode: 'index', intersect: false },
                 onHover: (e, elements, chart) => {
@@ -1866,22 +2040,25 @@
                         if (dataIndex === lastHoverIdx) return; // Evita repintar se o ponteiro ainda está no mesmo minuto
                         
                         const now = Date.now();
-                        if (now - (window.lastHoverTime || 0) < 50) return; // ~20 FPS limit to drastically reduce mobile lag
+                        if (now - (window.lastHoverTime || 0) < 40) return; // Limite ~25 FPS no drag para eliminar lag mobile
                         window.lastHoverTime = now;
                         
                         lastHoverIdx = dataIndex;
                         if (hoverRaf) cancelAnimationFrame(hoverRaf);
                         hoverRaf = requestAnimationFrame(() => {
+                            if (touchMode) atualizarInspetorGrafico(dataIndex);
                             [chartUmid, chartTemp, chartReles].forEach(c => {
                                 if (c && c !== chart) {
                                     const activeElements = c.data.datasets.map((_, i) => ({ datasetIndex: i, index: dataIndex }));
                                     c.setActiveElements(activeElements);
-                                    c.tooltip.setActiveElements(activeElements, e);
+                                    if (!touchMode && c.tooltip) {
+                                        c.tooltip.setActiveElements(activeElements, e);
+                                    }
                                     c.render(); // render() é muito mais leve que update('none')
                                 }
                             });
                         });
-                    } else {
+                    } else if (!touchMode) {
                         if (lastHoverIdx === -1) return;
                         lastHoverIdx = -1;
                         if (hoverRaf) cancelAnimationFrame(hoverRaf);
@@ -1889,7 +2066,7 @@
                             [chartUmid, chartTemp, chartReles].forEach(c => {
                                 if (c && c !== chart) {
                                     c.setActiveElements([]);
-                                    c.tooltip.setActiveElements([], e);
+                                    if (c.tooltip) c.tooltip.setActiveElements([], e);
                                     c.render();
                                 }
                             });
@@ -1900,6 +2077,7 @@
                     legend: { display: false },
                     decimation: { enabled: true, algorithm: 'lttb' },
                     tooltip: { 
+                        enabled: !touchMode,
                         backgroundColor: 'rgba(15, 23, 42, 0.95)', 
                         borderColor: '#334155', 
                         borderWidth: 1, 
@@ -1959,7 +2137,7 @@
                                 }
                                 return '#475569';
                             },
-                            maxTicksLimit: 12, 
+                            maxTicksLimit: (window.innerWidth < 480) ? 6 : 12, 
                             font: { size: 10 } 
                         }
                     },
@@ -2001,7 +2179,7 @@
                         const colors = ['#ff6400', '#00ffaa', '#00c8ff', '#ffdc00', '#00e5ff'];
                         return colors[c.tick.value] || '#94a3b8';
                     },
-                    font: { size: 10, weight: 'bold' },
+                    font: { size: (window.innerWidth < 480) ? 9 : 10, weight: 'bold' },
                     callback: function(v) {
                         switch(v) {
                             case 0: return '🌬️ Exaust';
@@ -3156,7 +3334,7 @@
                 try {
                     new Notification(titulo, {
                         body: corpo,
-                        icon: "grow.alquimistasmagicos.com.br/icon.png"
+                        icon: "icon.png"
                     });
                 } catch (e) {
                     console.warn("Erro ao emitir Notification:", e);
@@ -3188,15 +3366,32 @@
             const btn = document.getElementById('btnNotificacoes');
             const icone = document.getElementById('iconeNotif');
             const txt = document.getElementById('txtNotif');
-            if (!btn) return;
-            if (notificacoesAtivas && "Notification" in window && Notification.permission === "granted") {
-                btn.className = "px-2.5 py-1.5 rounded-lg text-xs font-bold bg-emerald-950/40 hover:bg-emerald-900/50 border border-emerald-500/50 text-emerald-400 flex items-center gap-1.5 transition shadow-sm";
-                if (icone) icone.textContent = "🔔";
-                if (txt) txt.textContent = "Alertas ON";
-            } else {
-                btn.className = "px-2.5 py-1.5 rounded-lg text-xs font-bold bg-slate-800 hover:bg-slate-700 border border-slate-700/60 text-slate-400 hover:text-white flex items-center gap-1.5 transition shadow-sm";
-                if (icone) icone.textContent = "🔕";
-                if (txt) txt.textContent = "Alertas";
+            const mobBtn = document.getElementById('mobBtnNotif');
+            const mobIcone = document.getElementById('mobIconeNotif');
+            const mobTxt = document.getElementById('mobTxtNotif');
+            const ativo = notificacoesAtivas && "Notification" in window && Notification.permission === "granted";
+
+            if (btn) {
+                if (ativo) {
+                    btn.className = "hidden sm:flex px-2.5 py-1.5 rounded-lg text-xs font-bold bg-emerald-950/40 hover:bg-emerald-900/50 border border-emerald-500/50 text-emerald-400 items-center gap-1.5 transition shadow-sm";
+                    if (icone) icone.textContent = "🔔";
+                    if (txt) txt.textContent = "Alertas ON";
+                } else {
+                    btn.className = "hidden sm:flex px-2.5 py-1.5 rounded-lg text-xs font-bold bg-slate-800 hover:bg-slate-700 border border-slate-700/60 text-slate-400 hover:text-white items-center gap-1.5 transition shadow-sm";
+                    if (icone) icone.textContent = "🔕";
+                    if (txt) txt.textContent = "Alertas";
+                }
+            }
+            if (mobBtn) {
+                if (ativo) {
+                    mobBtn.className = "flex flex-col items-center justify-center py-1.5 rounded-xl bg-emerald-500/15 text-emerald-400 font-bold text-[10px] gap-0.5 transition active:scale-95";
+                    if (mobIcone) mobIcone.textContent = "🔔";
+                    if (mobTxt) mobTxt.textContent = "Alertas ON";
+                } else {
+                    mobBtn.className = "flex flex-col items-center justify-center py-1.5 rounded-xl text-slate-400 hover:text-white font-semibold text-[10px] gap-0.5 transition active:scale-95";
+                    if (mobIcone) mobIcone.textContent = "🔕";
+                    if (mobTxt) mobTxt.textContent = "Alertas";
+                }
             }
         }
 
@@ -3213,7 +3408,7 @@
                         atualizarBtnNotificacoes();
                         new Notification("🍄 Grow do Txai", {
                             body: "Alertas críticos e bipes ativados com sucesso!",
-                            icon: "grow.alquimistasmagicos.com.br/icon.png"
+                            icon: "icon.png"
                         });
                         tocarBipeAlerta('alerta');
                     } else {
@@ -3338,7 +3533,10 @@
                 }
                 ctx.globalAlpha = 1;
 
-                requestAnimationFrame(animate);
+                // No mobile (<768px), desenha 1 quadro estático para zerar carga de GPU/bateria em telas 120Hz
+                if (w >= 768) {
+                    requestAnimationFrame(animate);
+                }
             }
 
             requestAnimationFrame(animate);

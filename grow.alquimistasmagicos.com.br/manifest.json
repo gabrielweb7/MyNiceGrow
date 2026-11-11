@@ -2,12 +2,12 @@
   "name": "Grow do Txai",
   "short_name": "Grow Txai",
   "description": "Painel de Controle IoT e Automação de Cultivo",
-  "start_url": "../",
-  "scope": "../",
+  "start_url": "./",
+  "scope": "./",
   "display": "standalone",
   "background_color": "#060913",
   "theme_color": "#060913",
-  "orientation": "portrait-primary",
+  "orientation": "any",
   "icons": [
     {
       "src": "icon.png",
