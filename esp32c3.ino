@@ -1,11 +1,11 @@
 // ============================================================
 //  GROW IA - Firmware Inteligente + Nuvem IoT
-//  Placa: ESP32-S3 Dual-Core (Xtensa LX7)
+//  Placa: ESP32-C3 SuperMini (Produção) / ESP32-S3 Dual-Core
 //  Autor: Gabriel + Antigravity AI
-//  Versão Atual: v441 (OTA Global Dual-Bank + Real-Time Instant ACK)
+//  Versão Atual: v443 (Blindagem Compressor Pós-Reboot + Sync Offline Seguro)
 // ============================================================
 
-#define FW_VERSION 441
+#define FW_VERSION 443
 
 #include <Arduino.h>
 #include <ArduinoJson.h>
@@ -49,6 +49,9 @@ float tempCorteLuz = 34.0f;           // Desliga luz por segurança térmica ext
 float tempMinCongelamento = 15.0f;    // Desliga ar condicionado por segurança anti-congelamento
 unsigned long tempoExtraRefrigeracaoMs = 5UL * 60UL * 1000UL; // 5 minutos pós-meta
 unsigned long maxRunContinuoArMs = 45UL * 60UL * 1000UL;      // Limite máximo contínuo (45 min)
+float tempDeltaArExt = 1.0f;          // Diferença mínima sala vs estufa (°C) para injeção fria do AC
+float umidGuardaCorte = 99.0f;        // Abaixo deste valor (%), pausa injeção fria do exaustor
+float umidGuardaRetorno = 99.8f;      // Só retoma injeção fria quando recuperar até este valor (%)
 
 // --- Umidade ---
 const float UMIDADE_MINIMA = 88.0;
@@ -61,7 +64,7 @@ const unsigned long FAE_OFF_MS = 58UL * 60 * 1000;
 // --- Nuvem (HostGator) ---
 const char* CLOUD_URL = "https://grow.alquimistasmagicos.com.br/api/index.php";
 const char* CLOUD_KEY = "GrowIA_V4_SuperSecreta!";
-const unsigned long INTERVALO_NUVEM = 3UL * 1000;  // 3 segundos (Ultra responsividade em tempo real)
+const unsigned long INTERVALO_NUVEM = 4UL * 1000;  // 4 segundos (alinhado ao ciclo de 2s do loop principal)
 
 // --- Segurança ---
 const unsigned long TIMEOUT_UMID_MS = 30UL * 60 * 1000;
@@ -248,11 +251,11 @@ const char* nomeModoLuz() {
   return "OFF";
 }
 PerfilClimatico perfis[5] = {
-  { TEMP_ALVO_MAX, 95.0, 95.0, 1UL * 60000, FAE_OFF_MS, 1UL * 60000, 2UL * 60000, 2UL * 60000, 8UL * 60000, false },  // 0: Standby (padrão)
-  { 28.0, 95.0, 95.0, 1UL * 60000, 40UL * 60000, 1UL * 60000, 2UL * 60000, 2UL * 60000, 8UL * 60000, true },          // 1: Pinagem (Umidade Alvo 95%)
-  { 29.0, 92.0, 92.0, 2UL * 60000, 25UL * 60000, 1UL * 60000, 2UL * 60000, 2UL * 60000, 8UL * 60000, true },          // 2: Frutificacao (Umidade Alvo 92%)
-  { 28.0, 95.0, 95.0, 1UL * 60000, 40UL * 60000, 1UL * 60000, 2UL * 60000, 2UL * 60000, 8UL * 60000, false },         // 3: Reservado / Inativo
-  { TEMP_ALVO_MAX, 95.0, 95.0, 1UL * 60000, FAE_OFF_MS, 1UL * 60000, 2UL * 60000, 2UL * 60000, 8UL * 60000, false }   // 4: Secagem Total
+  { TEMP_ALVO_MAX, 99.0, 99.0, 1UL * 60000, FAE_OFF_MS, 1UL * 60000, 2UL * 60000, 2UL * 60000, 8UL * 60000, false },  // 0: Standby (padrão)
+  { 28.0, 99.0, 99.0, 1UL * 60000, 40UL * 60000, 1UL * 60000, 2UL * 60000, 2UL * 60000, 8UL * 60000, true },          // 1: Pinagem (Umidade Alvo 99% -> 100% real)
+  { 29.0, 99.0, 99.0, 2UL * 60000, 25UL * 60000, 1UL * 60000, 2UL * 60000, 2UL * 60000, 8UL * 60000, true },          // 2: Frutificacao (Umidade Alvo 99% -> 100% real)
+  { 28.0, 99.0, 99.0, 1UL * 60000, 40UL * 60000, 1UL * 60000, 2UL * 60000, 2UL * 60000, 8UL * 60000, false },         // 3: Reservado / Inativo
+  { TEMP_ALVO_MAX, 99.0, 99.0, 1UL * 60000, FAE_OFF_MS, 1UL * 60000, 2UL * 60000, 2UL * 60000, 8UL * 60000, false }   // 4: Secagem Total
 };
 
 void salvarPerfisNVS() {
@@ -511,8 +514,24 @@ void enviarNuvem(unsigned long agora) {
           httpBulk.addHeader("X-Api-Key", CLOUD_KEY);
           int code = httpBulk.POST(bulk);
           ultimoSuspiro = millis();  // Alimenta Watchdog após envio em lote
+          String resBulk = (code == 200) ? httpBulk.getString() : "";
           httpBulk.end();
-          if (code == 200) {
+          clientBulk.stop();
+
+          bool loteConfirmado = false;
+          int qtdInseridos = 0;
+          if (code == 200 && resBulk.length() > 0) {
+            DynamicJsonDocument docBulk(4096);
+            DeserializationError errBulk = deserializeJson(docBulk, resBulk);
+            if (!errBulk && strcmp(docBulk["status"] | "", "ok") == 0) {
+              loteConfirmado = true;
+              qtdInseridos = docBulk["inseridos"] | 0;
+            } else {
+              Serial.println("⚠️ [NUVEM] HTTP 200 no lote offline sem JSON 'status:ok' válido. Mantendo arquivo para reenvio.");
+            }
+          }
+
+          if (loteConfirmado) {
             LittleFS.remove("/offline.log");
             if (LittleFS.exists("/offline.tmp")) {
               File checkTmp = LittleFS.open("/offline.tmp", "r");
@@ -524,11 +543,16 @@ void enviarNuvem(unsigned long agora) {
                 LittleFS.remove("/offline.tmp");
               }
             }
-            Serial.printf("[NUVEM] Lote offline (%d registros) sincronizado com sucesso!\n", count);
+            if (qtdInseridos > 0) {
+              Serial.printf("[NUVEM] Lote offline (%d/%d registros) sincronizado com sucesso!\n", qtdInseridos, count);
+            } else {
+              Serial.printf("⚠️ [NUVEM] Lote offline descartado pelo filtro do servidor (0/%d válidos).\n", count);
+            }
           } else {
             LittleFS.remove("/offline.tmp");
           }
         } else {
+          clientBulk.stop();
           LittleFS.remove("/offline.tmp");
         }
       }
@@ -593,7 +617,7 @@ void enviarNuvem(unsigned long agora) {
             String key = String(i);
             if (cfg.containsKey(key)) {
               float defTx = (i == 1) ? 28.0f : 29.0f;
-              float defUa = (i == 1) ? 95.0f : 92.0f;
+              float defUa = 99.0f;
               unsigned long defFo = (i == 1) ? 1UL : 2UL;
               unsigned long defFf = (i == 1) ? 40UL : 25UL;
 
@@ -653,6 +677,19 @@ void enviarNuvem(unsigned long agora) {
               float tcl = clampF(h["tCorteLuz"].as<float>(), 25.0f, 45.0f, 34.0f);
               if (abs(tempCorteLuz - tcl) > 0.05f) { tempCorteLuz = tcl; configAlterada = true; }
             }
+            if (h.containsKey("tDeltaExt")) {
+              float tde = clampF(h["tDeltaExt"].as<float>(), 0.2f, 5.0f, 1.0f);
+              if (abs(tempDeltaArExt - tde) > 0.05f) { tempDeltaArExt = tde; configAlterada = true; }
+            }
+            if (h.containsKey("uGuardaCorte")) {
+              float ugc = clampF(h["uGuardaCorte"].as<float>(), 80.0f, 100.0f, 99.0f);
+              if (abs(umidGuardaCorte - ugc) > 0.05f) { umidGuardaCorte = ugc; configAlterada = true; }
+            }
+            if (h.containsKey("uGuardaRetorno")) {
+              float ugr = clampF(h["uGuardaRetorno"].as<float>(), 80.0f, 100.0f, 99.8f);
+              if (ugr < umidGuardaCorte) ugr = umidGuardaCorte;
+              if (abs(umidGuardaRetorno - ugr) > 0.05f) { umidGuardaRetorno = ugr; configAlterada = true; }
+            }
           }
 
           if (configAlterada || (versaoNuvem > 0 && versaoNuvem != versaoLocal)) {
@@ -662,6 +699,9 @@ void enviarNuvem(unsigned long agora) {
             prefs.putUInt("tPosMeta", (uint32_t)(tempoExtraRefrigeracaoMs / 60000UL));
             prefs.putUInt("tMaxRun", (uint32_t)(maxRunContinuoArMs / 60000UL));
             prefs.putFloat("tCorteLuz", tempCorteLuz);
+            prefs.putFloat("tDeltaExt", tempDeltaArExt);
+            prefs.putFloat("uGuardaCorte", umidGuardaCorte);
+            prefs.putFloat("uGuardaRet", umidGuardaRetorno);
             if (versaoNuvem > 0) prefs.putUInt("cfg_ver", versaoNuvem);
             prefs.end();
             bypassDwellFase = true;
@@ -1029,14 +1069,15 @@ void aplicarReles() {
   if (releArCond != lastReleArCond) {
     bool podeComutarAr = false;
     if (releArCond) {
-      // Quer LIGAR compressor: respeita descanso mínimo de 3 minutos
-      if (compressorUltimoDesligamento == 0 || agora - compressorUltimoDesligamento >= AC_MIN_REST_MS || modoAr == AR_FORCADA_ON) {
+      // Quer LIGAR compressor: respeita descanso mínimo de 3 minutos (inclusive pós-reboot via bootTime)
+      unsigned long refDescansoAr = (compressorUltimoDesligamento == 0) ? bootTime : compressorUltimoDesligamento;
+      if (agora - refDescansoAr >= AC_MIN_REST_MS || modoAr == AR_FORCADA_ON) {
         podeComutarAr = true;
       } else {
         static unsigned long lastAvisoRest = 0;
         if (agora - lastAvisoRest >= 10000) {
           lastAvisoRest = agora;
-          unsigned long faltaSeg = (AC_MIN_REST_MS - (agora - compressorUltimoDesligamento)) / 1000UL;
+          unsigned long faltaSeg = (AC_MIN_REST_MS - (agora - refDescansoAr)) / 1000UL;
           Serial.printf("⏳ COMPRESSOR AC: Protecao anti-ciclo curto ativa. Aguardando descanso (%lu s restantes)...\n", faltaSeg);
         }
       }
@@ -1189,11 +1230,19 @@ void executarMotor(unsigned long agora) {
   }
 
   // 2. Injeção de Ar Gelado no Grow (Quando o ambiente externo já foi resfriado pelo AC)
-  // O DHT11 confirma se o ar da sala está mais frio que a estufa (tempExt < tempInt - 1.0)
-  // GUARDA CRÍTICA DE UMIDADE: Se a umidade interna cair perto do mínimo (pf.umidMin - 3.0),
-  // a injeção via exaustão é interrompida para impedir dessecação dos frutos.
-  bool ambienteExternoFrio = (sensorExtOk && tempExt > -40.0f && tempExt < (tempInt - 1.0f) && tempExt <= pf.tempMax);
-  bool guardaUmidadeOk = (humInt >= (pf.umidMin - 3.0f));
+  // O DHT11 confirma se o ar da sala está mais frio que a estufa (tempExt < tempInt - tempDeltaArExt)
+  // GUARDA CRÍTICA DE UMIDADE (Histerese Estrita configurável, padrão 99.0% -> 99.8%):
+  // Ao cair abaixo de umidGuardaCorte, pausa a injeção via exaustor imediatamente
+  // e só retoma quando recuperar até umidGuardaRetorno.
+  bool ambienteExternoFrio = (sensorExtOk && tempExt > -40.0f && tempExt < (tempInt - tempDeltaArExt) && tempExt <= pf.tempMax);
+  static bool guardaUmidadeOk = true;
+  float limiarCorteUmid = umidGuardaCorte;
+  float limiarRetornoUmid = max(umidGuardaCorte, umidGuardaRetorno);
+  if (humInt < limiarCorteUmid) {
+    guardaUmidadeOk = false;
+  } else if (humInt >= limiarRetornoUmid) {
+    guardaUmidadeOk = true;
+  }
 
   if (modoRefrigeracaoAtivo && ambienteExternoFrio) {
     if (guardaUmidadeOk) {
@@ -1231,7 +1280,7 @@ void executarMotor(unsigned long agora) {
 
   // CONTROLE DE UMIDADE ALVO ÚNICA:
   static bool umidificadorHisterese = false;
-  float alvoUmid = (pf.umidMin > 0) ? pf.umidMin : 95.0;
+  float alvoUmid = (pf.umidMin > 0) ? pf.umidMin : 99.0;
   if (humInt < alvoUmid) {
     umidificadorHisterese = true;
   } else if (humInt >= (alvoUmid + 0.5) || humInt >= 99.5) {
@@ -1385,6 +1434,10 @@ void setup() {
   tempoExtraRefrigeracaoMs = (unsigned long)prefs.getUInt("tPosMeta", 5) * 60000UL;
   maxRunContinuoArMs = (unsigned long)prefs.getUInt("tMaxRun", 45) * 60000UL;
   tempCorteLuz = prefs.getFloat("tCorteLuz", 34.0f);
+  tempDeltaArExt = prefs.getFloat("tDeltaExt", 1.0f);
+  umidGuardaCorte = prefs.getFloat("uGuardaCorte", 99.0f);
+  umidGuardaRetorno = prefs.getFloat("uGuardaRet", 99.8f);
+  if (umidGuardaRetorno < umidGuardaCorte) umidGuardaRetorno = umidGuardaCorte;
   prefs.end();
 
   if (modoLuz == LUZ_FORCADA_ON) luzSalvaNVS = true;

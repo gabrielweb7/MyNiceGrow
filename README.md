@@ -1,6 +1,6 @@
-# 🍄 Grow do Txai — Sistema Inteligente de Automação IoT (v1.6.0 / FW v439 Oficial)
+# 🍄 Grow do Txai — Sistema Inteligente de Automação IoT (v1.6.2 / FW v443 Oficial)
 
-[![Release v1.6.0](https://img.shields.io/badge/Release-v1.6.0%20(FW%20v439)-gold?style=for-the-badge&logo=target)](https://github.com/gabrielweb7/MyNiceGrow)
+[![Release v1.6.2](https://img.shields.io/badge/Release-v1.6.2%20(FW%20v443)-gold?style=for-the-badge&logo=target)](https://github.com/gabrielweb7/MyNiceGrow)
 [![Hardware](https://img.shields.io/badge/Hardware-ESP32--C3%20%2F%20ESP32--S3%20Dual--Board-brightgreen?style=for-the-badge&logo=espressif)](https://www.espressif.com/)
 [![Firmware](https://img.shields.io/badge/Firmware-Arduino%20%2F%20C%2B%2B%20%2B%20Dual--Bank%20OTA-blue?style=for-the-badge&logo=arduino)](https://www.arduino.cc/)
 [![FreeRTOS](https://img.shields.io/badge/RTOS-FreeRTOS%20Watchdog-red?style=for-the-badge&logo=freertos)](https://www.freertos.org/)
@@ -43,17 +43,17 @@ Para gerar o binário de produção de forma rápida e precisa sem depender de c
 ```
 
 ### 3. Como Fazer o Deploy de uma Nova Versão OTA
-1. Incremente a versão em `esp32c3.ino` (ex: `#define FW_VERSION 440`) e sincronize a cópia em `esp32c3/esp32c3.ino`.
+1. Incremente a versão em `esp32c3.ino` (ex: `#define FW_VERSION 442`) e sincronize a cópia em `esp32c3/esp32c3.ino`.
 2. Execute o comando de compilação acima.
 3. Copie o binário gerado:
    - De: `build/esp32.esp32.esp32c3/esp32c3.ino.bin`
    - Para: `grow.alquimistasmagicos.com.br/build/esp32.esp32.esp32c3/esp32c3.ino.bin`
-   - E salve uma cópia versionada em: `grow.alquimistasmagicos.com.br/build/versoes/v440_esp32c3.bin`
-4. Atualize a versão no backend `grow.alquimistasmagicos.com.br/api/fw.php` (`"vFirmwareNuvem" => "v440"`).
+   - E salve uma cópia versionada em: `grow.alquimistasmagicos.com.br/build/versoes/v442_esp32c3.bin`
+4. Atualize a versão nos arquivos `build/version.json` e `grow.alquimistasmagicos.com.br/build/version.json` (`"versao": "v442"`), que o backend `api/fw.php` lê automaticamente.
 5. Faça o commit e push para o GitHub:
    ```bash
    git add -A
-   git commit -m "feat: release firmware v440"
+   git commit -m "feat: release firmware v442"
    git push origin main
    ```
 6. No cPanel da HostGator (Git Version Control), acione o **"Update from Remote"**.
@@ -77,12 +77,13 @@ Para gerar o binário de produção de forma rápida e precisa sem depender de c
 
 ---
 
-## ❄️ Lógica Térmica do Ar Condicionado (HVAC)
-* **Partida Automática:** Aciona quando `tempInt >= pf.tempMax` (ex: 28°C na Pinagem ou 29°C na Frutificação).
-* **Pós-Resfriamento de Fixação:** Ao atingir a meta (`tempInt < pf.tempMax`), mantém o ar ligado por mais **5 minutos** para fixar a temperatura antes de desligar.
-* **Proteção Anti-Ciclo Curto do Compressor:** O compressor respeita repouso mínimo obrigatório de **3 minutos** entre desligamento e religamento.
-* **Trava Anti-Congelamento:** Desliga imediatamente se `tempInt <= 15.0°C`.
-* **Pausa de Segurança:** Descanso preventivo de 10 min se operar continuamente por mais de 45 minutos.
+## ❄️ Lógica Térmica do Ar Condicionado (HVAC) & Guarda de Umidade
+* **Partida Automática:** Aciona quando `tempInt >= pf.tempMax` (ex: `29°C` na Pinagem ou `28°C` na Frutificação).
+* **Pós-Resfriamento de Fixação (`tPosMeta`):** Ao atingir a meta (`tempInt < pf.tempMax`), mantém o ar ligado pelo tempo configurado no painel (ex: **6 minutos**) para estabilizar a temperatura antes de desligar.
+* **Injeção de Ar Frio da Sala + Guarda Estrita de Umidade (`v442`):** Quando o AC esfria a sala pelo menos `1.0°C` abaixo da estufa (`tempExt < tempInt - 1.0`), o exaustor injeta esse ar frio na câmara — acelerando o resfriamento em ~3,5× — **mas** com guarda estrita de histerese: se a umidade interna cair abaixo da meta (`< 99.0%`), a injeção é interrompida imediatamente e só retoma após recuperar próximo de 100% (`>= 99.8%`).
+* **Proteção Anti-Ciclo Curto do Compressor:** O compressor respeita repouso mínimo obrigatório de **3 minutos** entre desligamento e religamento — **inclusive após reinicializações (`bootTime`)** — e mínimo de **1 minuto** ligado.
+* **Trava Anti-Congelamento (`tCongela`):** Desliga imediatamente se `tempInt <= tCongela` (configurável no painel; padrão 15.0°C).
+* **Pausa de Segurança (`tMaxRun`):** Descanso preventivo de 10 min se operar continuamente além do limite configurado (padrão 45 min; configurável no painel).
 
 ---
 
@@ -131,13 +132,14 @@ O ecossistema opera em uma **topologia híbrida e resiliente**: a placa ESP32-S3
 │                            │   [ FreeRTOS Cão de Guarda (25s) ]        │
 │                            │                 │                         │
 │                            │                 ▼                         │
-│                            │      [ Módulo 4 Relés (Active LOW) ]      │
+│                            │      [ Módulo 4 Relés + Relé AC ]        │
 │                            │        ├── Ch 1 (GPIO 0): Iluminação      │
 │                            │        ├── Ch 2 (GPIO 1): Umidificador    │
 │                            │        ├── Ch 3 (GPIO 3): Ventilador Int. │
-│                            │        └── Ch 4 (GPIO 6): Exaustor Ext.   │
+│                            │        ├── Ch 4 (GPIO 6): Exaustor Ext.   │
+│                            │        └── Ch 5 (GPIO 7): Ar Condicionado │
 └────────────────────────────┼───────────────────────────────────────────┘
-                             │ HTTPS / TLS (POST Telemetria a cada 10s)
+                             │ HTTPS / TLS (POST Telemetria a cada 4s)
                              ▼
 ┌────────────────────────────────────────────────────────────────────────┐
 │                   NUVEM / BACKEND (HOSTGATOR CPANEL)                   │
@@ -172,7 +174,7 @@ O ecossistema opera em uma **topologia híbrida e resiliente**: a placa ESP32-S3
 | **Relé 2 (Umidificador)** | Névoa Ultrassônica | **GPIO 1** | **GPIO 1** | Nível Baixo Ativo (`LOW`=Liga) | Digital Output |
 | **Relé 3 (Vento Interno)** | Circulação Interna / Brisa | **GPIO 3** | **GPIO 3** | Nível Baixo Ativo (`LOW`=Liga) | Digital Output |
 | **Relé 4 (Exaustor)** | Troca de Ar (FAE / Injeção Fria) | **GPIO 6** | **GPIO 6** | Nível Baixo Ativo (`LOW`=Liga) | Digital Output |
-| **Relé 5 (Ar Condicionado)** | Refrigeração HVAC (Anti-Ciclo Curto) | **GPIO 7** | **GPIO 7** | Nível Baixo Ativo (`LOW`=Liga) | Digital Output *(Ativo)* |
+| **Relé 5 (Ar Condicionado)** | Refrigeração HVAC (Anti-Ciclo Curto) | **GPIO 7** | **GPIO 7** | Nível Alto Ativo (`HIGH`=Liga) | Digital Output *(Ativo)* |
 | **Relé 6 (Vento Externo)** | Convecção Térmica da Sala | **GPIO 8** *(Reserv.)* | **GPIO 8** | Nível Baixo Ativo (`LOW`=Liga) | Digital Output *(Upgrade Futuro)* |
 | **Botão Físico (BOOT)** | Reset de Fábrica (Segurar 5s) | **GPIO 0** *(Auto-safe)* | **GPIO 9** | Pull-up Interno (`LOW` press.) | Interrupção / Polling |
 | **LED RGB Integrado** | Sinalização de Status / Alertas | **GPIO 48** | **GPIO 8** | WS2812 / RGB | Pulso Serial Integrado |
@@ -202,7 +204,7 @@ O ecossistema opera em uma **topologia híbrida e resiliente**: a placa ESP32-S3
       - DC+ ──> 3.3V do ESP32-S3
       - DC- ──> GND do ESP32-S3
       - IN  ──> GPIO 7 (Ar Condicionado)
-      - Jumper Amarelo: Manter plugado na posição "Low" (Garante active LOW)
+      - Jumper Amarelo: Manter plugado na posição "High" (`RELE_AR_NIVEL_LIGADO HIGH` no firmware)
   • Barra de Saída / Carga AC (Borne de 3 vias):
       - COM (Comum)             ──> Fase da tomada AC da parede
       - NO  (Normalmente Aberto)──> Fase que vai para o Ar Condicionado
@@ -211,7 +213,7 @@ O ecossistema opera em uma **topologia híbrida e resiliente**: a placa ESP32-S3
   PROTEÇÃO DO COMPRESSOR (ANTI-SHORT CYCLE GUARD):
   • Mínimo de 180 segundos (3 minutos) desligado antes de religar para equalizar pressão de gás do compressor.
   • Mínimo de 60 segundos ligado para evitar partidas falsas.
-  • Histerese térmica de 1.5°C contra efeito liga/desliga intermitente.
+  • Pós-resfriamento de fixação (`tPosMeta`, configurável no painel) após atingir `tempMax`.
 ```
 
 ---
@@ -238,15 +240,12 @@ O firmware foi desenhado com múltiplos anéis de proteção contra qualquer fal
 * **Trava Diurna no `aplicarReles()`:** Se o relógio indicar horário diurno (entre **08:00 e 19:59**), `releLuz` é forçado a `false` diretamente antes de tocar no pino físico.
 * **Filtro Anti-Jitter:** Rejeita saltos temporais impossíveis causados por jitter em pacotes NTP de fundo.
 
-### 2. 🌪️ Isolamento Térmico do Exaustor (Sem Sobreposição de Ciclos)
-* O ciclo regular de FAE só roda quando `quente == false`.
-* Ao atingir a temperatura máxima (`tempInt >= tempMax`), a placa suspende o FAE normal, zera o contador e assume a **Exaustão de Emergência** de forma exclusiva, garantindo períodos de descanso limpos.
+### 2. 🌪️ Injeção Térmica do Exaustor & Guarda Estrita de Umidade (99.0% -> 99.8%)
+* Durante a FAE regular (`faeLigado`), enquanto a umidade estiver saudável (`>= 99.0%`), o umidificador fica bloqueado para não desperdiçar névoa pelo exaustor.
+* Durante a refrigeração pelo Ar Condicionado (`modoRefrigeracaoAtivo`), se a sala estiver pelo menos `1.0°C` mais fria (`tempExt < tempInt - 1.0`), o exaustor injeta ar frio na estufa — porém é cortado instantaneamente se `humInt < pf.umidMin` (`99.0%`), e só volta a injetar quando `humInt >= min(99.8%, pf.umidMin + 0.8%)` (`99.8%`), evitando efeito sanfona e protegendo o cultivo contra ar seco do AC.
 
-### 3. 🚨 Proteção Anti-Queima do Umidificador (Alerta Estrito de Água)
-* Se o umidificador passar **15 minutos contínuos** ligado sem atingir o alvo de umidade, a placa assume falta de água ou mangueira obstruída:
-  - Desliga imediatamente o relé (`rUmid = 2`).
-  - Grava na NVS para não religar em reboots acidentais.
-  - Sinaliza alerta vermelho no dashboard com botão de reset manual.
+### 3. 💧 Umidificador Sem Bloqueio por Tempo (Modo Contínuo Seguro)
+* A trava antiga de falta d'água por timeout (`rUmid = 2` após 15 min) foi **removida intencionalmente a pedido do usuário**, pois o umidificador físico é de baixa vazão e precisa operar continuamente sempre que a umidade ameaçar cair abaixo da meta (`99%`). Os relés reportam estritamente `0` ou `1`.
 
 ### 4. 🐕 Cão de Guarda Hardware FreeRTOS (Watchdog de 25s)
 * Uma tarefa FreeRTOS dedicada roda em segundo plano. Se o loop principal ficar mais de 25 segundos travado (ex: timeout de rede em biblioteca externa), a placa reinicia automaticamente de forma segura.
@@ -324,33 +323,35 @@ A atualização do firmware é **100% remota e autônoma**:
                Grava versão e roda estável            Rollback automático (Anti-Brick)
 ```
 
-1. Na IDE do Arduino, pressione `Ctrl + Alt + S` para exportar o binário compilado.
-2. Faça o `git commit` e `git push` do repositório (incluindo a pasta `build/`).
-3. Dê o `git pull` no servidor de produção HostGator.
-4. O ESP32, ao enviar telemetria (a cada 10s), recebe o timestamp do novo `.bin`. Se for mais novo que a versão da placa, **ele baixa o arquivo sozinho e se atualiza sem nenhuma intervenção manual!**
+1. Na IDE do Arduino (ou via `arduino-cli`), compile para `ESP32-C3` (`PartitionScheme=min_spiffs`).
+2. Copie o `.bin` para `grow.alquimistasmagicos.com.br/build/esp32.esp32.esp32c3/esp32c3.ino.bin`, salve `grow.alquimistasmagicos.com.br/build/versoes/vXXX_esp32c3.bin` e atualize `version.json`.
+3. Faça o `git commit` e `git push`, e atualize no servidor HostGator (`git pull`).
+4. No painel web (aba Firmware & OTA), clique em **"⚡ Instalar Versão da Nuvem na Placa"** (OTA sob comando explícito para evitar loops de regravação).
 
 ---
 
 ## 🗂️ Estrutura de Arquivos do Repositório
 
 ```text
-├── esp32c3.ino                                    # Código-fonte oficial do Firmware C++ (ESP32-S3 / C3)
-├── build/                                         # Diretório de binários compilados pelo Arduino
-│   ├── esp32.esp32.esp32s3/                       # Build oficial do ESP32-S3 Dual-Core (Dual USB-C)
-│   │   └── esp32c3.ino.bin                        # Binário OTA para ESP32-S3
-│   └── esp32.esp32.esp32c3/                       # Build de compatibilidade para ESP32-C3
-│       └── esp32c3.ino.bin                        # Binário OTA para ESP32-C3
+├── esp32c3.ino                                    # Código-fonte oficial do Firmware C++ (ESP32-C3 / S3)
+├── esp32c3/esp32c3.ino                            # Cópia sincronizada para compilação via arduino-cli
+├── build/                                         # Diretório de binários compilados e version.json
+│   ├── version.json                               # Versão ativa do firmware na nuvem (lida por api/fw.php)
+│   ├── esp32.esp32.esp32c3/                       # Build oficial de produção para ESP32-C3 SuperMini
+│   │   └── esp32c3.ino.bin                        # Binário OTA para ESP32-C3
+│   └── esp32.esp32.esp32s3/                       # Build de compatibilidade para ESP32-S3
+│       └── esp32c3.ino.bin                        # Binário OTA para ESP32-S3
 ├── docs/img/                                      # Screenshots e diagramas do ecossistema
 │   ├── dashboard_preview.png                      # Visão do painel web SPA em tempo real
 │   └── timeline_relays.png                        # Swimlanes dos relés e projeção preditiva
-├── grow.alquimistasmagicos.com.br/                # Código do Dashboard Web e Backend REST
+├── grow.alquimistasmagicos.com.br/                # Código publicado do Dashboard Web, Build OTA e Backend REST
 │   ├── index.html                                 # Dashboard SPA (TailwindCSS, Chart.js 4.4, Canvas)
 │   ├── config.php                                 # Chaves de segurança e credenciais do MySQL
-│   ├── database.sql                               # Script de inicialização da tabela `telemetria`
+│   ├── build/                                     # Binários OTA servidos em produção e histórico em versoes/
 │   └── api/                                       # Endpoints REST em PHP 8.x
 │       ├── index.php                              # Telemetria (POST ESP32 / GET Dashboard) & Purge
-│       ├── comando.php                            # Fila de comandos pendentes (Fases, Luz, Reset)
-│       └── fw.php                                 # Sincronização de versões e hash do Git
+│       ├── comando.php                            # Fila de comandos pendentes (Fases, Luz, Ar, Config)
+│       └── fw.php                                 # Sincronização de versões (`version.json`) e hash do Git
 └── README.md                                      # Documentação mestra do ecossistema
 ```
 
@@ -406,13 +407,23 @@ Instale através de **Ferramentas > Gerenciar Bibliotecas** (*Ctrl + Shift + I*)
 
 ## 🤖 Diretrizes para Desenvolvedores & Futuras IAs
 
-1. **Janela Deslizante de 24h:** O gráfico não usa dias de calendário (00:00 às 23:59). Ele usa uma janela contínua das últimas 24 horas a partir do momento atual (`ORDER BY id DESC LIMIT 1440`). Preserve este comportamento.
-2. **Preservar a Autonomia Local:** O ESP32 deve sempre ser capaz de operar de forma autônoma sem internet. Nunca crie dependências onde a falta de resposta da nuvem trave o controle térmico ou os relés.
-3. **Segurança Biológica Inviolável:**
-   - Nunca remova o desarme do umidificador aos 15 minutos sem resposta (`rUmid = 2`).
-   - Nunca remova o corte térmico de emergência da lâmpada aos 34 °C.
-   - Mantenha o isolamento do exaustor de emergência para não sobrepor o FAE normal.
-4. **Sincronia das Camadas:** Ao alterar nomes de chaves na telemetria JSON (`tI`, `uI`, `rLuz`, etc.), atualize de forma sincronizada em `esp32c3.ino`, `api/index.php` e `index.html`.
+1. **REGRA DE OURO DA UMIDADE (NUNCA ESQUECER):**
+   - Neste cultivo e com este hardware, **a umidade no sensor `SHT30` precisa ficar SEMPRE cravada em `100%`**.
+   - **`99%` já indica que a estufa está começando a secar** e **abaixo de `99%` já é zona crítica**.
+   - O umidificador instalado é **fraco** e **NÃO acumula/empoça água** mesmo operando com meta `uA = 99%` e `vU = 1` (Brisa com Névoa). **Nunca** sugira baixar `uA` para `92–95%`, desligar `vU = 1` ou relaxar a `guardaUmidadeOk` para `93–96%`!
+   - A guarda de umidade na injeção de ar frio do AC (`guardaUmidadeOk`) é configurável em **Configurações -> AC & Proteções** (`uGuardaCorte`, padrão `99.0%`; `uGuardaRetorno`, padrão `99.8%`) e deve cortar em `< 99.0%` e só retomar em `>= 99.8%`. Também manter `tDeltaExt` (diferença sala vs estufa, padrão `1.0°C`) para trocar o menor volume possível de ar seco do AC por grau resfriado.
+2. **Placa Ativa & Janela do Gráfico:**
+   - A placa física em produção é o **ESP32-C3 SuperMini** (RISC-V). Nunca envie binário de ESP32-S3 para a rota da C3.
+   - O gráfico padrão de 24h usa janela contínua (`ORDER BY id DESC LIMIT ...`), agrupada estritamente em 1 registro por minuto, com retenção configurada em 30 dias (`DIAS_RETENCAO_TELEMETRIA`).
+3. **Preservar a Autonomia Local:** O ESP32 deve sempre operar de forma autônoma sem internet (`LittleFS` + `NVS` + `FreeRTOS Watchdog`). Nunca crie dependências onde a falta de resposta da nuvem trave o controle térmico ou os relés.
+4. **Segurança Biológica & Hardware Inviolável:**
+   - **Não reintroduza** o desarme automático do umidificador por timeout (`rUmid = 2`): foi removido intencionalmente pelo usuário.
+   - Nunca remova o corte térmico de emergência da lâmpada (`tCorteLuz`, configurável no painel, padrão `34°C`) nem a trava diurna da luz (`08h00–19h59` em modo `AUTO`).
+   - Respeite sempre a proteção anti-ciclo curto do compressor do AC (`3 min` repouso mínimo / `1 min` ligado mínimo) e a trava anti-congelamento (`tCongela`).
+5. **Sincronia das Camadas:**
+   - Mantenha sempre idênticos `esp32c3.ino` e `esp32c3/esp32c3.ino`.
+   - Ao gerar nova versão OTA, atualize `FW_VERSION`, compile para `esp32:esp32:esp32c3:PartitionScheme=min_spiffs`, copie o `.bin` para `grow.alquimistasmagicos.com.br/build/esp32.esp32.esp32c3/esp32c3.ino.bin` + `grow.alquimistasmagicos.com.br/build/versoes/vXXX_esp32c3.bin`, e atualize `build/version.json` e `grow.alquimistasmagicos.com.br/build/version.json`.
+   - Ao alterar chaves na telemetria JSON (`tI`, `uI`, `rLuz`, `rAr`, etc.), atualize de forma sincronizada em `esp32c3.ino`, `api/index.php` (`grow.alquimistasmagicos.com.br/api/index.php`) e `grow.alquimistasmagicos.com.br/index.html`.
 
 ---
 
