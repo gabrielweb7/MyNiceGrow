@@ -508,7 +508,7 @@
                         <span class="text-base">❄️</span>
                         <span class="flex flex-col leading-tight">
                             <span>AC &amp; Proteções</span>
-                            <span class="hidden lg:block text-[10px] font-normal text-slate-500 mt-0.5">HVAC, guarda 99% e travas</span>
+                            <span class="hidden lg:block text-[10px] font-normal text-slate-500 mt-0.5">Ar frio, umidade e travas</span>
                         </span>
                     </button>
                     <button onclick="trocarAbaConfig('luz')" id="tabBtnLuz" class="text-left px-3.5 py-2.5 rounded-xl text-xs md:text-sm font-bold flex items-center gap-3 transition-all text-slate-400 hover:text-white hover:bg-slate-800/80 border border-transparent shrink-0">
@@ -666,22 +666,22 @@
                         <div class="glass rounded-2xl p-5 md:p-7 border border-slate-700/60 shadow-xl space-y-6">
                             <div class="pb-4 border-b border-slate-800/80">
                                 <h3 class="text-base md:text-lg font-bold text-cyan-300 flex items-center gap-2">
-                                    <span>❄️</span> Ar Condicionado &amp; Proteções Dinâmicas
+                                    <span>❄️</span> Ar Condicionado &amp; Proteções
                                 </h3>
                                 <p class="text-xs text-slate-400 mt-1">
-                                    Controle fino de como o AC resfria a estufa e protege a umidade sem precisar recompilar a placa.
+                                    Ajuste fino de como o AC resfria a estufa, puxa ar frio do quarto e protege a umidade sem precisar mexer no código.
                                 </p>
                             </div>
 
-                            <!-- Bloco 1: Sifão de Ar Frio & Guarda Dinâmica de Umidade -->
+                            <!-- Bloco 1: Puxar Ar Frio do Quarto & Proteção de Umidade -->
                             <div class="bg-slate-800/40 p-5 rounded-xl border border-cyan-500/30 space-y-4">
                                 <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
-                                    <span class="text-xs font-bold uppercase tracking-wider text-cyan-300 flex items-center gap-2"><span>🌬️</span> Sifão de Ar Frio (AC + Pós-AC) &amp; Guarda de Umidade</span>
-                                    <span id="badgeSifaoDeltaExemplo" class="text-[11px] text-sky-300 bg-sky-500/10 border border-sky-500/20 px-2.5 py-0.5 rounded-full font-semibold">Estufa 27.0°C: Liga ≤ 26.6°C ➔ Desliga ≥ 26.9°C</span>
+                                    <span class="text-xs font-bold uppercase tracking-wider text-cyan-300 flex items-center gap-2"><span>🌬️</span> Puxar Ar Frio do Quarto (AC + Pós-AC) &amp; Umidade</span>
+                                    <span id="badgeSifaoDeltaExemplo" class="text-[11px] text-sky-300 bg-sky-500/10 border border-sky-500/20 px-2.5 py-0.5 rounded-full font-semibold">Estufa 27.0°C: Liga se sala ≤ 26.6°C ➔ Desliga ≥ 26.9°C</span>
                                 </div>
                                 <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
                                     <div class="bg-slate-900/70 p-3.5 rounded-xl border border-slate-700/60 space-y-1.5">
-                                        <label for="cfgUGuardaCorte" class="text-xs font-semibold text-cyan-300 block">Corta Exaustor Abaixo de</label>
+                                        <label for="cfgUGuardaCorte" class="text-xs font-semibold text-cyan-300 block">Pausar Exaustor Abaixo de</label>
                                         <div class="relative">
                                             <input type="number" step="0.1" min="80" max="100" id="cfgUGuardaCorte" value="90.0" class="w-full bg-slate-950/90 text-cyan-300 text-lg font-extrabold border border-slate-700 rounded-xl p-2.5 pr-8 text-center outline-none focus:border-cyan-500 transition">
                                             <span class="absolute right-3 top-3 text-xs text-slate-500 font-bold">%</span>
@@ -703,17 +703,17 @@
                                         </label>
                                     </div>
                                     <div class="bg-slate-900/70 p-3.5 rounded-xl border border-slate-700/60 space-y-1.5">
-                                        <label for="cfgTSifaoPosAc" class="text-xs font-semibold text-sky-300 block">Janela Sifão Pós-AC</label>
+                                        <label for="cfgTSifaoPosAc" class="text-xs font-semibold text-sky-300 block">Tempo Aproveitando Pós-AC</label>
                                         <div class="relative">
                                             <input type="number" step="1" min="0" max="60" id="cfgTSifaoPosAc" value="15" class="w-full bg-slate-950/90 text-sky-300 text-lg font-extrabold border border-slate-700 rounded-xl p-2.5 pr-10 text-center outline-none focus:border-sky-500 transition">
                                             <span class="absolute right-3 top-3 text-xs text-slate-500 font-bold">min</span>
                                         </div>
-                                        <p class="text-[11px] text-slate-400 leading-snug">Tempo após o AC desligar aproveitando frio da sala (0 = desativa).</p>
+                                        <p class="text-[11px] text-slate-400 leading-snug">Minutos após o AC desligar ainda puxando o frio do quarto (0 = desativa).</p>
                                     </div>
                                 </div>
                                 <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
                                     <div class="bg-slate-900/70 p-3.5 rounded-xl border border-slate-700/60 space-y-1.5">
-                                        <label for="cfgTDeltaExt" class="text-xs font-semibold text-blue-300 block">Diferença p/ Ligar Sifão</label>
+                                        <label for="cfgTDeltaExt" class="text-xs font-semibold text-blue-300 block">Diferença p/ Ligar Exaustor</label>
                                         <div class="relative">
                                             <input type="number" step="0.1" min="0.1" max="5.0" id="cfgTDeltaExt" value="0.4" oninput="sincronizarUiSifaoDelta()" class="w-full bg-slate-950/90 text-blue-300 text-lg font-extrabold border border-slate-700 rounded-xl p-2.5 pr-8 text-center outline-none focus:border-blue-500 transition">
                                             <span class="absolute right-3 top-3 text-xs text-slate-500 font-bold">°C</span>
@@ -721,7 +721,7 @@
                                         <p class="text-[11px] text-slate-400 leading-snug">Quarto precisa estar ao menos este valor mais frio que a estufa.</p>
                                     </div>
                                     <div class="bg-slate-900/70 p-3.5 rounded-xl border border-slate-700/60 space-y-1.5">
-                                        <label for="cfgTDeltaSaida" class="text-xs font-semibold text-indigo-300 block">Diferença p/ Desligar Sifão</label>
+                                        <label for="cfgTDeltaSaida" class="text-xs font-semibold text-indigo-300 block">Diferença p/ Desligar Exaustor</label>
                                         <div class="relative">
                                             <input type="number" step="0.1" min="0.0" max="2.0" id="cfgTDeltaSaida" value="0.1" oninput="sincronizarUiSifaoDelta()" class="w-full bg-slate-950/90 text-indigo-300 text-lg font-extrabold border border-slate-700 rounded-xl p-2.5 pr-8 text-center outline-none focus:border-indigo-500 transition">
                                             <span class="absolute right-3 top-3 text-xs text-slate-500 font-bold">°C</span>
@@ -729,21 +729,21 @@
                                         <p class="text-[11px] text-slate-400 leading-snug">Continua puxando até sobrar só esta diferença (≤ Ligar).</p>
                                     </div>
                                     <div class="bg-slate-900/70 p-3.5 rounded-xl border border-slate-700/60 space-y-1.5">
-                                        <label for="cfgTSifaoTempMin" class="text-xs font-semibold text-teal-300 block">Piso Mín. Resfriamento</label>
+                                        <label for="cfgTSifaoTempMin" class="text-xs font-semibold text-teal-300 block">Temp. Mín. p/ Parar Exaustor</label>
                                         <div class="relative">
                                             <input type="number" step="0.5" min="15.0" max="30.0" id="cfgTSifaoTempMin" value="22.0" class="w-full bg-slate-950/90 text-teal-300 text-lg font-extrabold border border-slate-700 rounded-xl p-2.5 pr-8 text-center outline-none focus:border-teal-500 transition">
                                             <span class="absolute right-3 top-3 text-xs text-slate-500 font-bold">°C</span>
                                         </div>
-                                        <p class="text-[11px] text-slate-400 leading-snug">Encerra sifão se a estufa já atingir este piso térmico.</p>
+                                        <p class="text-[11px] text-slate-400 leading-snug">Para de puxar ar frio se a estufa já esfriar até esta temperatura.</p>
                                     </div>
                                 </div>
                             </div>
 
-                            <!-- Bloco 2: Compressor & Segurança Térmica -->
+                            <!-- Bloco 2: Tempos do AC & Segurança Térmica -->
                             <div class="grid grid-cols-1 md:grid-cols-2 gap-5">
                                 <div class="bg-slate-800/40 p-5 rounded-xl border border-slate-700/60 space-y-4">
                                     <div class="flex flex-wrap items-center justify-between gap-2">
-                                        <span class="text-xs font-bold uppercase tracking-wider text-slate-200 flex items-center gap-2"><span>⏱️</span> Tempos do Compressor (AC)</span>
+                                        <span class="text-xs font-bold uppercase tracking-wider text-slate-200 flex items-center gap-2"><span>⏱️</span> Tempos do Ar Condicionado (AC)</span>
                                         <span id="badgeMetaDesligaAr" class="text-[11px] text-sky-300 bg-sky-500/10 border border-sky-500/20 px-2.5 py-0.5 rounded-full font-semibold">Liga 28.0°C ➔ Desliga &lt; 27.0°C</span>
                                     </div>
                                     <div class="grid grid-cols-1 sm:grid-cols-3 gap-3.5">
@@ -753,18 +753,18 @@
                                                 <input type="number" step="0.1" min="0.0" max="5.0" id="cfgTHistereseAr" value="1.0" oninput="sincronizarUiMetaAr()" class="w-full bg-slate-900/90 text-sky-300 text-lg font-extrabold border border-slate-700 rounded-xl p-2.5 pr-8 text-center outline-none focus:border-sky-500 transition">
                                                 <span class="absolute right-3 top-3 text-xs text-slate-500 font-bold">°C</span>
                                             </div>
-                                            <span class="text-[11px] text-slate-400 mt-1.5 block">Abaixo da T.Máx antes do pós-meta</span>
+                                            <span class="text-[11px] text-slate-400 mt-1.5 block">Quanto abaixa da T.Máx para desligar</span>
                                         </div>
                                         <div>
-                                            <label for="cfgTPosMeta" class="text-xs text-slate-300 block mb-1.5 font-medium">Pós-Resfriamento</label>
+                                            <label for="cfgTPosMeta" class="text-xs text-slate-300 block mb-1.5 font-medium">Tempo Extra Após Meta</label>
                                             <div class="relative">
                                                 <input type="number" step="1" min="0" max="60" id="cfgTPosMeta" value="5" class="w-full bg-slate-900/90 text-cyan-300 text-lg font-extrabold border border-slate-700 rounded-xl p-2.5 pr-10 text-center outline-none focus:border-cyan-500 transition">
                                                 <span class="absolute right-3 top-3 text-xs text-slate-500 font-bold">min</span>
                                             </div>
-                                            <span class="text-[11px] text-slate-400 mt-1.5 block">Extra após meta (0 = desliga na hora)</span>
+                                            <span class="text-[11px] text-slate-400 mt-1.5 block">Segura ligado após meta (0 = desliga na hora)</span>
                                         </div>
                                         <div>
-                                            <label for="cfgTMaxRun" class="text-xs text-slate-300 block mb-1.5 font-medium">Limite Contínuo</label>
+                                            <label for="cfgTMaxRun" class="text-xs text-slate-300 block mb-1.5 font-medium">Máximo Ligado Direto</label>
                                             <div class="relative">
                                                 <input type="number" step="1" min="10" max="180" id="cfgTMaxRun" value="45" class="w-full bg-slate-900/90 text-amber-300 text-lg font-extrabold border border-slate-700 rounded-xl p-2.5 pr-10 text-center outline-none focus:border-amber-500 transition">
                                                 <span class="absolute right-3 top-3 text-xs text-slate-500 font-bold">min</span>
@@ -778,20 +778,20 @@
                                     <span class="text-xs font-bold uppercase tracking-wider text-slate-200 flex items-center gap-2"><span>🛡️</span> Cortes de Emergência</span>
                                     <div class="grid grid-cols-2 gap-3.5">
                                         <div>
-                                            <label for="cfgTCongela" class="text-xs text-slate-300 block mb-1.5 font-medium">Anti-Congelamento</label>
+                                            <label for="cfgTCongela" class="text-xs text-slate-300 block mb-1.5 font-medium">Desligar AC p/ Frio</label>
                                             <div class="relative">
                                                 <input type="number" step="0.1" min="5" max="25" id="cfgTCongela" value="15.0" oninput="sincronizarUiMetaAr()" class="w-full bg-slate-900/90 text-cyan-300 text-lg font-extrabold border border-slate-700 rounded-xl p-2.5 pr-8 text-center outline-none focus:border-cyan-500 transition">
                                                 <span class="absolute right-3 top-3 text-xs text-slate-500 font-bold">°C</span>
                                             </div>
-                                            <span class="text-[11px] text-slate-400 mt-1.5 block">Desliga o AC abaixo desta temp.</span>
+                                            <span class="text-[11px] text-slate-400 mt-1.5 block">Corta o AC se cair abaixo desta temp.</span>
                                         </div>
                                         <div>
-                                            <label for="cfgTCorteLuz" class="text-xs text-slate-300 block mb-1.5 font-medium">Corte Térmico Luz</label>
+                                            <label for="cfgTCorteLuz" class="text-xs text-slate-300 block mb-1.5 font-medium">Desligar Luz p/ Calor</label>
                                             <div class="relative">
                                                 <input type="number" step="0.1" min="25" max="45" id="cfgTCorteLuz" value="34.0" class="w-full bg-slate-900/90 text-rose-300 text-lg font-extrabold border border-slate-700 rounded-xl p-2.5 pr-8 text-center outline-none focus:border-rose-500 transition">
                                                 <span class="absolute right-3 top-3 text-xs text-slate-500 font-bold">°C</span>
                                             </div>
-                                            <span class="text-[11px] text-slate-400 mt-1.5 block">Apaga luz em calor extremo</span>
+                                            <span class="text-[11px] text-slate-400 mt-1.5 block">Apaga a luz em calor extremo</span>
                                         </div>
                                     </div>
                                 </div>
@@ -799,7 +799,7 @@
 
                             <!-- Ação Salvar HVAC -->
                             <div class="pt-4 border-t border-slate-800 flex flex-col sm:flex-row items-center justify-between gap-3">
-                                <span class="text-xs text-slate-400">Aplicado em tempo real na NVS da placa sem reiniciar.</span>
+                                <span class="text-xs text-slate-400">Salvo direto na memória da placa, sem precisar reiniciar.</span>
                                 <button onclick="salvarFormClima()" id="btnSalvarHvac" class="w-full sm:w-auto px-7 py-3 bg-gradient-to-r from-cyan-600 to-emerald-600 hover:from-cyan-500 hover:to-emerald-500 text-white font-bold text-xs sm:text-sm rounded-xl transition-all shadow-[0_0_20px_rgba(6,182,212,0.25)] active:scale-[0.99] flex items-center justify-center gap-2">
                                     <span>💾</span> <span>Salvar Proteções e Enviar para Placa</span>
                                 </button>
@@ -3478,8 +3478,8 @@
 
                     const isArPrevOn = simArOn;
                     const tIntVal = (tIntPlot !== null) ? parseFloat(tIntPlot.toFixed(2)) : null;
-                    const motivoExaust = isExaustOn ? (isSifaoExaustOn ? (simArOn ? 'Sifão AC (Ar Frio)' : 'Sifão Pós-AC (Ondas Frio)') : 'FAE Programado') : null;
-                    const motivoUmid = isUmidOn ? ((simAproveitandoFrio && !simGuardaUmidOk) ? 'Onda Névoa Sifão' : (simHumInt < uAlvoSim ? 'Recuperando Alvo' : 'Brisa c/ Névoa')) : null;
+                    const motivoExaust = isExaustOn ? (isSifaoExaustOn ? (simArOn ? 'Puxando Ar Frio (AC ON)' : 'Puxando Ar Frio (Pós-AC)') : 'FAE Programado') : null;
+                    const motivoUmid = isUmidOn ? ((simAproveitandoFrio && !simGuardaUmidOk) ? 'Reidratando (Pós-Frio)' : (simHumInt < uAlvoSim ? 'Recuperando Alvo' : 'Brisa c/ Névoa')) : null;
 
                     dLuz.push({ x: t, y: isLuzOn ? [2.65, 3.35] : null, ghost: true });
                     dExaust.push({ x: t, y: isExaustOn ? [-0.35, 0.35] : null, ghost: true, motivo: motivoExaust });
