@@ -60,10 +60,22 @@ function caminhoBinFirmware($boardModel) {
     return $melhor;
 }
 
+// Grava em disco apenas quando o conteúdo realmente mudou (reduz I/O em ~90%)
+function escreverSeMudou($arquivo, $conteudo) {
+    $atual = @file_get_contents($arquivo);
+    if ($atual === $conteudo) return;
+    @file_put_contents($arquivo, $conteudo, LOCK_EX);
+}
+
 // Garante que as colunas rele_ar e rele_vento_ext existem na tabela telemetria
-function garantirColunasExtras($conn) {
+// Usa marcador temporário em disco para evitar 2x SHOW COLUMNS em todo POST a cada 4s
+function garantirColunasExtras($conn, $forcar = false) {
     static $verificado = false;
-    if ($verificado) return;
+    if ($verificado && !$forcar) return;
+    $verificado = true;
+    $flagSchema = sys_get_temp_dir() . '/grow_telemetria_cols_v2.ok';
+    if (!$forcar && file_exists($flagSchema)) return;
+
     $check1 = $conn->query("SHOW COLUMNS FROM telemetria LIKE 'rele_ar'");
     if ($check1 && $check1->num_rows === 0) {
         $conn->query("ALTER TABLE telemetria ADD COLUMN rele_ar TINYINT(1) DEFAULT 0 AFTER rele_exaust");
@@ -72,7 +84,9 @@ function garantirColunasExtras($conn) {
     if ($check2 && $check2->num_rows === 0) {
         $conn->query("ALTER TABLE telemetria ADD COLUMN rele_vento_ext TINYINT(1) DEFAULT 0 AFTER rele_ar");
     }
-    $verificado = true;
+    if ($check1 !== false && $check2 !== false) {
+        @file_put_contents($flagSchema, '1');
+    }
 }
 
 // Garante que a tabela de configurações do sistema existe no MySQL
@@ -131,7 +145,6 @@ if ($method === 'POST') {
     }
 
     $json = file_get_contents('php://input');
-    @file_put_contents(__DIR__ . '/last_esp_post.json', $json);
     $data = json_decode($json, true);
     
     if (!$data || !is_array($data)) {
@@ -143,42 +156,27 @@ if ($method === 'POST') {
     // BUG CORRIGIDO: o lote offline (array) não tem a resposta lida pelo firmware.
     // Comandos pendentes só são entregues no envio individual (objeto), senão eram perdidos.
     $envioEmLote = isset($data[0]);
-    if (!$envioEmLote) $data = [$data];
+    if (!$envioEmLote) {
+        @file_put_contents(__DIR__ . '/last_esp_post.json', $json);
+        $data = [$data];
+    }
 
     garantirColunasExtras($conn);
     $stmt = $conn->prepare("INSERT INTO telemetria (timestamp, temp_int, hum_int, temp_ext, hum_ext, rele_luz, rele_umid, rele_vento, rele_exaust, rele_ar, rele_vento_ext, fase) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)");
+    if (!$stmt) {
+        garantirColunasExtras($conn, true);
+        $stmt = $conn->prepare("INSERT INTO telemetria (timestamp, temp_int, hum_int, temp_ext, hum_ext, rele_luz, rele_umid, rele_vento, rele_exaust, rele_ar, rele_vento_ext, fase) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)");
+    }
+    if (!$stmt) {
+        http_response_code(500);
+        die(json_encode(["error" => "Falha ao preparar query de telemetria"]));
+    }
 
     $successCount = 0;
+    $ultimoStatusRow = null;
     foreach ($data as $row) {
         if (!is_array($row)) continue; // Robustez: ignora itens que não são objetos JSON
-        // Salva status em todas as pastas possíveis para sincronia perfeita
-        $pastas_status = [
-            __DIR__,
-            __DIR__ . '/../../api',
-            __DIR__ . '/../api',
-            __DIR__ . '/../grow.alquimistasmagicos.com.br/api'
-        ];
-        $bModelRow = isset($row['board']) ? $row['board'] : (file_exists(__DIR__ . '/board_model.txt') ? file_get_contents(__DIR__ . '/board_model.txt') : 'ESP32-C3');
-        $binRow = caminhoBinFirmware($bModelRow);
-        $mtimeRow = $binRow ? (int)filemtime($binRow) : 0;
-        foreach ($pastas_status as $pDir) {
-            if (is_dir($pDir)) {
-                if (isset($row['fw'])) {
-                    $fwVal = (int)$row['fw'];
-                    if ($fwVal > time() + 300 && $mtimeRow > 0) $fwVal = $mtimeRow;
-                    @file_put_contents($pDir . '/fw_status.txt', (string)$fwVal);
-                }
-                if (isset($row['vFirmware'])) @file_put_contents($pDir . '/vFirmware.txt', $row['vFirmware']);
-                if (isset($row['board'])) @file_put_contents($pDir . '/board_model.txt', $row['board']);
-                if (isset($row['canRollback'])) @file_put_contents($pDir . '/can_rollback.txt', (string)(int)$row['canRollback']);
-                if (isset($row['modoLuz'])) @file_put_contents($pDir . '/modo_luz.txt', (string)(int)$row['modoLuz']);
-                if (isset($row['modoAr'])) @file_put_contents($pDir . '/modo_ar.txt', (string)(int)$row['modoAr']);
-                if (isset($row['otaError'])) {
-                    if ($row['otaError'] == 1) @file_put_contents($pDir . '/fw_error.txt', '1');
-                    else @unlink($pDir . '/fw_error.txt');
-                }
-            }
-        }
+        $ultimoStatusRow = $row;
 
         // Se o ESP32 gravou o UNIX timestamp (offline), usamos ele. Senão, hora de agora.
         // Robustez PHP 8: timestamp não numérico gerava TypeError (HTTP 500) e travava o lote offline
@@ -233,6 +231,37 @@ if ($method === 'POST') {
         }
     }
     $stmt->close();
+
+    // Atualiza arquivos de status apenas 1x por requisição (usando o último registro) e só grava se mudou
+    if ($ultimoStatusRow !== null) {
+        $pastas_status = [
+            __DIR__,
+            __DIR__ . '/../../api',
+            __DIR__ . '/../api',
+            __DIR__ . '/../grow.alquimistasmagicos.com.br/api'
+        ];
+        $bModelRow = isset($ultimoStatusRow['board']) ? $ultimoStatusRow['board'] : (file_exists(__DIR__ . '/board_model.txt') ? file_get_contents(__DIR__ . '/board_model.txt') : 'ESP32-C3');
+        $binRow = caminhoBinFirmware($bModelRow);
+        $mtimeRow = $binRow ? (int)filemtime($binRow) : 0;
+        foreach ($pastas_status as $pDir) {
+            if (is_dir($pDir)) {
+                if (isset($ultimoStatusRow['fw'])) {
+                    $fwVal = (int)$ultimoStatusRow['fw'];
+                    if ($fwVal > time() + 300 && $mtimeRow > 0) $fwVal = $mtimeRow;
+                    escreverSeMudou($pDir . '/fw_status.txt', (string)$fwVal);
+                }
+                if (isset($ultimoStatusRow['vFirmware'])) escreverSeMudou($pDir . '/vFirmware.txt', (string)$ultimoStatusRow['vFirmware']);
+                if (isset($ultimoStatusRow['board'])) escreverSeMudou($pDir . '/board_model.txt', (string)$ultimoStatusRow['board']);
+                if (isset($ultimoStatusRow['canRollback'])) escreverSeMudou($pDir . '/can_rollback.txt', (string)(int)$ultimoStatusRow['canRollback']);
+                if (isset($ultimoStatusRow['modoLuz'])) escreverSeMudou($pDir . '/modo_luz.txt', (string)(int)$ultimoStatusRow['modoLuz']);
+                if (isset($ultimoStatusRow['modoAr'])) escreverSeMudou($pDir . '/modo_ar.txt', (string)(int)$ultimoStatusRow['modoAr']);
+                if (isset($ultimoStatusRow['otaError'])) {
+                    if ($ultimoStatusRow['otaError'] == 1) escreverSeMudou($pDir . '/fw_error.txt', '1');
+                    elseif (file_exists($pDir . '/fw_error.txt')) @unlink($pDir . '/fw_error.txt');
+                }
+            }
+        }
+    }
     
     // AUTO-LIMPEZA DO BANCO DE DADOS (Anti-Crash de Disco HostGator)
     // Executa a limpeza com 1% de chance em cada requisição mantendo DIAS_RETENCAO_TELEMETRIA dias de histórico
@@ -241,9 +270,12 @@ if ($method === 'POST') {
     }
     
     $resposta = ["status" => "ok", "inseridos" => $successCount];
-    // Carrega configuração climática atual do banco de dados MySQL
-    garantirTabelaConfig($conn);
+    // Carrega configuração climática atual do banco de dados MySQL (evita CREATE TABLE em todo POST)
     $resCfg = $conn->query("SELECT valor, atualizado_em FROM config_sistema WHERE chave = 'clima'");
+    if ($resCfg === false || $resCfg->num_rows === 0) {
+        garantirTabelaConfig($conn);
+        $resCfg = $conn->query("SELECT valor, atualizado_em FROM config_sistema WHERE chave = 'clima'");
+    }
     if ($resCfg && $rCfg = $resCfg->fetch_assoc()) {
         $resposta['config_clima'] = json_decode($rCfg['valor'], true);
         $resposta['cfg_ver'] = (int)$rCfg['atualizado_em'];
