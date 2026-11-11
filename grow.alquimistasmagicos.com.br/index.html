@@ -675,9 +675,9 @@
 
                             <!-- Bloco 1: Sifão de Ar Frio & Guarda Dinâmica de Umidade -->
                             <div class="bg-slate-800/40 p-5 rounded-xl border border-cyan-500/30 space-y-4">
-                                <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-1">
+                                <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
                                     <span class="text-xs font-bold uppercase tracking-wider text-cyan-300 flex items-center gap-2"><span>🌬️</span> Sifão de Ar Frio (AC + Pós-AC) &amp; Guarda de Umidade</span>
-                                    <span class="text-[11px] text-slate-400">Aproveita ondas de ar gelado da sala e reidrata até a Umidade Alvo</span>
+                                    <span id="badgeSifaoDeltaExemplo" class="text-[11px] text-sky-300 bg-sky-500/10 border border-sky-500/20 px-2.5 py-0.5 rounded-full font-semibold">Estufa 27.0°C: Liga ≤ 26.6°C ➔ Desliga ≥ 26.9°C</span>
                                 </div>
                                 <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
                                     <div class="bg-slate-900/70 p-3.5 rounded-xl border border-slate-700/60 space-y-1.5">
@@ -713,20 +713,20 @@
                                 </div>
                                 <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
                                     <div class="bg-slate-900/70 p-3.5 rounded-xl border border-slate-700/60 space-y-1.5">
-                                        <label for="cfgTDeltaExt" class="text-xs font-semibold text-blue-300 block">Delta Entrada (Sala vs Grow)</label>
+                                        <label for="cfgTDeltaExt" class="text-xs font-semibold text-blue-300 block">Diferença p/ Ligar Sifão</label>
                                         <div class="relative">
-                                            <input type="number" step="0.1" min="0.1" max="5.0" id="cfgTDeltaExt" value="0.4" class="w-full bg-slate-950/90 text-blue-300 text-lg font-extrabold border border-slate-700 rounded-xl p-2.5 pr-8 text-center outline-none focus:border-blue-500 transition">
+                                            <input type="number" step="0.1" min="0.1" max="5.0" id="cfgTDeltaExt" value="0.4" oninput="sincronizarUiSifaoDelta()" class="w-full bg-slate-950/90 text-blue-300 text-lg font-extrabold border border-slate-700 rounded-xl p-2.5 pr-8 text-center outline-none focus:border-blue-500 transition">
                                             <span class="absolute right-3 top-3 text-xs text-slate-500 font-bold">°C</span>
                                         </div>
-                                        <p class="text-[11px] text-slate-400 leading-snug">Quanto a sala precisa estar mais fria para ligar o sifão.</p>
+                                        <p class="text-[11px] text-slate-400 leading-snug">Quarto precisa estar ao menos este valor mais frio que a estufa.</p>
                                     </div>
                                     <div class="bg-slate-900/70 p-3.5 rounded-xl border border-slate-700/60 space-y-1.5">
-                                        <label for="cfgTDeltaSaida" class="text-xs font-semibold text-indigo-300 block">Delta Saída (Histerese)</label>
+                                        <label for="cfgTDeltaSaida" class="text-xs font-semibold text-indigo-300 block">Diferença p/ Desligar Sifão</label>
                                         <div class="relative">
-                                            <input type="number" step="0.1" min="0.0" max="2.0" id="cfgTDeltaSaida" value="0.1" class="w-full bg-slate-950/90 text-indigo-300 text-lg font-extrabold border border-slate-700 rounded-xl p-2.5 pr-8 text-center outline-none focus:border-indigo-500 transition">
+                                            <input type="number" step="0.1" min="0.0" max="2.0" id="cfgTDeltaSaida" value="0.1" oninput="sincronizarUiSifaoDelta()" class="w-full bg-slate-950/90 text-indigo-300 text-lg font-extrabold border border-slate-700 rounded-xl p-2.5 pr-8 text-center outline-none focus:border-indigo-500 transition">
                                             <span class="absolute right-3 top-3 text-xs text-slate-500 font-bold">°C</span>
                                         </div>
-                                        <p class="text-[11px] text-slate-400 leading-snug">Mantém injetando até a diferença cair para este limite.</p>
+                                        <p class="text-[11px] text-slate-400 leading-snug">Continua puxando até sobrar só esta diferença (≤ Ligar).</p>
                                     </div>
                                     <div class="bg-slate-900/70 p-3.5 rounded-xl border border-slate-700/60 space-y-1.5">
                                         <label for="cfgTSifaoTempMin" class="text-xs font-semibold text-teal-300 block">Piso Mín. Resfriamento</label>
@@ -1810,6 +1810,7 @@
             }
             sincronizarUiMetaAr();
             sincronizarUiSifaoRetorno();
+            sincronizarUiSifaoDelta();
 
             // Atualiza status do modo de luz na página de config
             const cfgStatusLuz = document.getElementById('cfgStatusLuzTexto');
@@ -1902,6 +1903,23 @@
             badge.textContent = `${prefixo}: Liga ${tX.toFixed(1)}°C ➔ Desliga < ${metaDesliga.toFixed(1)}°C`;
         }
 
+        function sincronizarUiSifaoDelta() {
+            const badge = document.getElementById('badgeSifaoDeltaExemplo');
+            if (!badge) return;
+            const parseF = (el, min, max, def) => {
+                if (!el || el.value === '') return def;
+                const v = parseFloat(String(el.value).replace(',', '.'));
+                return Number.isFinite(v) ? Math.max(min, Math.min(max, v)) : def;
+            };
+            const dLiga = parseF(document.getElementById('cfgTDeltaExt'), 0.1, 5.0, 0.4);
+            const dDesliga = Math.min(dLiga, parseF(document.getElementById('cfgTDeltaSaida'), 0.0, 2.0, 0.1));
+            const tiRaw = window.ultimoRegistroRecebido ? parseFloat(window.ultimoRegistroRecebido.temp_int) : NaN;
+            const tRef = (Number.isFinite(tiRaw) && tiRaw > 0 && tiRaw < 60) ? tiRaw : 27.0;
+            const tLigaSala = tRef - dLiga;
+            const tDesligaSala = tRef - dDesliga;
+            badge.textContent = `Estufa ${tRef.toFixed(1)}°C: Liga se sala ≤ ${tLigaSala.toFixed(1)}°C ➔ Desliga ≥ ${tDesligaSala.toFixed(1)}°C`;
+        }
+
         function sincronizarUiSifaoRetorno() {
             const chk = document.getElementById('cfgURetornoAlvo');
             const inpRet = document.getElementById('cfgUGuardaRetorno');
@@ -1951,6 +1969,7 @@
             if (document.getElementById('cfgUGuardaRetorno')) document.getElementById('cfgUGuardaRetorno').value = hv.uGuardaRetorno !== undefined ? hv.uGuardaRetorno : 99.0;
             sincronizarUiSifaoRetorno();
             sincronizarUiMetaAr();
+            sincronizarUiSifaoDelta();
         }
 
         async function salvarFormClima() {
@@ -2009,6 +2028,7 @@
             if (document.getElementById('cfgUGuardaRetorno')) document.getElementById('cfgUGuardaRetorno').value = uGuardaRetornoVal;
             sincronizarUiSifaoRetorno();
             sincronizarUiMetaAr();
+            sincronizarUiSifaoDelta();
 
             configClima[f].tX = tXVal;
             configClima[f].uA = uAlvoVal;
@@ -2137,6 +2157,7 @@
             if (valFaseEl) valFaseEl.textContent = (mapaReverso[f] || "Fase " + f) + " ⏳";
             sincronizarUiMetaAr();
             sincronizarUiSifaoRetorno();
+            sincronizarUiSifaoDelta();
             
             // Se o usuário selecionou Standby, desliga imediatamente os relés visuais automáticos:
             if (f === 0) {
@@ -2836,6 +2857,7 @@
                     fasePendenteAlvo = null; // limpa por precaução
                     sincronizarUiMetaAr();
                     sincronizarUiSifaoRetorno();
+                    sincronizarUiSifaoDelta();
                 }
 
                 // Min/Max do período com indicador de Meta Alvo
