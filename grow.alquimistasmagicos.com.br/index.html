@@ -2237,7 +2237,8 @@
             const ptTePrev = dsTemp[3]?.data?.[dataIndex];
             const ptHi = dsUmid[0]?.data?.[dataIndex];
             const ptHe = dsUmid[1]?.data?.[dataIndex];
-            const ptHePrev = dsUmid[2]?.data?.[dataIndex];
+            const ptHiPrev = dsUmid[2]?.data?.[dataIndex];
+            const ptHePrev = dsUmid[3]?.data?.[dataIndex];
             const ptLuz = dsReles[0]?.data?.[dataIndex];
             const ptAr  = dsReles[4]?.data?.[dataIndex];
 
@@ -2283,7 +2284,18 @@
                     elTe.className = 'text-slate-500';
                 }
             }
-            if (elHi) elHi.textContent = (ptHi?.y != null) ? Number(ptHi.y).toFixed(0) + '%' : '--';
+            if (elHi) {
+                if (ptHi?.y != null) {
+                    elHi.textContent = Number(ptHi.y).toFixed(0) + '%';
+                    elHi.className = 'text-[#00c8ff]';
+                } else if (ptHiPrev?.y != null) {
+                    elHi.textContent = '~' + Number(ptHiPrev.y).toFixed(0) + '%';
+                    elHi.className = 'text-cyan-300/80';
+                } else {
+                    elHi.textContent = '--';
+                    elHi.className = 'text-slate-500';
+                }
+            }
             if (elHe) {
                 if (ptHe?.y != null) {
                     elHe.textContent = Number(ptHe.y).toFixed(0) + '%';
@@ -2458,6 +2470,7 @@
                 data: { datasets: [
                     { label: 'Umid Int (%)', data: [], borderColor: '#00c8ff', backgroundColor: 'rgba(0,200,255,0.07)', borderWidth: 2.5, pointRadius: 0, tension: 0.25, fill: true },
                     { label: 'Umid Ext (%)', data: [], borderColor: '#c084fc', backgroundColor: 'rgba(192,132,252,0.05)', borderWidth: 2, pointRadius: 0, tension: 0.25, fill: false },
+                    { label: 'Previsão Umid Int (%)', data: [], borderColor: 'rgba(0, 200, 255, 0.80)', backgroundColor: 'transparent', borderDash: [5, 4], borderWidth: 2, pointRadius: 0, tension: 0.30, fill: false },
                     { label: 'Previsão Umid Ext (%)', data: [], borderColor: 'rgba(192, 132, 252, 0.45)', backgroundColor: 'transparent', borderDash: [3, 4], borderWidth: 1.5, pointRadius: 0, tension: 0.35, fill: false }
                 ]},
                 options: baseOptions({ min: 50, max: 105, grid: { color: 'rgba(255,255,255,0.04)' }, ticks: { color: '#00c8ff', font: { size: 10 }, callback: v => v + '%' } }),
@@ -2832,9 +2845,9 @@
                 atualizarTimersProtocolo();
                 calcularResumoAtividades(data);
 
-                // OTIMIZAÇÃO ZERO-LAG: Cache inteligente de dados
-                // Se o último registro e seus estados de relés/fase não mudaram, evita reprocessar e repintar os gráficos
-                const chaveDados = `${ultimo.id}_${ultimo.timestamp}_${ultimo.fase}_${ultimo.rele_luz}_${ultimo.rele_umid}_${ultimo.rele_vento}_${ultimo.rele_exaust}_${ultimo.rele_ar}_${data.length}_${limit}`;
+                // OTIMIZAÇÃO ZERO-LAG: Cache inteligente de dados (inclui configClima para refletir edições em tempo real)
+                const cfgHash = configClima ? JSON.stringify(configClima) : '';
+                const chaveDados = `${ultimo.id}_${ultimo.timestamp}_${ultimo.fase}_${ultimo.rele_luz}_${ultimo.rele_umid}_${ultimo.rele_vento}_${ultimo.rele_exaust}_${ultimo.rele_ar}_${data.length}_${limit}_${arState}_${luzState}_${cfgHash}`;
                 if (window.ultimoCacheGrafico === chaveDados) {
                     return;
                 }
@@ -2859,7 +2872,7 @@
                 const amostras = Array.from(porIntervalo.values());
 
                 const dTempInt = [], dTempExt = [], dTempProj = [], dTempExtProj = [];
-                const dHumInt = [], dHumExt = [], dHumExtProj = [];
+                const dHumInt = [], dHumExt = [], dHumIntProj = [], dHumExtProj = [];
                 const dLuz = [], dUmid = [], dVento = [], dExaust = [], dAr = [];
 
                 let lastTi = null, lastTe = null, lastHi = null, lastHe = null;
@@ -2882,6 +2895,7 @@
                     dTempExtProj.push({ x: ts, y: null });
                     dHumInt.push({ x: ts, y: (hI > 0 && hI <= 100) ? hI : null });
                     dHumExt.push({ x: ts, y: (hE > 0 && hE <= 100) ? hE : null });
+                    dHumIntProj.push({ x: ts, y: null });
                     dHumExtProj.push({ x: ts, y: null });
 
                     // Relés em 5 pistas horizontais independentes (Swimlanes):
@@ -2931,14 +2945,14 @@
                 const uRetornoAlvoSim = (hvac.uRetornoAlvo === undefined || parseInt(hvac.uRetornoAlvo, 10) !== 0);
                 const uGuardaRetornoSim = Math.max(uGuardaCorteSim, uRetornoAlvoSim ? uAlvoSim : parseFloat(hvac.uGuardaRetorno !== undefined ? hvac.uGuardaRetorno : 99.0));
 
-                // Analisa ciclos históricos reais do AC, assinatura real de FAE, inércia do cômodo e offset Grow↔Sala
+                // Analisa ciclos históricos reais do AC (grow e sala), assinatura real de FAE, inércia do cômodo e offset Grow↔Sala
                 const FAE_LEN = 18;
-                const duracoesCicloMin = [], coolRatesObs = [], dropsObs = [];
+                const duracoesCicloMin = [], coolRatesObs = [], dropsObs = [], roomCoolRatesObs = [], roomDropsObs = [];
                 const sumFaeDelta = new Array(FAE_LEN + 1).fill(0);
                 const cntFaeDelta = new Array(FAE_LEN + 1).fill(0);
                 let sumHeFae = 0, cntHeFae = 0;
 
-                let blocoInicio = null, tempInicioAc = null, minTempAc = Infinity, ultimoDesligamentoTs = 0;
+                let blocoInicio = null, tempInicioAc = null, minTempAc = Infinity, tempExtInicioAc = null, minTempExtAc = Infinity, ultimoDesligamentoTs = 0;
                 let prevExaust = 0, faeTrackStartTs = 0, faeTrackPreT = null, lastFaeStartTs = 0;
                 let nonAcRecentSum = 0, nonAcRecentCnt = 0;
                 let sumDiffOff = 0, cntDiffOff = 0, sumDiffOn = 0, cntDiffOn = 0;
@@ -2962,8 +2976,11 @@
                             blocoInicio = tsItem;
                             tempInicioAc = tValid ? tItem : null;
                             minTempAc = tempInicioAc !== null ? tempInicioAc : Infinity;
-                        } else if (tValid && tItem < minTempAc) {
-                            minTempAc = tItem;
+                            tempExtInicioAc = teValid ? tExtItem : null;
+                            minTempExtAc = tempExtInicioAc !== null ? tempExtInicioAc : Infinity;
+                        } else {
+                            if (tValid && tItem < minTempAc) minTempAc = tItem;
+                            if (teValid && tExtItem < minTempExtAc) minTempExtAc = tExtItem;
                         }
                         faeTrackPreT = null; // Ignora FAE durante ciclo ativo de AC para não misturar assinaturas
                     } else if (blocoInicio !== null) {
@@ -2975,11 +2992,18 @@
                                 dropsObs.push(drop);
                                 coolRatesObs.push(drop / durMin);
                             }
+                            if (tempExtInicioAc !== null && minTempExtAc < tempExtInicioAc) {
+                                const rDrop = tempExtInicioAc - minTempExtAc;
+                                roomDropsObs.push(rDrop);
+                                roomCoolRatesObs.push(rDrop / durMin);
+                            }
                         }
                         ultimoDesligamentoTs = tsItem;
                         blocoInicio = null;
                         tempInicioAc = null;
                         minTempAc = Infinity;
+                        tempExtInicioAc = null;
+                        minTempExtAc = Infinity;
                     }
 
                     // Captura borda de subida do FAE (0 -> 1) e registra curva real de queda e retorno (0..18 min)
@@ -3079,6 +3103,12 @@
                 const avgCoolRate = coolRatesObs.length > 0
                     ? Math.max(0.035, Math.min(0.14, coolRatesObs.reduce((a, b) => a + b, 0) / coolRatesObs.length))
                     : 0.065;
+                const avgRoomCoolRate = roomCoolRatesObs.length > 0
+                    ? Math.max(0.11, Math.min(0.28, roomCoolRatesObs.reduce((a, b) => a + b, 0) / roomCoolRatesObs.length))
+                    : 0.16;
+                const avgRoomDropAc = roomDropsObs.length > 0
+                    ? Math.max(1.2, Math.min(4.0, roomDropsObs.reduce((a, b) => a + b, 0) / roomDropsObs.length))
+                    : 2.2;
                 const avgDropPostMeta = dropsObs.length > 0
                     ? Math.max(0.6, Math.min(1.5, (dropsObs[dropsObs.length - 1] * 0.55)))
                     : 0.8;
@@ -3119,6 +3149,7 @@
                     const lastIdx = amostras.length - 1;
                     if (lastTi !== null) dTempProj[lastIdx] = { x: maxTs, y: lastTi };
                     if (lastTe !== null || meteoBase) dTempExtProj[lastIdx] = { x: maxTs, y: tExtAnchor };
+                    if (lastHi !== null) dHumIntProj[lastIdx] = { x: maxTs, y: lastHi };
                     if (lastHe !== null || meteoBase) dHumExtProj[lastIdx] = { x: maxTs, y: hExtAnchor };
                 }
 
@@ -3177,10 +3208,12 @@
                         }
                     }
                     if (simArOn) {
-                        const targetArSala = Math.min(tExtSim, tRoomEqSim - 2.2);
-                        tExtSim += (targetArSala - tExtSim) * Math.min(1, 0.055 * passoMin);
+                        const floorSalaAc = Math.max(16.0, tRoomEqSim - Math.max(2.6, avgRoomDropAc + 0.9));
+                        if (tExtSim > floorSalaAc) {
+                            tExtSim = Math.max(floorSalaAc, tExtSim - avgRoomCoolRate * passoMin);
+                        }
                     } else {
-                        const rateRoom = (tExtSim < tRoomEqSim - 0.1) ? 0.085 : 0.035;
+                        const rateRoom = (tExtSim < tRoomEqSim - 0.1) ? 0.065 : 0.035;
                         tExtSim += (tRoomEqSim - tExtSim) * Math.min(1, rateRoom * passoMin);
                     }
 
@@ -3338,11 +3371,13 @@
 
                     const isArPrevOn = simArOn;
                     const tIntVal = (tIntPlot !== null) ? parseFloat(tIntPlot.toFixed(2)) : null;
+                    const motivoExaust = isExaustOn ? (isSifaoExaustOn ? (simArOn ? 'Sifão AC (Ar Frio)' : 'Sifão Pós-AC (Ondas Frio)') : 'FAE Programado') : null;
+                    const motivoUmid = isUmidOn ? ((simAproveitandoFrio && !simGuardaUmidOk) ? 'Onda Névoa Sifão' : (simHumInt < uAlvoSim ? 'Recuperando Alvo' : 'Brisa c/ Névoa')) : null;
 
                     dLuz.push({ x: t, y: isLuzOn ? [2.65, 3.35] : null, ghost: true });
-                    dExaust.push({ x: t, y: isExaustOn ? [-0.35, 0.35] : null, ghost: true });
+                    dExaust.push({ x: t, y: isExaustOn ? [-0.35, 0.35] : null, ghost: true, motivo: motivoExaust });
                     dVento.push({ x: t, y: isVentoOn ? [0.65, 1.35] : null, ghost: true });
-                    dUmid.push({ x: t, y: isUmidOn ? [1.65, 2.35] : null, ghost: true });
+                    dUmid.push({ x: t, y: isUmidOn ? [1.65, 2.35] : null, ghost: true, motivo: motivoUmid });
                     dAr.push({ x: t, y: isArPrevOn ? [3.65, 4.35] : null, ghost: true, motivo: motivoAr });
 
                     dTempInt.push({ x: t, y: null });
@@ -3351,6 +3386,7 @@
                     dTempExtProj.push({ x: t, y: parseFloat(tExtSim.toFixed(2)) });
                     dHumInt.push({ x: t, y: null });
                     dHumExt.push({ x: t, y: null });
+                    dHumIntProj.push({ x: t, y: parseFloat(simHumInt.toFixed(1)) });
                     dHumExtProj.push({ x: t, y: parseFloat(hExtSim.toFixed(1)) });
                 }
 
@@ -3398,7 +3434,8 @@
                     chartTemp.data.datasets[3].data = dTempExtProj;
                     chartUmid.data.datasets[0].data = dHumInt;
                     chartUmid.data.datasets[1].data = dHumExt;
-                    chartUmid.data.datasets[2].data = dHumExtProj;
+                    chartUmid.data.datasets[2].data = dHumIntProj;
+                    chartUmid.data.datasets[3].data = dHumExtProj;
                     chartReles.data.datasets[0].data = dLuz;
                     chartReles.data.datasets[1].data = dUmid;
                     chartReles.data.datasets[2].data = dVento;
