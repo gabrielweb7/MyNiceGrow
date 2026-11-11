@@ -556,7 +556,7 @@
                                 </div>
                                 <div class="w-full md:w-72 bg-slate-800/60 p-3 rounded-xl border border-slate-700/70">
                                     <label class="text-[10px] text-slate-400 uppercase tracking-wider font-semibold block mb-1.5">Fase Editada</label>
-                                    <select id="selConfigFase" class="w-full bg-slate-900 text-slate-100 text-sm font-bold border border-slate-700 rounded-lg p-2.5 outline-none focus:border-amber-500 transition shadow-inner cursor-pointer" onchange="carregarFormClima()">
+                                    <select id="selConfigFase" class="w-full bg-slate-900 text-slate-100 text-sm font-bold border border-slate-700 rounded-lg p-2.5 outline-none focus:border-amber-500 transition shadow-inner cursor-pointer" onchange="usuarioTrocouSelConfigFase = true; carregarFormClima()">
                                         <option value="1">🍄 Fase 1: Pinagem</option>
                                         <option value="2">🌳 Fase 2: Frutificação</option>
                                     </select>
@@ -1646,6 +1646,7 @@
                 if (hdrDashCtrl) hdrDashCtrl.classList.add('hidden');
                 if (hdrCfgCtrl) hdrCfgCtrl.classList.remove('hidden');
 
+                usuarioTrocouSelConfigFase = false;
                 atualizarDadosViewConfig();
                 fetchConfigClima();
                 window.scrollTo({ top: 0, behavior: 'smooth' });
@@ -1820,6 +1821,7 @@
             }
         }
         
+        let usuarioTrocouSelConfigFase = false;
         let configClima = {
             "1": { tX: 28.0, uA: 95.0, uN: 95.0, uX: 95.0, fO: 1, fF: 40, vO: 1, vF: 2, vU: 1 },
             "2": { tX: 29.0, uA: 92.0, uN: 92.0, uX: 92.0, fO: 2, fF: 25, vO: 1, vF: 2, vU: 1 }
@@ -1913,11 +1915,11 @@
             };
             const dLiga = parseF(document.getElementById('cfgTDeltaExt'), 0.1, 5.0, 0.4);
             const dDesliga = Math.min(dLiga, parseF(document.getElementById('cfgTDeltaSaida'), 0.0, 2.0, 0.1));
-            const tiRaw = window.ultimoRegistroRecebido ? parseFloat(window.ultimoRegistroRecebido.temp_int) : NaN;
-            const tRef = (Number.isFinite(tiRaw) && tiRaw > 0 && tiRaw < 60) ? tiRaw : 27.0;
+            const info = obterConfigFaseAtiva();
+            const tRef = info.tX;
             const tLigaSala = tRef - dLiga;
-            const tDesligaSala = tRef - dDesliga;
-            badge.textContent = `Estufa ${tRef.toFixed(1)}°C: Liga se sala ≤ ${tLigaSala.toFixed(1)}°C ➔ Desliga ≥ ${tDesligaSala.toFixed(1)}°C`;
+            const prefixo = info.temFaseClima ? info.nome : `Ex. ${info.nome}`;
+            badge.textContent = `${prefixo} (${tRef.toFixed(1)}°C): Puxa se quarto ≤ ${tLigaSala.toFixed(1)}°C • Para na dif. de ${dDesliga.toFixed(1)}°C`;
         }
 
         function sincronizarUiSifaoRetorno() {
@@ -1940,7 +1942,14 @@
         }
 
         function carregarFormClima() {
-            let f = document.getElementById('selConfigFase').value;
+            const selFase = document.getElementById('selConfigFase');
+            if (selFase && !usuarioTrocouSelConfigFase) {
+                const infoAtiva = obterConfigFaseAtiva();
+                if (infoAtiva.temFaseClima && (infoAtiva.key === '1' || infoAtiva.key === '2')) {
+                    selFase.value = infoAtiva.key;
+                }
+            }
+            let f = selFase ? selFase.value : '1';
             let cfg = configClima[f];
             if (cfg) {
                 document.getElementById('cfgTx').value = cfg.tX;
