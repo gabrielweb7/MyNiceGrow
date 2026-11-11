@@ -3298,7 +3298,8 @@
                     }
                 }
                 // Também inclui o trecho sem AC atual (até AGORA) se ele estiver próximo do teto ou em subida
-                if (!arOn && maxTeTrechoNonAc !== null) {
+                const lastArOn = amostras.length > 0 && parseInt(amostras[amostras.length - 1].rele_ar) === 1;
+                if (!lastArOn && maxTeTrechoNonAc !== null) {
                     roomCeilingObs.push({ ts: tsMaxTeTrecho, tExt: maxTeTrechoNonAc, tRua: ruaAtMaxTeTrecho, isPreAc: false });
                 }
 
@@ -3330,13 +3331,12 @@
 
                 // Tendência imediata recente do QUARTO (últimos 18 min mantendo o mesmo estado atual de AC)
                 let slopeExtPerMin = 0;
-                const lastArStateNow = amostras.length > 0 && parseInt(amostras[amostras.length - 1].rele_ar) === 1;
                 const janelaExtIni = maxTs - (18 * 60000);
                 const ptsExt = [];
                 for (let i = amostras.length - 1; i >= 0; i--) {
                     const tsItem = amostras[i].unix_ts_min || (amostras[i].unix_ts ? amostras[i].unix_ts * 1000 : new Date(amostras[i].timestamp.replace(' ', 'T')).getTime());
                     if (tsItem < janelaExtIni) break;
-                    if ((parseInt(amostras[i].rele_ar) === 1) !== lastArStateNow) break;
+                    if ((parseInt(amostras[i].rele_ar) === 1) !== lastArOn) break;
                     const vTe = parseFloat(amostras[i].temp_ext);
                     if (!isNaN(vTe) && vTe > -40 && vTe < 60) ptsExt.push({ ts: tsItem, t: vTe });
                 }
@@ -3371,7 +3371,7 @@
                 if (tEqNewton !== null) {
                     tRoomNatNow = 0.60 * tRoomNatNow + 0.40 * tEqNewton;
                 }
-                if (!lastArStateNow && lastTe !== null) {
+                if (!lastArOn && lastTe !== null) {
                     if (slopeExtPerMin > 0.015) {
                         const extraSlope = Math.min(1.6, slopeExtPerMin * 7.5);
                         tRoomNatNow = Math.max(tRoomNatNow, lastTe + extraSlope);
@@ -3472,7 +3472,6 @@
                     ? Math.max(0.32, Math.min(0.65, roomRangeHist / ruaRangeHist))
                     : 0.42;
 
-                const lastArOn = amostras.length > 0 && parseInt(amostras[amostras.length - 1].rele_ar) === 1;
                 const avgCoolRate = calcMediana(coolRatesObs, 0.065, 0.032, 0.13);
                 const avgRoomCoolRate = calcMediana(roomCoolRatesObs, 0.14, 0.08, 0.25);
                 const avgRoomDropAc = calcMediana(roomDropsObs, 2.2, 1.2, 4.2);
