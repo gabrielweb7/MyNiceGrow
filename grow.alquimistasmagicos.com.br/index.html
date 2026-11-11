@@ -1144,6 +1144,7 @@
             const idxNext = Math.min(arr.length - 1, idx + 1);
             const span = Math.max(1, arr[idxNext] - arr[idx]);
             const frac = idx === idxNext ? 0 : Math.min(1, Math.max(0, (tsMs - arr[idx]) / span));
+            const mu = (1 - Math.cos(frac * Math.PI)) * 0.5; // Interpolação cosseno suave (zero quinas horárias)
 
             const t0 = h.temperature_2m[idx], t1 = h.temperature_2m[idxNext];
             const u0 = h.relative_humidity_2m[idx], u1 = h.relative_humidity_2m[idxNext];
@@ -1153,8 +1154,8 @@
 
             return {
                 idx,
-                tRua: t0 + (t1 - t0) * frac,
-                hRua: u0 + (u1 - u0) * frac,
+                tRua: t0 + (t1 - t0) * mu,
+                hRua: u0 + (u1 - u0) * mu,
                 rainProb: p0 || 0,
                 rainMm: r0 || 0,
                 wCode: c0 || 0
@@ -2385,7 +2386,7 @@
                 data: { datasets: [
                     { label: 'Umid Int (%)', data: [], borderColor: '#00c8ff', backgroundColor: 'rgba(0,200,255,0.07)', borderWidth: 2.5, pointRadius: 0, tension: 0.25, fill: true },
                     { label: 'Umid Ext (%)', data: [], borderColor: '#c084fc', backgroundColor: 'rgba(192,132,252,0.05)', borderWidth: 2, pointRadius: 0, tension: 0.25, fill: false },
-                    { label: 'Previsão Umid Ext (%)', data: [], borderColor: 'rgba(192, 132, 252, 0.55)', backgroundColor: 'transparent', borderDash: [4, 4], borderWidth: 1.75, pointRadius: 0, tension: 0.2, fill: false }
+                    { label: 'Previsão Umid Ext (%)', data: [], borderColor: 'rgba(192, 132, 252, 0.45)', backgroundColor: 'transparent', borderDash: [3, 4], borderWidth: 1.5, pointRadius: 0, tension: 0.35, fill: false }
                 ]},
                 options: baseOptions({ min: 50, max: 105, grid: { color: 'rgba(255,255,255,0.04)' }, ticks: { color: '#00c8ff', font: { size: 10 }, callback: v => v + '%' } }),
                 plugins: [crosshairPlugin, agoraLinePlugin]
@@ -2396,8 +2397,8 @@
                 data: { datasets: [
                     { label: 'Temp Int (°C)', data: [], borderColor: '#00ffaa', backgroundColor: 'rgba(0,255,170,0.07)', borderWidth: 2.5, pointRadius: 0, tension: 0.25, fill: true },
                     { label: 'Temp Ext (°C)', data: [], borderColor: '#ff4d6d', backgroundColor: 'rgba(255,77,109,0.05)', borderWidth: 2.5, pointRadius: 0, tension: 0.4, fill: false },
-                    { label: 'Previsão Temp Int (°C)', data: [], borderColor: 'rgba(0, 229, 255, 0.8)', backgroundColor: 'transparent', borderDash: [6, 4], borderWidth: 2, pointRadius: 0, tension: 0.15, fill: false },
-                    { label: 'Previsão Temp Ext (°C)', data: [], borderColor: 'rgba(255, 77, 109, 0.6)', backgroundColor: 'transparent', borderDash: [4, 4], borderWidth: 1.75, pointRadius: 0, tension: 0.2, fill: false }
+                    { label: 'Previsão Temp Int (°C)', data: [], borderColor: 'rgba(0, 229, 255, 0.85)', backgroundColor: 'transparent', borderDash: [5, 4], borderWidth: 2, pointRadius: 0, tension: 0.38, fill: false },
+                    { label: 'Previsão Temp Ext (°C)', data: [], borderColor: 'rgba(255, 77, 109, 0.42)', backgroundColor: 'transparent', borderDash: [3, 4], borderWidth: 1.5, pointRadius: 0, tension: 0.38, fill: false }
                 ]},
                 options: baseOptions({ grid: { color: 'rgba(255,255,255,0.04)' }, ticks: { color: '#00ffaa', font: { size: 10 }, callback: v => v.toFixed(0) + '°C' } }),
                 plugins: [crosshairPlugin, agoraLinePlugin]
@@ -2850,21 +2851,41 @@
                 const tPosMetaMin = Math.max(1, parseInt(hvac.tPosMeta || 5, 10));
                 const tMaxRunMin = Math.max(10, parseInt(hvac.tMaxRun || 45, 10));
 
-                // Analisa ciclos históricos reais do AC (duração e queda térmica por minuto)
+                // Analisa ciclos históricos reais do AC, assinatura real de FAE, inércia do cômodo e offset Grow↔Sala
+                const FAE_LEN = 18;
                 const duracoesCicloMin = [], coolRatesObs = [], dropsObs = [];
+                const sumFaeDelta = new Array(FAE_LEN + 1).fill(0);
+                const cntFaeDelta = new Array(FAE_LEN + 1).fill(0);
+                let sumHeFae = 0, cntHeFae = 0;
+
                 let blocoInicio = null, tempInicioAc = null, minTempAc = Infinity, ultimoDesligamentoTs = 0;
+                let prevExaust = 0, faeTrackStartTs = 0, faeTrackPreT = null, lastFaeStartTs = 0;
+                let nonAcRecentSum = 0, nonAcRecentCnt = 0;
+                let sumDiffOff = 0, cntDiffOff = 0, sumDiffOn = 0, cntDiffOn = 0;
+                let minNonAcTe = Infinity, maxNonAcTe = -Infinity, minRuaHist = Infinity, maxRuaHist = -Infinity;
+                let meteoHistIdx = 0;
+                const janelaNonAcMs = maxTs - (3 * 3600 * 1000);
+
                 for (let i = 0; i < amostras.length; i++) {
                     const tsItem = amostras[i].unix_ts_min || (amostras[i].unix_ts ? amostras[i].unix_ts * 1000 : new Date(amostras[i].timestamp.replace(' ', 'T')).getTime());
                     const arOn = parseInt(amostras[i].rele_ar) === 1;
+                    const exOn = parseInt(amostras[i].rele_exaust) === 1;
+                    const luzOn = parseInt(amostras[i].rele_luz) === 1;
                     const tItem = parseFloat(amostras[i].temp_int);
+                    const tExtItem = parseFloat(amostras[i].temp_ext);
+                    const hExtItem = parseFloat(amostras[i].hum_ext);
+                    const tValid = !isNaN(tItem) && tItem > -40 && tItem < 60;
+                    const teValid = !isNaN(tExtItem) && tExtItem > -40 && tExtItem < 60;
+
                     if (arOn) {
                         if (blocoInicio === null) {
                             blocoInicio = tsItem;
-                            tempInicioAc = (tItem > -40 && tItem < 60) ? tItem : null;
+                            tempInicioAc = tValid ? tItem : null;
                             minTempAc = tempInicioAc !== null ? tempInicioAc : Infinity;
-                        } else if (tItem > -40 && tItem < 60 && tItem < minTempAc) {
+                        } else if (tValid && tItem < minTempAc) {
                             minTempAc = tItem;
                         }
+                        faeTrackPreT = null; // Ignora FAE durante ciclo ativo de AC para não misturar assinaturas
                     } else if (blocoInicio !== null) {
                         const durMin = Math.round((tsItem - blocoInicio) / 60000);
                         if (durMin >= 3 && durMin <= tMaxRunMin) {
@@ -2880,7 +2901,99 @@
                         tempInicioAc = null;
                         minTempAc = Infinity;
                     }
+
+                    // Captura borda de subida do FAE (0 -> 1) e registra curva real de queda e retorno (0..18 min)
+                    if (exOn && prevExaust === 0) {
+                        lastFaeStartTs = tsItem;
+                        if (!arOn && i > 0) {
+                            const prevTi = parseFloat(amostras[i - 1].temp_int);
+                            if (!isNaN(prevTi) && prevTi > -40 && prevTi < 60) {
+                                faeTrackStartTs = tsItem;
+                                faeTrackPreT = prevTi;
+                                if (!isNaN(hExtItem) && hExtItem > 0 && hExtItem <= 100) {
+                                    sumHeFae += hExtItem;
+                                    cntHeFae++;
+                                }
+                            }
+                        }
+                    }
+                    if (faeTrackPreT !== null && tValid) {
+                        const ageMin = Math.round((tsItem - faeTrackStartTs) / 60000);
+                        if (ageMin >= 0 && ageMin <= FAE_LEN) {
+                            sumFaeDelta[ageMin] += (tItem - faeTrackPreT);
+                            cntFaeDelta[ageMin]++;
+                        } else if (ageMin > FAE_LEN) {
+                            faeTrackPreT = null;
+                        }
+                    }
+                    prevExaust = exOn ? 1 : 0;
+
+                    // Baseline natural da sala (fora de resfriamento temporário do AC) e offset Grow↔Sala
+                    const foraDeAc = !arOn && (ultimoDesligamentoTs === 0 || (tsItem - ultimoDesligamentoTs) >= 12 * 60000);
+                    if (foraDeAc && teValid) {
+                        if (tsItem >= janelaNonAcMs) {
+                            nonAcRecentSum += tExtItem;
+                            nonAcRecentCnt++;
+                        }
+                        if (tExtItem < minNonAcTe) minNonAcTe = tExtItem;
+                        if (tExtItem > maxNonAcTe) maxNonAcTe = tExtItem;
+                        const mHist = interpolarClimaEm(tsItem, meteoHistIdx);
+                        if (mHist) {
+                            meteoHistIdx = mHist.idx;
+                            if (mHist.tRua < minRuaHist) minRuaHist = mHist.tRua;
+                            if (mHist.tRua > maxRuaHist) maxRuaHist = mHist.tRua;
+                        }
+                        const foraDeFae = (lastFaeStartTs === 0 || (tsItem - lastFaeStartTs) >= 15 * 60000);
+                        if (foraDeFae && tValid) {
+                            const diff = tItem - tExtItem;
+                            if (luzOn) { sumDiffOn += diff; cntDiffOn++; }
+                            else { sumDiffOff += diff; cntDiffOff++; }
+                        }
+                    }
                 }
+
+                // Monta molde médio arredondado do ciclo FAE a partir do histórico real do grow
+                const rawFae = new Array(FAE_LEN + 1).fill(0);
+                const temAssinaturaFae = cntFaeDelta[2] >= 1 || cntFaeDelta[3] >= 1;
+                if (temAssinaturaFae) {
+                    let lastKnown = 0;
+                    for (let m = 0; m <= FAE_LEN; m++) {
+                        if (cntFaeDelta[m] > 0) {
+                            let val = sumFaeDelta[m] / cntFaeDelta[m];
+                            val = Math.max(-2.2, Math.min(0.25, val));
+                            rawFae[m] = val;
+                            lastKnown = val;
+                        } else {
+                            rawFae[m] = lastKnown * 0.85;
+                            lastKnown = rawFae[m];
+                        }
+                    }
+                } else {
+                    for (let m = 1; m < FAE_LEN; m++) {
+                        rawFae[m] = -0.85 * Math.sin(Math.min(1, m / 4.5) * Math.PI * 0.5) * Math.exp(-0.22 * Math.max(0, m - 4));
+                    }
+                }
+                // Suavização passa-baixas 3-tap garantindo entrada e saída suaves (0 -> vale -> 0)
+                const faeTemplate = new Array(FAE_LEN + 1).fill(0);
+                for (let m = 1; m < FAE_LEN; m++) {
+                    faeTemplate[m] = 0.25 * rawFae[m - 1] + 0.5 * rawFae[m] + 0.25 * rawFae[m + 1];
+                }
+                const evalFaeTemplate = (ageMin) => {
+                    if (ageMin <= 0 || ageMin >= FAE_LEN) return 0;
+                    const idx0 = Math.floor(ageMin);
+                    const idx1 = Math.min(FAE_LEN, idx0 + 1);
+                    const f = ageMin - idx0;
+                    return faeTemplate[idx0] + (faeTemplate[idx1] - faeTemplate[idx0]) * f;
+                };
+
+                const avgHeFaePast = cntHeFae > 0 ? (sumHeFae / cntHeFae) : 70;
+                const deltaGrowOff = cntDiffOff >= 3 ? Math.max(-1.2, Math.min(1.5, sumDiffOff / cntDiffOff)) : -0.4;
+                const deltaGrowOn = cntDiffOn >= 3 ? Math.max(-1.0, Math.min(2.0, sumDiffOn / cntDiffOn)) : Math.min(1.5, deltaGrowOff + 0.45);
+                const ruaRangeHist = (maxRuaHist > minRuaHist) ? (maxRuaHist - minRuaHist) : 0;
+                const roomRangeHist = (maxNonAcTe > minNonAcTe) ? (maxNonAcTe - minNonAcTe) : 0;
+                const fatorParede = (ruaRangeHist >= 1.5 && roomRangeHist > 0.1)
+                    ? Math.max(0.22, Math.min(0.48, roomRangeHist / ruaRangeHist))
+                    : 0.32;
 
                 const lastArOn = amostras.length > 0 && parseInt(amostras[amostras.length - 1].rele_ar) === 1;
                 const avgCoolRate = coolRatesObs.length > 0
@@ -2891,14 +3004,14 @@
                     : 0.8;
                 const tAlvoPos = Math.max(18.0, tMeta - avgDropPostMeta);
 
-                // Tendência térmica recente (últimos 40 min sem AC ativo) para transição suave
+                // Tendência térmica recente (últimos 30 min sem AC nem FAE ativo) para transição suave em AGORA
                 let slopePerMin = 0;
-                const janelaInicio = maxTs - (40 * 60000);
+                const janelaInicio = maxTs - (30 * 60000);
                 const pts = [];
                 for (let i = amostras.length - 1; i >= 0; i--) {
                     const tsItem = amostras[i].unix_ts_min || (amostras[i].unix_ts ? amostras[i].unix_ts * 1000 : new Date(amostras[i].timestamp.replace(' ', 'T')).getTime());
                     if (tsItem < janelaInicio) break;
-                    if (parseInt(amostras[i].rele_ar) === 1) break;
+                    if (parseInt(amostras[i].rele_ar) === 1 || parseInt(amostras[i].rele_exaust) === 1) break;
                     const vT = parseFloat(amostras[i].temp_int);
                     if (!isNaN(vT) && vT > -40 && vT < 60) pts.push({ ts: tsItem, t: vT });
                 }
@@ -2914,11 +3027,12 @@
                     if (denom > 0) slopePerMin = ((pts.length * sumXY) - (sumX * sumY)) / denom;
                 }
 
-                // Ancoragem Open-Meteo (calibra curva da cidade ao delta real do quarto)
+                // Ancoragem Open-Meteo + Baseline Natural da Sala (se AC acabou de gelar a sala, modela o rebote!)
                 const meteoBase = interpolarClimaEm(maxTs, 0);
                 let meteoIdx = meteoBase ? meteoBase.idx : 0;
                 const tExtAnchor = (lastTe !== null) ? lastTe : (meteoBase ? meteoBase.tRua : (lastTi !== null ? lastTi : 26.0));
                 const hExtAnchor = (lastHe !== null) ? lastHe : (meteoBase ? meteoBase.hRua : 70.0);
+                const tRoomNatNow = nonAcRecentCnt >= 5 ? (nonAcRecentSum / nonAcRecentCnt) : tExtAnchor;
 
                 // Pontos de costura em "AGORA" para todas as linhas pontilhadas continuarem sem degrau
                 if (amostras.length > 0) {
@@ -2929,18 +3043,31 @@
                 }
 
                 const lastRealLuzOn = dLuz.length > 0 && dLuz[dLuz.length - 1].y !== null;
-                let tIntSim = lastTi;
+                let tExtSim = tExtAnchor;
+                let tRoomEqSim = tRoomNatNow;
+                let hExtSim = hExtAnchor;
+
+                // Se AGORA está no meio de um ciclo/recuperação de FAE recente, desconta o offset do vale para não somar duas quedas
+                const scaleFaeNow = Math.max(0.25, Math.min(1.25, (90 - hExtAnchor) / Math.max(8, 90 - avgHeFaePast)));
+                const faeAgeAgora = (lastFaeStartTs > 0 && (maxTs - lastFaeStartTs) < FAE_LEN * 60000)
+                    ? (maxTs - lastFaeStartTs) / 60000
+                    : -1;
+                const faeOffsetAgora = (faeAgeAgora >= 0 && !lastArOn) ? (evalFaeTemplate(faeAgeAgora) * scaleFaeNow) : 0;
+                let tIntBase = (lastTi !== null) ? (lastTi - faeOffsetAgora) : null;
+                let simFaeStartTs = (faeAgeAgora >= 0) ? lastFaeStartTs : -1;
+                let simPrevExaustOn = (dExaust.length > 0 && dExaust[dExaust.length - 1].y !== null);
+
                 let simArOn = (arState === 1) ? true : ((arState === 2 || !cfgProj) ? false : lastArOn);
                 let simArInicioTs = simArOn ? (blocoInicio || maxTs) : 0;
-                let simArAbaixoMetaTs = (simArOn && tIntSim !== null && tIntSim < tMeta) ? maxTs : 0;
+                let simArAbaixoMetaTs = (simArOn && lastTi !== null && lastTi < tMeta) ? maxTs : 0;
                 let simArUltimoDesligTs = ultimoDesligamentoTs || 0;
 
                 let primeiroAcTrigger = (simArOn && arState === 0 && lastArOn) ? simArInicioTs : null;
                 let primeiroAcDesligaTs = null;
-                let minTempPrimeiroCiclo = (tIntSim !== null) ? tIntSim : tAlvoPos;
+                let minTempPrimeiroCiclo = (lastTi !== null) ? lastTi : tAlvoPos;
                 let emPrimeiroCicloAc = simArOn;
                 let qtdCiclosAcPrev = (simArOn && arState === 0 && lastArOn) ? 1 : 0;
-                let maxTempIntPrev = (tIntSim !== null) ? tIntSim : -99;
+                let maxTempIntPrev = (lastTi !== null) ? lastTi : -99;
 
                 for (let t = tStart; t <= tEnd; t += passoMs) {
                     // Hora exata GMT-3 em aritmética pura (zero alocações no loop)
@@ -2958,6 +3085,10 @@
                         const cFAE = (cfgProj.fO + cfgProj.fF) * 60000;
                         if ((t % cFAE) < (cfgProj.fO * 60000)) isExaustOn = true;
                     }
+                    if (isExaustOn && !simPrevExaustOn) {
+                        simFaeStartTs = t;
+                    }
+                    simPrevExaustOn = isExaustOn;
 
                     // Vento Interno
                     let isVentoOn = false;
@@ -2972,50 +3103,58 @@
                     // Umidificador
                     const isUmidOn = (cfgProj && cfgProj.vU == 1) ? (isVentoOn && !isExaustOn) : false;
 
-                    // Previsão externa calibrada (Open-Meteo + Offset real do quarto)
-                    let tExtSim = tExtAnchor;
-                    let hExtSim = hExtAnchor;
+                    // Previsão do quarto suavizada por inércia térmica (tau = 80m) + rebote pós-AC
                     if (meteoBase) {
                         const mPt = interpolarClimaEm(t, meteoIdx);
                         if (mPt) {
                             meteoIdx = mPt.idx;
-                            tExtSim = parseFloat((tExtAnchor + (mPt.tRua - meteoBase.tRua) * 0.65).toFixed(2));
-                            hExtSim = parseFloat(Math.max(25, Math.min(99, hExtAnchor + (mPt.hRua - meteoBase.hRua) * 0.70)).toFixed(1));
+                            const tRoomTarget = tRoomNatNow + (mPt.tRua - meteoBase.tRua) * fatorParede;
+                            tRoomEqSim += (tRoomTarget - tRoomEqSim) * Math.min(1, passoMin / 80);
+                            const hTarget = Math.max(30, Math.min(98, hExtAnchor + (mPt.hRua - meteoBase.hRua) * 0.50));
+                            hExtSim += (hTarget - hExtSim) * Math.min(1, passoMin / 70);
                         }
                     }
+                    const rateRoom = (tExtSim < tRoomEqSim - 0.1) ? 0.085 : 0.035;
+                    tExtSim += (tRoomEqSim - tExtSim) * Math.min(1, rateRoom * passoMin);
 
-                    // Simulação termodinâmica da estufa + máquina de estados do Ar Condicionado
+                    // Simulação da Estufa: Baseline orgânico (Offset Grow↔Sala + Luz + AC) + Molde Real de FAE
                     let motivoAr = null;
-                    if (tIntSim !== null) {
+                    let tIntPlot = null;
+                    if (tIntBase !== null) {
                         const elapsedMin = (t - maxTs) / 60000;
-                        const weightSlope = Math.max(0, 1 - (elapsedMin / 35));
-                        const dSlope = (slopePerMin > -0.05 && slopePerMin < 0.08) ? (slopePerMin * passoMin * weightSlope) : 0;
-                        const roomFactor = (tIntSim < tExtSim - 0.35) ? 0.026 : 0.018;
-                        const dRoom = (tExtSim - tIntSim) * roomFactor * passoMin;
-                        const dLuzGain = isLuzOn ? (0.007 * passoMin) : 0;
+                        const weightSlope = Math.max(0, 1 - (elapsedMin / 25));
+                        const dSlope = (slopePerMin > -0.04 && slopePerMin < 0.06) ? (slopePerMin * passoMin * weightSlope) : 0;
+                        const tIntTarget = tExtSim + (isLuzOn ? deltaGrowOn : deltaGrowOff);
+                        const dCouple = (tIntTarget - tIntBase) * Math.min(1, 0.032 * passoMin);
 
-                        // Resfriamento evaporativo quando FAE sopra ar externo menos úmido em câmara úmida
-                        let dEvap = 0;
-                        if (isExaustOn && !simArOn && hExtSim < 88 && (lastHi === null || lastHi >= 85)) {
-                            const wetBulbProxy = tExtSim - Math.max(0, (90 - hExtSim) * 0.14);
-                            dEvap = Math.max(0, (tIntSim - wetBulbProxy)) * 0.075 * passoMin;
+                        // Aplica assinatura aprendida do vale FAE (reduz se umidade externa subir ou durante AC)
+                        let faeOffset = 0;
+                        if (simFaeStartTs > 0 && !simArOn && (lastHi === null || lastHi >= 85)) {
+                            const ageMin = (t - simFaeStartTs) / 60000;
+                            if (ageMin >= 0 && ageMin <= FAE_LEN) {
+                                const scaleHum = Math.max(0.25, Math.min(1.25, (90 - hExtSim) / Math.max(8, 90 - avgHeFaePast)));
+                                faeOffset = evalFaeTemplate(ageMin) * scaleHum;
+                            }
                         }
 
                         if (arState === 1) {
                             simArOn = true;
                             motivoAr = 'Manual ON';
-                            tIntSim = Math.max(18.0, tIntSim - (avgCoolRate * 0.7 * passoMin));
+                            tIntBase = Math.max(18.0, tIntBase - (avgCoolRate * 0.7 * passoMin));
+                            tIntPlot = tIntBase;
                         } else if (arState === 2 || !cfgProj) {
                             simArOn = false;
-                            tIntSim += dSlope + dRoom + dLuzGain - dEvap;
+                            tIntBase += dSlope + dCouple;
+                            tIntPlot = tIntBase + faeOffset;
                         } else {
                             if (simArOn) {
-                                const stepCool = Math.min(avgCoolRate * passoMin, Math.max(0, tIntSim - (tAlvoPos - 0.15)));
-                                tIntSim = tIntSim - stepCool + (dRoom * 0.18);
-                                if (emPrimeiroCicloAc && tIntSim < minTempPrimeiroCiclo) minTempPrimeiroCiclo = tIntSim;
-                                motivoAr = (tIntSim < tMeta) ? `Pós-meta (~${tAlvoPos.toFixed(1)}°C)` : `Resfriando (meta ${tMeta.toFixed(1)}°C)`;
+                                const stepCool = Math.min(avgCoolRate * passoMin, Math.max(0, tIntBase - (tAlvoPos - 0.1)));
+                                tIntBase = tIntBase - stepCool + (dCouple * 0.15);
+                                tIntPlot = tIntBase;
+                                if (emPrimeiroCicloAc && tIntPlot < minTempPrimeiroCiclo) minTempPrimeiroCiclo = tIntPlot;
+                                motivoAr = (tIntPlot < tMeta) ? `Pós-meta (~${tAlvoPos.toFixed(1)}°C)` : `Resfriando (meta ${tMeta.toFixed(1)}°C)`;
 
-                                if (tIntSim < tMeta) {
+                                if (tIntPlot < tMeta) {
                                     if (!simArAbaixoMetaTs) simArAbaixoMetaTs = t;
                                 } else {
                                     simArAbaixoMetaTs = 0;
@@ -3033,28 +3172,31 @@
                                     }
                                 }
                             } else {
-                                tIntSim += dSlope + dRoom + dLuzGain - dEvap;
-                                if ((t - simArUltimoDesligTs >= 3 * 60000) && (tIntSim >= tMeta)) {
+                                tIntBase += dSlope + dCouple;
+                                tIntPlot = tIntBase + faeOffset;
+                                if ((t - simArUltimoDesligTs >= 3 * 60000) && (tIntPlot >= tMeta)) {
                                     simArOn = true;
                                     simArInicioTs = t;
                                     simArAbaixoMetaTs = 0;
+                                    tIntBase = tIntPlot;
                                     qtdCiclosAcPrev++;
                                     if (!primeiroAcTrigger) {
                                         primeiroAcTrigger = t;
                                         emPrimeiroCicloAc = true;
-                                        minTempPrimeiroCiclo = tIntSim;
+                                        minTempPrimeiroCiclo = tIntPlot;
                                     }
                                     motivoAr = `Arma em ${tMeta.toFixed(1)}°C (~${tAlvoPos.toFixed(1)}°C)`;
                                 }
                             }
                         }
 
-                        tIntSim = Math.max(14.0, Math.min(42.0, tIntSim));
-                        if (tIntSim > maxTempIntPrev) maxTempIntPrev = tIntSim;
+                        tIntBase = Math.max(14.0, Math.min(42.0, tIntBase));
+                        tIntPlot = Math.max(14.0, Math.min(42.0, tIntPlot));
+                        if (tIntPlot > maxTempIntPrev) maxTempIntPrev = tIntPlot;
                     }
 
                     const isArPrevOn = simArOn;
-                    const tIntVal = (tIntSim !== null) ? parseFloat(tIntSim.toFixed(2)) : null;
+                    const tIntVal = (tIntPlot !== null) ? parseFloat(tIntPlot.toFixed(2)) : null;
 
                     dLuz.push({ x: t, y: isLuzOn ? [2.65, 3.35] : null, ghost: true });
                     dExaust.push({ x: t, y: isExaustOn ? [-0.35, 0.35] : null, ghost: true });
@@ -3065,10 +3207,10 @@
                     dTempInt.push({ x: t, y: null });
                     dTempExt.push({ x: t, y: null });
                     dTempProj.push({ x: t, y: tIntVal });
-                    dTempExtProj.push({ x: t, y: tExtSim });
+                    dTempExtProj.push({ x: t, y: parseFloat(tExtSim.toFixed(2)) });
                     dHumInt.push({ x: t, y: null });
                     dHumExt.push({ x: t, y: null });
-                    dHumExtProj.push({ x: t, y: hExtSim });
+                    dHumExtProj.push({ x: t, y: parseFloat(hExtSim.toFixed(1)) });
                 }
 
                 // Alimenta o badge de status do AC e o Radar Meteorológico/Simulação do Dia
