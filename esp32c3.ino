@@ -2,10 +2,10 @@
 //  GROW IA - Firmware Inteligente + Nuvem IoT
 //  Placa: ESP32-C3 SuperMini (Produção) / ESP32-S3 Dual-Core
 //  Autor: Gabriel + Antigravity AI
-//  Versão Atual: v446 (Correções Motor AC, Pós-AC, Brisa e Persistência de Ciclo NVS)
+//  Versão Atual: v447 (Blindagem RTC/NVS ciclo AC + paridade máxima AC/Pós-AC e projeção Quarto Newton/2 estágios)
 // ============================================================
 
-#define FW_VERSION 446
+#define FW_VERSION 447
 
 #include <Arduino.h>
 #include <ArduinoJson.h>
@@ -1305,7 +1305,7 @@ void executarMotor(unsigned long agora) {
   // Quando atinge a meta de desligamento (metaDesligaAr), mantém ligado pelo tempo extra configurado
   // para estabilizar e fixar a climatização do ambiente antes de desligar.
   bool corteCongelaAtivo = (sensorIntOk && tempInt <= tempMinCongelamento);
-  unsigned long runArAtualMs = acElapsedPreBootMs + (compressorUltimaPartida > 0 ? (agora - compressorUltimaPartida) : 0UL);
+  unsigned long runArAtualMs = acElapsedPreBootMs + ((lastReleArCond && compressorUltimaPartida > 0) ? (agora - compressorUltimaPartida) : 0UL);
   if (corteCongelaAtivo) {
     // Encerra completamente o ciclo automático para não religar cedo após AC_MIN_REST_MS
     modoRefrigeracaoAtivo = false;
@@ -1392,29 +1392,41 @@ void executarMotor(unsigned long agora) {
   }
   bool aproveitandoArGelado = cicloAcAtivo || emJanelaSifaoPosAc;
 
-  // Persiste na Flash NVS apenas em mudanças reais de estado (protege pós-AC/meta contra micro-reset)
+  // Persiste na Flash NVS apenas em mudanças reais de estado com RTC válido (protege pós-AC/meta contra micro-reset)
   bool acAtivoDesejado = (modoRefrigeracaoAtivo && modoAr != AR_FORCADA_OFF && !corteCongelaAtivo);
   bool acMetaDesejado = (acAtivoDesejado && tempoExtraRefrigeracaoMs > 0 && tempoAlvoAtingido > 0);
   bool sifPosDesejado = (!acOperando && emJanelaSifaoPosAc);
   if (acAtivoDesejado != acAtivoSalvoNvs || acMetaDesejado != acMetaSalvoNvs || sifPosDesejado != sifPosSalvoNvs) {
     prefs.begin("grow", false);
     if (acAtivoDesejado != acAtivoSalvoNvs) {
-      prefs.putBool("ac_ativo", acAtivoDesejado);
-      if (acAtivoDesejado && rtcValido) prefs.putUInt("ac_ini_ts", (uint32_t)rtcAgoraSec);
-      else if (!acAtivoDesejado) prefs.putUInt("ac_ini_ts", 0);
-      acAtivoSalvoNvs = acAtivoDesejado;
+      if (acAtivoDesejado && rtcValido) {
+        prefs.putBool("ac_ativo", true);
+        prefs.putUInt("ac_ini_ts", (uint32_t)rtcAgoraSec);
+        acAtivoSalvoNvs = true;
+      } else if (!acAtivoDesejado) {
+        prefs.putBool("ac_ativo", false);
+        prefs.putUInt("ac_ini_ts", 0);
+        acAtivoSalvoNvs = false;
+      }
     }
     if (acMetaDesejado != acMetaSalvoNvs) {
-      prefs.putUInt("ac_meta_ts", (acMetaDesejado && rtcValido) ? (uint32_t)rtcAgoraSec : 0);
-      acMetaSalvoNvs = acMetaDesejado;
+      if (acMetaDesejado && rtcValido) {
+        prefs.putUInt("ac_meta_ts", (uint32_t)rtcAgoraSec);
+        acMetaSalvoNvs = true;
+      } else if (!acMetaDesejado) {
+        prefs.putUInt("ac_meta_ts", 0);
+        acMetaSalvoNvs = false;
+      }
     }
     if (sifPosDesejado != sifPosSalvoNvs) {
-      uint32_t fimSifSec = 0;
       if (sifPosDesejado && rtcValido && janelaSifaoPosAcAte > agora) {
-        fimSifSec = (uint32_t)rtcAgoraSec + (uint32_t)((janelaSifaoPosAcAte - agora + 500UL) / 1000UL);
+        uint32_t fimSifSec = (uint32_t)rtcAgoraSec + (uint32_t)((janelaSifaoPosAcAte - agora + 500UL) / 1000UL);
+        prefs.putUInt("sif_pos_ts", fimSifSec);
+        sifPosSalvoNvs = true;
+      } else if (!sifPosDesejado) {
+        prefs.putUInt("sif_pos_ts", 0);
+        sifPosSalvoNvs = false;
       }
-      prefs.putUInt("sif_pos_ts", fimSifSec);
-      sifPosSalvoNvs = sifPosDesejado;
     }
     prefs.end();
   }
