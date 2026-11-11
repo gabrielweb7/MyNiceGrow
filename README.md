@@ -1,6 +1,6 @@
-# 🍄 Grow do Txai — Sistema Inteligente de Automação IoT (v1.6.2 / FW v443 Oficial)
+# 🍄 Grow do Txai — Sistema Inteligente de Automação IoT (v1.6.3 / FW v444 Oficial)
 
-[![Release v1.6.2](https://img.shields.io/badge/Release-v1.6.2%20(FW%20v443)-gold?style=for-the-badge&logo=target)](https://github.com/gabrielweb7/MyNiceGrow)
+[![Release v1.6.3](https://img.shields.io/badge/Release-v1.6.3%20(FW%20v444)-gold?style=for-the-badge&logo=target)](https://github.com/gabrielweb7/MyNiceGrow)
 [![Hardware](https://img.shields.io/badge/Hardware-ESP32--C3%20%2F%20ESP32--S3%20Dual--Board-brightgreen?style=for-the-badge&logo=espressif)](https://www.espressif.com/)
 [![Firmware](https://img.shields.io/badge/Firmware-Arduino%20%2F%20C%2B%2B%20%2B%20Dual--Bank%20OTA-blue?style=for-the-badge&logo=arduino)](https://www.arduino.cc/)
 [![FreeRTOS](https://img.shields.io/badge/RTOS-FreeRTOS%20Watchdog-red?style=for-the-badge&logo=freertos)](https://www.freertos.org/)
@@ -77,10 +77,10 @@ Para gerar o binário de produção de forma rápida e precisa sem depender de c
 
 ---
 
-## ❄️ Lógica Térmica do Ar Condicionado (HVAC) & Guarda de Umidade
+## ❄️ Lógica Térmica do Ar Condicionado (HVAC) & Sifão Pós-AC
 * **Partida Automática:** Aciona quando `tempInt >= pf.tempMax` (ex: `29°C` na Pinagem ou `28°C` na Frutificação).
-* **Pós-Resfriamento de Fixação (`tPosMeta`):** Ao atingir a meta (`tempInt < pf.tempMax`), mantém o ar ligado pelo tempo configurado no painel (ex: **6 minutos**) para estabilizar a temperatura antes de desligar.
-* **Injeção de Ar Frio da Sala + Guarda Estrita de Umidade (`v442`):** Quando o AC esfria a sala pelo menos `1.0°C` abaixo da estufa (`tempExt < tempInt - 1.0`), o exaustor injeta esse ar frio na câmara — acelerando o resfriamento em ~3,5× — **mas** com guarda estrita de histerese: se a umidade interna cair abaixo da meta (`< 99.0%`), a injeção é interrompida imediatamente e só retoma após recuperar próximo de 100% (`>= 99.8%`).
+* **Pós-Resfriamento de Fixação (`tPosMeta`):** Ao atingir a meta (`tempInt < pf.tempMax`), mantém o ar ligado pelo tempo configurado no painel (padrão **5 minutos**) para estabilizar a temperatura antes de desligar.
+* **Sifão Térmico em Ondas Pós-AC (`v444`):** Durante o AC e após o desligamento pela janela configurável (`tSifaoPosAc`, padrão `15 min`), enquanto a sala estiver mais fria (`tDeltaExt`, padrão `0.4°C`, com histerese de saída `tDeltaSaida`, padrão `0.1°C`, e piso mínimo `tSifaoTempMin`, padrão `22.0°C`), o exaustor suga o ar frio acumulado em ondas: ao atingir o piso de umidade (`uGuardaCorte`, padrão `90.0%`), pausa o Sifão e força reidratação rápida até recuperar a **Umidade Alvo da fase** (`uRetornoAlvo = 1`, ou `%` manual em `uGuardaRetorno`), repetindo novas ondas enquanto houver frio disponível.
 * **Proteção Anti-Ciclo Curto do Compressor:** O compressor respeita repouso mínimo obrigatório de **3 minutos** entre desligamento e religamento — **inclusive após reinicializações (`bootTime`)** — e mínimo de **1 minuto** ligado.
 * **Trava Anti-Congelamento (`tCongela`):** Desliga imediatamente se `tempInt <= tCongela` (configurável no painel; padrão 15.0°C).
 * **Pausa de Segurança (`tMaxRun`):** Descanso preventivo de 10 min se operar continuamente além do limite configurado (padrão 45 min; configurável no painel).
@@ -407,11 +407,10 @@ Instale através de **Ferramentas > Gerenciar Bibliotecas** (*Ctrl + Shift + I*)
 
 ## 🤖 Diretrizes para Desenvolvedores & Futuras IAs
 
-1. **REGRA DE OURO DA UMIDADE (NUNCA ESQUECER):**
-   - Neste cultivo e com este hardware, **a umidade no sensor `SHT30` precisa ficar SEMPRE cravada em `100%`**.
-   - **`99%` já indica que a estufa está começando a secar** e **abaixo de `99%` já é zona crítica**.
-   - O umidificador instalado é **fraco** e **NÃO acumula/empoça água** mesmo operando com meta `uA = 99%` e `vU = 1` (Brisa com Névoa). **Nunca** sugira baixar `uA` para `92–95%`, desligar `vU = 1` ou relaxar a `guardaUmidadeOk` para `93–96%`!
-   - A guarda de umidade na injeção de ar frio do AC (`guardaUmidadeOk`) é configurável em **Configurações -> AC & Proteções** (`uGuardaCorte`, padrão `99.0%`; `uGuardaRetorno`, padrão `99.8%`) e deve cortar em `< 99.0%` e só retomar em `>= 99.8%`. Também manter `tDeltaExt` (diferença sala vs estufa, padrão `1.0°C`) para trocar o menor volume possível de ar seco do AC por grau resfriado.
+1. **ESTRATÉGIA DE UMIDADE & SIFÃO PÓS-AC (`v444`):**
+   - A meta base da fase (`uA`) permanece alta (ex.: `95%–99%`), com névoa na brisa (`vU = 1`).
+   - Durante o **Sifão Térmico (AC + Pós-AC)**, todos os limiares são dinâmicos e editáveis em **Configurações -> AC & Proteções**: `uGuardaCorte` (padrão `90.0%`), `uRetornoAlvo` (padrão `1` = seguir `Umidade Alvo` da fase) / `uGuardaRetorno` manual, `tSifaoPosAc` (padrão `15 min`), `tDeltaExt` (padrão `0.4°C`), `tDeltaSaida` (padrão `0.1°C`) e `tSifaoTempMin` (padrão `22.0°C`).
+   - Quando a umidade cai abaixo de `uGuardaCorte`, o Sifão pausa sem bloquear FAE programado e reidrata rapidamente até recuperar a `Umidade Alvo`, nunca operando exaustor e umidificador ao mesmo tempo.
 2. **Placa Ativa & Janela do Gráfico:**
    - A placa física em produção é o **ESP32-C3 SuperMini** (RISC-V). Nunca envie binário de ESP32-S3 para a rota da C3.
    - O gráfico padrão de 24h usa janela contínua (`ORDER BY id DESC LIMIT ...`), agrupada estritamente em 1 registro por minuto, com retenção configurada em 30 dias (`DIAS_RETENCAO_TELEMETRIA`).

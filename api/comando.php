@@ -142,18 +142,26 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             ];
         }
 
-        // Sanitiza parâmetros de HVAC, Injeção Fria e Travas de Segurança
+        // Sanitiza parâmetros de HVAC, Sifão Térmico Pós-AC e Travas de Segurança
         $srcHvac = isset($decoded['hvac']) && is_array($decoded['hvac']) ? $decoded['hvac'] : [];
-        $uGuardaCorte = round($clampNum($srcHvac['uGuardaCorte'] ?? null, 80.0, 100.0, 99.0), 1);
-        $uGuardaRetorno = round($clampNum($srcHvac['uGuardaRetorno'] ?? null, 80.0, 100.0, 99.8), 1);
+        $tDeltaExt = round($clampNum($srcHvac['tDeltaExt'] ?? null, 0.1, 5.0, 0.4), 1);
+        $tDeltaSaida = round($clampNum($srcHvac['tDeltaSaida'] ?? null, 0.0, 2.0, 0.1), 1);
+        if ($tDeltaSaida > $tDeltaExt) $tDeltaSaida = $tDeltaExt;
+        $uGuardaCorte = round($clampNum($srcHvac['uGuardaCorte'] ?? null, 80.0, 100.0, 90.0), 1);
+        $uRetornoAlvo = (!isset($srcHvac['uRetornoAlvo']) || (int)$srcHvac['uRetornoAlvo'] !== 0) ? 1 : 0;
+        $uGuardaRetorno = round($clampNum($srcHvac['uGuardaRetorno'] ?? null, 80.0, 100.0, 99.0), 1);
         if ($uGuardaRetorno < $uGuardaCorte) $uGuardaRetorno = $uGuardaCorte;
         $sanitized['hvac'] = [
             "tCongela" => round($clampNum($srcHvac['tCongela'] ?? null, 5.0, 25.0, 15.0), 1),
             "tPosMeta" => (int)round($clampNum($srcHvac['tPosMeta'] ?? null, 1, 60, 5)),
             "tMaxRun" => (int)round($clampNum($srcHvac['tMaxRun'] ?? null, 10, 180, 45)),
             "tCorteLuz" => round($clampNum($srcHvac['tCorteLuz'] ?? null, 25.0, 45.0, 34.0), 1),
-            "tDeltaExt" => round($clampNum($srcHvac['tDeltaExt'] ?? null, 0.2, 5.0, 1.0), 1),
+            "tDeltaExt" => $tDeltaExt,
+            "tDeltaSaida" => $tDeltaSaida,
+            "tSifaoPosAc" => (int)round($clampNum($srcHvac['tSifaoPosAc'] ?? null, 0, 60, 15)),
+            "tSifaoTempMin" => round($clampNum($srcHvac['tSifaoTempMin'] ?? null, 15.0, 30.0, 22.0), 1),
             "uGuardaCorte" => $uGuardaCorte,
+            "uRetornoAlvo" => $uRetornoAlvo,
             "uGuardaRetorno" => $uGuardaRetorno
         ];
 

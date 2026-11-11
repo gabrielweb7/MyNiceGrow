@@ -582,7 +582,7 @@
                                         <div>
                                             <label for="cfgUa" class="text-xs text-slate-300 block mb-1.5 font-medium">Umidade Alvo</label>
                                             <div class="relative">
-                                                <input type="number" step="0.1" id="cfgUa" class="w-full bg-slate-900/90 text-cyan-400 text-lg font-extrabold border border-slate-700 rounded-xl p-2.5 pr-8 text-center outline-none focus:border-cyan-500 transition">
+                                                <input type="number" step="0.1" id="cfgUa" oninput="sincronizarUiSifaoRetorno()" class="w-full bg-slate-900/90 text-cyan-400 text-lg font-extrabold border border-slate-700 rounded-xl p-2.5 pr-8 text-center outline-none focus:border-cyan-500 transition">
                                                 <span class="absolute right-3 top-3 text-xs text-slate-500 font-bold">%</span>
                                             </div>
                                             <span class="text-[11px] text-slate-400 mt-1.5 block">Mantém névoa até esta meta</span>
@@ -673,36 +673,68 @@
                                 </p>
                             </div>
 
-                            <!-- Bloco 1: Guarda Estrita de Umidade & Injeção Fria -->
+                            <!-- Bloco 1: Sifão de Ar Frio & Guarda Dinâmica de Umidade -->
                             <div class="bg-slate-800/40 p-5 rounded-xl border border-cyan-500/30 space-y-4">
                                 <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-1">
-                                    <span class="text-xs font-bold uppercase tracking-wider text-cyan-300 flex items-center gap-2"><span>💧</span> Injeção de Ar Frio &amp; Guarda de Umidade</span>
-                                    <span class="text-[11px] text-slate-400">Protege seus 100% de umidade durante o AC</span>
+                                    <span class="text-xs font-bold uppercase tracking-wider text-cyan-300 flex items-center gap-2"><span>🌬️</span> Sifão de Ar Frio (AC + Pós-AC) &amp; Guarda de Umidade</span>
+                                    <span class="text-[11px] text-slate-400">Aproveita ondas de ar gelado da sala e reidrata até a Umidade Alvo</span>
                                 </div>
                                 <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
                                     <div class="bg-slate-900/70 p-3.5 rounded-xl border border-slate-700/60 space-y-1.5">
-                                        <label for="cfgUGuardaCorte" class="text-xs font-semibold text-cyan-300 block">Corta Injeção Abaixo de</label>
+                                        <label for="cfgUGuardaCorte" class="text-xs font-semibold text-cyan-300 block">Corta Exaustor Abaixo de</label>
                                         <div class="relative">
-                                            <input type="number" step="0.1" min="80" max="100" id="cfgUGuardaCorte" value="99.0" class="w-full bg-slate-950/90 text-cyan-300 text-lg font-extrabold border border-slate-700 rounded-xl p-2.5 pr-8 text-center outline-none focus:border-cyan-500 transition">
+                                            <input type="number" step="0.1" min="80" max="100" id="cfgUGuardaCorte" value="90.0" class="w-full bg-slate-950/90 text-cyan-300 text-lg font-extrabold border border-slate-700 rounded-xl p-2.5 pr-8 text-center outline-none focus:border-cyan-500 transition">
                                             <span class="absolute right-3 top-3 text-xs text-slate-500 font-bold">%</span>
                                         </div>
-                                        <p class="text-[11px] text-slate-400 leading-snug">Pausa o exaustor na hora se a umidade cair abaixo disso.</p>
+                                        <p class="text-[11px] text-slate-400 leading-snug">Pausa o exaustor e força névoa quando cair abaixo disso (ex: 90%).</p>
                                     </div>
-                                    <div class="bg-slate-900/70 p-3.5 rounded-xl border border-slate-700/60 space-y-1.5">
-                                        <label for="cfgUGuardaRetorno" class="text-xs font-semibold text-emerald-300 block">Retoma Injeção Acima de</label>
+                                    <div class="bg-slate-900/70 p-3.5 rounded-xl border border-slate-700/60 space-y-2">
+                                        <div class="flex items-center justify-between gap-2">
+                                            <label for="cfgUGuardaRetorno" class="text-xs font-semibold text-emerald-300 block">Retoma Exaustor em</label>
+                                            <span id="badgeSifaoUmidadeAlvo" class="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-500/15 text-emerald-300 border border-emerald-500/30">Alvo: 99%</span>
+                                        </div>
                                         <div class="relative">
-                                            <input type="number" step="0.1" min="80" max="100" id="cfgUGuardaRetorno" value="99.8" class="w-full bg-slate-950/90 text-emerald-300 text-lg font-extrabold border border-slate-700 rounded-xl p-2.5 pr-8 text-center outline-none focus:border-emerald-500 transition">
+                                            <input type="number" step="0.1" min="80" max="100" id="cfgUGuardaRetorno" value="99.0" class="w-full bg-slate-950/90 text-emerald-300 text-lg font-extrabold border border-slate-700 rounded-xl p-2.5 pr-8 text-center outline-none focus:border-emerald-500 transition disabled:opacity-55 disabled:cursor-not-allowed">
                                             <span class="absolute right-3 top-3 text-xs text-slate-500 font-bold">%</span>
                                         </div>
-                                        <p class="text-[11px] text-slate-400 leading-snug">Só volta a puxar ar da sala quando recuperar até aqui.</p>
+                                        <label class="flex items-center gap-2 text-[11px] text-slate-300 cursor-pointer select-none">
+                                            <input type="checkbox" id="cfgURetornoAlvo" checked onchange="sincronizarUiSifaoRetorno()" class="w-3.5 h-3.5 rounded border-slate-600 bg-slate-950 text-emerald-500 focus:ring-0">
+                                            <span>Seguir Umidade Alvo da Fase</span>
+                                        </label>
                                     </div>
                                     <div class="bg-slate-900/70 p-3.5 rounded-xl border border-slate-700/60 space-y-1.5">
-                                        <label for="cfgTDeltaExt" class="text-xs font-semibold text-blue-300 block">Diferença Sala vs Estufa</label>
+                                        <label for="cfgTSifaoPosAc" class="text-xs font-semibold text-sky-300 block">Janela Sifão Pós-AC</label>
                                         <div class="relative">
-                                            <input type="number" step="0.1" min="0.2" max="5.0" id="cfgTDeltaExt" value="1.0" class="w-full bg-slate-950/90 text-blue-300 text-lg font-extrabold border border-slate-700 rounded-xl p-2.5 pr-8 text-center outline-none focus:border-blue-500 transition">
+                                            <input type="number" step="1" min="0" max="60" id="cfgTSifaoPosAc" value="15" class="w-full bg-slate-950/90 text-sky-300 text-lg font-extrabold border border-slate-700 rounded-xl p-2.5 pr-10 text-center outline-none focus:border-sky-500 transition">
+                                            <span class="absolute right-3 top-3 text-xs text-slate-500 font-bold">min</span>
+                                        </div>
+                                        <p class="text-[11px] text-slate-400 leading-snug">Tempo após o AC desligar aproveitando frio da sala (0 = desativa).</p>
+                                    </div>
+                                </div>
+                                <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                                    <div class="bg-slate-900/70 p-3.5 rounded-xl border border-slate-700/60 space-y-1.5">
+                                        <label for="cfgTDeltaExt" class="text-xs font-semibold text-blue-300 block">Delta Entrada (Sala vs Grow)</label>
+                                        <div class="relative">
+                                            <input type="number" step="0.1" min="0.1" max="5.0" id="cfgTDeltaExt" value="0.4" class="w-full bg-slate-950/90 text-blue-300 text-lg font-extrabold border border-slate-700 rounded-xl p-2.5 pr-8 text-center outline-none focus:border-blue-500 transition">
                                             <span class="absolute right-3 top-3 text-xs text-slate-500 font-bold">°C</span>
                                         </div>
-                                        <p class="text-[11px] text-slate-400 leading-snug">Quanto a sala precisa estar mais fria para injetar ar.</p>
+                                        <p class="text-[11px] text-slate-400 leading-snug">Quanto a sala precisa estar mais fria para ligar o sifão.</p>
+                                    </div>
+                                    <div class="bg-slate-900/70 p-3.5 rounded-xl border border-slate-700/60 space-y-1.5">
+                                        <label for="cfgTDeltaSaida" class="text-xs font-semibold text-indigo-300 block">Delta Saída (Histerese)</label>
+                                        <div class="relative">
+                                            <input type="number" step="0.1" min="0.0" max="2.0" id="cfgTDeltaSaida" value="0.1" class="w-full bg-slate-950/90 text-indigo-300 text-lg font-extrabold border border-slate-700 rounded-xl p-2.5 pr-8 text-center outline-none focus:border-indigo-500 transition">
+                                            <span class="absolute right-3 top-3 text-xs text-slate-500 font-bold">°C</span>
+                                        </div>
+                                        <p class="text-[11px] text-slate-400 leading-snug">Mantém injetando até a diferença cair para este limite.</p>
+                                    </div>
+                                    <div class="bg-slate-900/70 p-3.5 rounded-xl border border-slate-700/60 space-y-1.5">
+                                        <label for="cfgTSifaoTempMin" class="text-xs font-semibold text-teal-300 block">Piso Mín. Resfriamento</label>
+                                        <div class="relative">
+                                            <input type="number" step="0.5" min="15.0" max="30.0" id="cfgTSifaoTempMin" value="22.0" class="w-full bg-slate-950/90 text-teal-300 text-lg font-extrabold border border-slate-700 rounded-xl p-2.5 pr-8 text-center outline-none focus:border-teal-500 transition">
+                                            <span class="absolute right-3 top-3 text-xs text-slate-500 font-bold">°C</span>
+                                        </div>
+                                        <p class="text-[11px] text-slate-400 leading-snug">Encerra sifão se a estufa já atingir este piso térmico.</p>
                                     </div>
                                 </div>
                             </div>
@@ -1802,6 +1834,24 @@
             }
         }
 
+        function sincronizarUiSifaoRetorno() {
+            const chk = document.getElementById('cfgURetornoAlvo');
+            const inpRet = document.getElementById('cfgUGuardaRetorno');
+            const inpUa = document.getElementById('cfgUa');
+            const badge = document.getElementById('badgeSifaoUmidadeAlvo');
+            const alvoAtual = inpUa && inpUa.value !== '' ? parseFloat(String(inpUa.value).replace(',', '.')) : 95.0;
+            const alvoVal = Number.isFinite(alvoAtual) ? Math.max(40, Math.min(99, alvoAtual)) : 95.0;
+            if (badge) {
+                badge.textContent = (chk && chk.checked) ? `Alvo Fase: ${alvoVal.toFixed(1)}%` : 'Modo Manual';
+            }
+            if (inpRet && chk) {
+                inpRet.disabled = chk.checked;
+                if (chk.checked) {
+                    inpRet.value = alvoVal.toFixed(1);
+                }
+            }
+        }
+
         function carregarFormClima() {
             let f = document.getElementById('selConfigFase').value;
             let cfg = configClima[f];
@@ -1816,15 +1866,20 @@
                 document.getElementById('cfgVu').checked = cfg.vU !== undefined ? (cfg.vU == 1) : true;
             }
 
-            // Carrega travas de segurança, guarda de umidade e climatização
+            // Carrega travas de segurança, guarda de umidade e Sifão Térmico Pós-AC
             const hv = configClima.hvac || {};
             if (document.getElementById('cfgTCongela')) document.getElementById('cfgTCongela').value = hv.tCongela !== undefined ? hv.tCongela : 15.0;
             if (document.getElementById('cfgTPosMeta')) document.getElementById('cfgTPosMeta').value = hv.tPosMeta !== undefined ? hv.tPosMeta : 5;
             if (document.getElementById('cfgTMaxRun')) document.getElementById('cfgTMaxRun').value = hv.tMaxRun !== undefined ? hv.tMaxRun : 45;
             if (document.getElementById('cfgTCorteLuz')) document.getElementById('cfgTCorteLuz').value = hv.tCorteLuz !== undefined ? hv.tCorteLuz : 34.0;
-            if (document.getElementById('cfgTDeltaExt')) document.getElementById('cfgTDeltaExt').value = hv.tDeltaExt !== undefined ? hv.tDeltaExt : 1.0;
-            if (document.getElementById('cfgUGuardaCorte')) document.getElementById('cfgUGuardaCorte').value = hv.uGuardaCorte !== undefined ? hv.uGuardaCorte : 99.0;
-            if (document.getElementById('cfgUGuardaRetorno')) document.getElementById('cfgUGuardaRetorno').value = hv.uGuardaRetorno !== undefined ? hv.uGuardaRetorno : 99.8;
+            if (document.getElementById('cfgTDeltaExt')) document.getElementById('cfgTDeltaExt').value = hv.tDeltaExt !== undefined ? hv.tDeltaExt : 0.4;
+            if (document.getElementById('cfgTDeltaSaida')) document.getElementById('cfgTDeltaSaida').value = hv.tDeltaSaida !== undefined ? hv.tDeltaSaida : 0.1;
+            if (document.getElementById('cfgTSifaoPosAc')) document.getElementById('cfgTSifaoPosAc').value = hv.tSifaoPosAc !== undefined ? hv.tSifaoPosAc : 15;
+            if (document.getElementById('cfgTSifaoTempMin')) document.getElementById('cfgTSifaoTempMin').value = hv.tSifaoTempMin !== undefined ? hv.tSifaoTempMin : 22.0;
+            if (document.getElementById('cfgUGuardaCorte')) document.getElementById('cfgUGuardaCorte').value = hv.uGuardaCorte !== undefined ? hv.uGuardaCorte : 90.0;
+            if (document.getElementById('cfgURetornoAlvo')) document.getElementById('cfgURetornoAlvo').checked = (hv.uRetornoAlvo === undefined || parseInt(hv.uRetornoAlvo, 10) !== 0);
+            if (document.getElementById('cfgUGuardaRetorno')) document.getElementById('cfgUGuardaRetorno').value = hv.uGuardaRetorno !== undefined ? hv.uGuardaRetorno : 99.0;
+            sincronizarUiSifaoRetorno();
         }
 
         async function salvarFormClima() {
@@ -1846,14 +1901,19 @@
             let vOVal = Math.round(clampVal(document.getElementById('cfgVo').value, 0, 1440, 1));
             let vFVal = Math.round(clampVal(document.getElementById('cfgVf').value, 0, 1440, 2));
 
-            // Travas de segurança, guarda de umidade & HVAC
+            // Travas de segurança, Sifão Térmico Pós-AC & HVAC
             let tCongelaVal = Math.round(clampVal(document.getElementById('cfgTCongela') ? document.getElementById('cfgTCongela').value : 15.0, 5.0, 25.0, 15.0) * 10) / 10;
             let tPosMetaVal = Math.round(clampVal(document.getElementById('cfgTPosMeta') ? document.getElementById('cfgTPosMeta').value : 5, 1, 60, 5));
             let tMaxRunVal = Math.round(clampVal(document.getElementById('cfgTMaxRun') ? document.getElementById('cfgTMaxRun').value : 45, 10, 180, 45));
             let tCorteLuzVal = Math.round(clampVal(document.getElementById('cfgTCorteLuz') ? document.getElementById('cfgTCorteLuz').value : 34.0, 25.0, 45.0, 34.0) * 10) / 10;
-            let tDeltaExtVal = Math.round(clampVal(document.getElementById('cfgTDeltaExt') ? document.getElementById('cfgTDeltaExt').value : 1.0, 0.2, 5.0, 1.0) * 10) / 10;
-            let uGuardaCorteVal = Math.round(clampVal(document.getElementById('cfgUGuardaCorte') ? document.getElementById('cfgUGuardaCorte').value : 99.0, 80.0, 100.0, 99.0) * 10) / 10;
-            let uGuardaRetornoVal = Math.round(clampVal(document.getElementById('cfgUGuardaRetorno') ? document.getElementById('cfgUGuardaRetorno').value : 99.8, 80.0, 100.0, 99.8) * 10) / 10;
+            let tDeltaExtVal = Math.round(clampVal(document.getElementById('cfgTDeltaExt') ? document.getElementById('cfgTDeltaExt').value : 0.4, 0.1, 5.0, 0.4) * 10) / 10;
+            let tDeltaSaidaVal = Math.round(clampVal(document.getElementById('cfgTDeltaSaida') ? document.getElementById('cfgTDeltaSaida').value : 0.1, 0.0, 2.0, 0.1) * 10) / 10;
+            if (tDeltaSaidaVal > tDeltaExtVal) tDeltaSaidaVal = tDeltaExtVal;
+            let tSifaoPosAcVal = Math.round(clampVal(document.getElementById('cfgTSifaoPosAc') ? document.getElementById('cfgTSifaoPosAc').value : 15, 0, 60, 15));
+            let tSifaoTempMinVal = Math.round(clampVal(document.getElementById('cfgTSifaoTempMin') ? document.getElementById('cfgTSifaoTempMin').value : 22.0, 15.0, 30.0, 22.0) * 10) / 10;
+            let uGuardaCorteVal = Math.round(clampVal(document.getElementById('cfgUGuardaCorte') ? document.getElementById('cfgUGuardaCorte').value : 90.0, 80.0, 100.0, 90.0) * 10) / 10;
+            let uRetornoAlvoVal = (document.getElementById('cfgURetornoAlvo') && !document.getElementById('cfgURetornoAlvo').checked) ? 0 : 1;
+            let uGuardaRetornoVal = Math.round(clampVal(document.getElementById('cfgUGuardaRetorno') ? document.getElementById('cfgUGuardaRetorno').value : uAlvoVal, 80.0, 100.0, uAlvoVal) * 10) / 10;
             if (uGuardaRetornoVal < uGuardaCorteVal) uGuardaRetornoVal = uGuardaCorteVal;
 
             // Atualiza os inputs na tela caso algum valor tenha sido corrigido pelo clamp
@@ -1868,8 +1928,13 @@
             if (document.getElementById('cfgTMaxRun')) document.getElementById('cfgTMaxRun').value = tMaxRunVal;
             if (document.getElementById('cfgTCorteLuz')) document.getElementById('cfgTCorteLuz').value = tCorteLuzVal;
             if (document.getElementById('cfgTDeltaExt')) document.getElementById('cfgTDeltaExt').value = tDeltaExtVal;
+            if (document.getElementById('cfgTDeltaSaida')) document.getElementById('cfgTDeltaSaida').value = tDeltaSaidaVal;
+            if (document.getElementById('cfgTSifaoPosAc')) document.getElementById('cfgTSifaoPosAc').value = tSifaoPosAcVal;
+            if (document.getElementById('cfgTSifaoTempMin')) document.getElementById('cfgTSifaoTempMin').value = tSifaoTempMinVal;
             if (document.getElementById('cfgUGuardaCorte')) document.getElementById('cfgUGuardaCorte').value = uGuardaCorteVal;
+            if (document.getElementById('cfgURetornoAlvo')) document.getElementById('cfgURetornoAlvo').checked = (uRetornoAlvoVal === 1);
             if (document.getElementById('cfgUGuardaRetorno')) document.getElementById('cfgUGuardaRetorno').value = uGuardaRetornoVal;
+            sincronizarUiSifaoRetorno();
 
             configClima[f].tX = tXVal;
             configClima[f].uA = uAlvoVal;
@@ -1887,7 +1952,11 @@
                 tMaxRun: tMaxRunVal,
                 tCorteLuz: tCorteLuzVal,
                 tDeltaExt: tDeltaExtVal,
+                tDeltaSaida: tDeltaSaidaVal,
+                tSifaoPosAc: tSifaoPosAcVal,
+                tSifaoTempMin: tSifaoTempMinVal,
                 uGuardaCorte: uGuardaCorteVal,
+                uRetornoAlvo: uRetornoAlvoVal,
                 uGuardaRetorno: uGuardaRetornoVal
             };
             
@@ -1899,8 +1968,11 @@
             if (await enviarComando({ config: JSON.stringify(configClima) })) {
                 btns.forEach(b => { if (b.el) b.el.textContent = "✅ Salvo no Banco e Placa!"; });
                 
-                // Recarrega do banco para garantir sincronização perfeita
-                setTimeout(fetchConfigClima, 500);
+                // Recarrega do banco e atualiza gráficos/simulador imediatamente
+                setTimeout(async () => {
+                    await fetchConfigClima();
+                    if (typeof limitAtual !== 'undefined') carregarDados(limitAtual, true);
+                }, 500);
             } else {
                 btns.forEach(b => { if (b.el) b.el.textContent = "❌ Falhou!"; });
             }
@@ -2845,11 +2917,19 @@
                 const tStart = maxTs + passoMs;
                 const tEnd = maxTs + (10 * 3600 * 1000); // Simulação das próximas 10 horas (Resto do dia sem lag)
 
-                // PARÂMETROS DO MOTOR TÉRMICO ACOPLADO (AC + FAE EVAPORATIVO + OPEN-METEO QUARTO)
+                // PARÂMETROS DO MOTOR TÉRMICO ACOPLADO (AC + SIFÃO PÓS-AC + FAE + OPEN-METEO QUARTO)
                 const hvac = (configClima && configClima.hvac) ? configClima.hvac : {};
                 const tMeta = (cfgProj && cfgProj.tX) ? parseFloat(cfgProj.tX) : 28.0;
                 const tPosMetaMin = Math.max(1, parseInt(hvac.tPosMeta || 5, 10));
                 const tMaxRunMin = Math.max(10, parseInt(hvac.tMaxRun || 45, 10));
+                const tSifaoPosAcMin = (hvac.tSifaoPosAc !== undefined) ? Math.max(0, Math.min(60, parseInt(hvac.tSifaoPosAc, 10))) : 15;
+                const tDeltaExtSim = (hvac.tDeltaExt !== undefined) ? parseFloat(hvac.tDeltaExt) : 0.4;
+                const tDeltaSaidaSim = Math.min(tDeltaExtSim, (hvac.tDeltaSaida !== undefined) ? parseFloat(hvac.tDeltaSaida) : 0.1);
+                const tSifaoMinSim = (hvac.tSifaoTempMin !== undefined) ? parseFloat(hvac.tSifaoTempMin) : 22.0;
+                const uGuardaCorteSim = (hvac.uGuardaCorte !== undefined) ? parseFloat(hvac.uGuardaCorte) : 90.0;
+                const uAlvoSim = (cfgProj && (cfgProj.uA !== undefined || cfgProj.uN !== undefined)) ? parseFloat(cfgProj.uA !== undefined ? cfgProj.uA : cfgProj.uN) : 95.0;
+                const uRetornoAlvoSim = (hvac.uRetornoAlvo === undefined || parseInt(hvac.uRetornoAlvo, 10) !== 0);
+                const uGuardaRetornoSim = Math.max(uGuardaCorteSim, uRetornoAlvoSim ? uAlvoSim : parseFloat(hvac.uGuardaRetorno !== undefined ? hvac.uGuardaRetorno : 99.0));
 
                 // Analisa ciclos históricos reais do AC, assinatura real de FAE, inércia do cômodo e offset Grow↔Sala
                 const FAE_LEN = 18;
@@ -3058,9 +3138,15 @@
                 let simPrevExaustOn = (dExaust.length > 0 && dExaust[dExaust.length - 1].y !== null);
 
                 let simArOn = (arState === 1) ? true : ((arState === 2 || !cfgProj) ? false : lastArOn);
+                let simArPrev = simArOn;
                 let simArInicioTs = simArOn ? (blocoInicio || maxTs) : 0;
                 let simArAbaixoMetaTs = (simArOn && lastTi !== null && lastTi < tMeta) ? maxTs : 0;
                 let simArUltimoDesligTs = ultimoDesligamentoTs || 0;
+                let simSifaoAteTs = (!simArOn && ultimoDesligamentoTs > 0 && tSifaoPosAcMin > 0 && (maxTs - ultimoDesligamentoTs) < tSifaoPosAcMin * 60000)
+                    ? (ultimoDesligamentoTs + tSifaoPosAcMin * 60000) : 0;
+                let simInjecaoTermoOk = false;
+                let simGuardaUmidOk = true;
+                let simHumInt = (lastHi !== null) ? lastHi : uAlvoSim;
 
                 let primeiroAcTrigger = (simArOn && arState === 0 && lastArOn) ? simArInicioTs : null;
                 let primeiroAcDesligaTs = null;
@@ -3079,16 +3165,65 @@
                     else if (luzState === 2) isLuzOn = false;
                     else isLuzOn = lastRealLuzOn ? (hGMT3 >= 18 || hGMT3 < 8) : (hGMT3 >= 20 || hGMT3 < 8);
 
-                    // FAE / Exaustor
-                    let isExaustOn = false;
+                    // Previsão do quarto suavizada por inércia térmica (tau = 80m) + resfriamento do AC e rebote pós-AC
+                    if (meteoBase) {
+                        const mPt = interpolarClimaEm(t, meteoIdx);
+                        if (mPt) {
+                            meteoIdx = mPt.idx;
+                            const tRoomTarget = tRoomNatNow + (mPt.tRua - meteoBase.tRua) * fatorParede;
+                            tRoomEqSim += (tRoomTarget - tRoomEqSim) * Math.min(1, passoMin / 80);
+                            const hTarget = Math.max(30, Math.min(98, hExtAnchor + (mPt.hRua - meteoBase.hRua) * 0.50));
+                            hExtSim += (hTarget - hExtSim) * Math.min(1, passoMin / 70);
+                        }
+                    }
+                    if (simArOn) {
+                        const targetArSala = Math.min(tExtSim, tRoomEqSim - 2.2);
+                        tExtSim += (targetArSala - tExtSim) * Math.min(1, 0.055 * passoMin);
+                    } else {
+                        const rateRoom = (tExtSim < tRoomEqSim - 0.1) ? 0.085 : 0.035;
+                        tExtSim += (tRoomEqSim - tExtSim) * Math.min(1, rateRoom * passoMin);
+                    }
+
+                    // Janela de Sifão Pós-AC + Histerese Térmica + Guarda de Umidade
+                    if (simArPrev && !simArOn && tSifaoPosAcMin > 0) {
+                        simSifaoAteTs = t + (tSifaoPosAcMin * 60000);
+                    } else if (simArOn) {
+                        simSifaoAteTs = 0;
+                    }
+                    simArPrev = simArOn;
+
+                    const simEmJanelaSifao = (simSifaoAteTs > 0 && t < simSifaoAteTs);
+                    const simAproveitandoFrio = !!cfgProj && (simArOn || simEmJanelaSifao);
+
+                    if (!simAproveitandoFrio || tIntBase === null || tIntBase <= tSifaoMinSim) {
+                        if (simEmJanelaSifao && tIntBase !== null && tIntBase <= tSifaoMinSim) simSifaoAteTs = 0;
+                        simInjecaoTermoOk = false;
+                    } else if (tExtSim <= (tIntBase - tDeltaExtSim)) {
+                        simInjecaoTermoOk = true;
+                    } else if (tExtSim >= (tIntBase - tDeltaSaidaSim)) {
+                        simInjecaoTermoOk = false;
+                    }
+
+                    if (!simAproveitandoFrio) {
+                        if (simHumInt >= uGuardaCorteSim) simGuardaUmidOk = true;
+                    } else if (simHumInt < uGuardaCorteSim) {
+                        simGuardaUmidOk = false;
+                    } else if (simHumInt >= uGuardaRetornoSim) {
+                        simGuardaUmidOk = true;
+                    }
+
+                    // FAE programado + Sifão de Ar Frio em Ondas
+                    let isFaeProgOn = false;
                     if (cfgProj && cfgProj.fO > 0) {
                         const cFAE = (cfgProj.fO + cfgProj.fF) * 60000;
-                        if ((t % cFAE) < (cfgProj.fO * 60000)) isExaustOn = true;
+                        if ((t % cFAE) < (cfgProj.fO * 60000)) isFaeProgOn = true;
                     }
-                    if (isExaustOn && !simPrevExaustOn) {
+                    const isSifaoExaustOn = simAproveitandoFrio && simInjecaoTermoOk && simGuardaUmidOk;
+                    const isExaustOn = isFaeProgOn || isSifaoExaustOn;
+                    if (isFaeProgOn && !simPrevExaustOn) {
                         simFaeStartTs = t;
                     }
-                    simPrevExaustOn = isExaustOn;
+                    simPrevExaustOn = isFaeProgOn;
 
                     // Vento Interno
                     let isVentoOn = false;
@@ -3100,27 +3235,33 @@
                         }
                     }
 
-                    // Umidificador
-                    const isUmidOn = (cfgProj && cfgProj.vU == 1) ? (isVentoOn && !isExaustOn) : false;
-
-                    // Previsão do quarto suavizada por inércia térmica (tau = 80m) + rebote pós-AC
-                    if (meteoBase) {
-                        const mPt = interpolarClimaEm(t, meteoIdx);
-                        if (mPt) {
-                            meteoIdx = mPt.idx;
-                            const tRoomTarget = tRoomNatNow + (mPt.tRua - meteoBase.tRua) * fatorParede;
-                            tRoomEqSim += (tRoomTarget - tRoomEqSim) * Math.min(1, passoMin / 80);
-                            const hTarget = Math.max(30, Math.min(98, hExtAnchor + (mPt.hRua - meteoBase.hRua) * 0.50));
-                            hExtSim += (hTarget - hExtSim) * Math.min(1, passoMin / 70);
-                        }
+                    // Umidificador (inclui recuperação em ondas até Umidade Alvo durante Sifão)
+                    let isUmidOn = (cfgProj && cfgProj.vU == 1) ? isVentoOn : false;
+                    if (simHumInt < uAlvoSim) isUmidOn = true;
+                    if (simAproveitandoFrio && !simGuardaUmidOk) {
+                        isUmidOn = true;
+                        isVentoOn = true;
                     }
-                    const rateRoom = (tExtSim < tRoomEqSim - 0.1) ? 0.085 : 0.035;
-                    tExtSim += (tRoomEqSim - tExtSim) * Math.min(1, rateRoom * passoMin);
+                    if (isExaustOn) isUmidOn = false;
+                    if (isUmidOn) isVentoOn = true;
 
-                    // Simulação da Estufa: Baseline orgânico (Offset Grow↔Sala + Luz + AC) + Molde Real de FAE
+                    // Dinâmica simplificada da umidade interna para simular ondas de exaustor + reposição
+                    if (isExaustOn) {
+                        const taxaQuedaUmid = Math.max(0.65, (simHumInt - hExtSim) * 0.085);
+                        simHumInt = Math.max(70.0, simHumInt - taxaQuedaUmid * passoMin);
+                    } else if (isUmidOn) {
+                        simHumInt = Math.min(100.0, simHumInt + 2.8 * passoMin);
+                    } else {
+                        simHumInt += (uAlvoSim - simHumInt) * Math.min(1, 0.05 * passoMin);
+                    }
+
+                    // Simulação da Estufa: Baseline orgânico (Offset Grow↔Sala + Luz + AC + Sifão Pós-AC) + Molde Real de FAE
                     let motivoAr = null;
                     let tIntPlot = null;
                     if (tIntBase !== null) {
+                        if (isSifaoExaustOn && tExtSim < tIntBase) {
+                            tIntBase += (tExtSim - tIntBase) * Math.min(0.45, 0.16 * passoMin);
+                        }
                         const elapsedMin = (t - maxTs) / 60000;
                         const weightSlope = Math.max(0, 1 - (elapsedMin / 25));
                         const dSlope = (slopePerMin > -0.04 && slopePerMin < 0.06) ? (slopePerMin * passoMin * weightSlope) : 0;
@@ -3129,7 +3270,7 @@
 
                         // Aplica assinatura aprendida do vale FAE (reduz se umidade externa subir ou durante AC)
                         let faeOffset = 0;
-                        if (simFaeStartTs > 0 && !simArOn && (lastHi === null || lastHi >= 85)) {
+                        if (simFaeStartTs > 0 && !simArOn && !isSifaoExaustOn && (lastHi === null || lastHi >= 85)) {
                             const ageMin = (t - simFaeStartTs) / 60000;
                             if (ageMin >= 0 && ageMin <= FAE_LEN) {
                                 const scaleHum = Math.max(0.25, Math.min(1.25, (90 - hExtSim) / Math.max(8, 90 - avgHeFaePast)));

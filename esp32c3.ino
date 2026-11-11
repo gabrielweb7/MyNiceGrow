@@ -2,10 +2,10 @@
 //  GROW IA - Firmware Inteligente + Nuvem IoT
 //  Placa: ESP32-C3 SuperMini (Produção) / ESP32-S3 Dual-Core
 //  Autor: Gabriel + Antigravity AI
-//  Versão Atual: v443 (Blindagem Compressor Pós-Reboot + Sync Offline Seguro)
+//  Versão Atual: v444 (Sifão Térmico em Ondas Pós-AC + Histerese Dinâmica)
 // ============================================================
 
-#define FW_VERSION 443
+#define FW_VERSION 444
 
 #include <Arduino.h>
 #include <ArduinoJson.h>
@@ -49,9 +49,13 @@ float tempCorteLuz = 34.0f;           // Desliga luz por segurança térmica ext
 float tempMinCongelamento = 15.0f;    // Desliga ar condicionado por segurança anti-congelamento
 unsigned long tempoExtraRefrigeracaoMs = 5UL * 60UL * 1000UL; // 5 minutos pós-meta
 unsigned long maxRunContinuoArMs = 45UL * 60UL * 1000UL;      // Limite máximo contínuo (45 min)
-float tempDeltaArExt = 1.0f;          // Diferença mínima sala vs estufa (°C) para injeção fria do AC
-float umidGuardaCorte = 99.0f;        // Abaixo deste valor (%), pausa injeção fria do exaustor
-float umidGuardaRetorno = 99.8f;      // Só retoma injeção fria quando recuperar até este valor (%)
+unsigned long tempoSifaoPosAcMs = 15UL * 60UL * 1000UL;       // Janela pós-AC para continuar sugando ar frio da sala (15 min)
+float tempDeltaArExt = 0.4f;          // Diferença mínima sala vs estufa (°C) para iniciar injeção fria
+float tempDeltaSaidaExt = 0.1f;       // Diferença mínima (°C) para manter injeção ativa (histerese térmica)
+float tempSifaoMin = 22.0f;           // Piso mínimo de temperatura (°C) para interromper sifão de ar frio
+float umidGuardaCorte = 90.0f;        // Abaixo deste valor (%), pausa injeção fria e aciona reidratação
+bool umidRetornoSeguirAlvo = true;    // Se true, só retoma exaustor quando umidade recuperar até a Umidade Alvo da fase
+float umidGuardaRetorno = 99.0f;      // Valor fixo de retorno (%) quando umidRetornoSeguirAlvo estiver desativado
 
 // --- Umidade ---
 const float UMIDADE_MINIMA = 88.0;
@@ -678,18 +682,37 @@ void enviarNuvem(unsigned long agora) {
               if (abs(tempCorteLuz - tcl) > 0.05f) { tempCorteLuz = tcl; configAlterada = true; }
             }
             if (h.containsKey("tDeltaExt")) {
-              float tde = clampF(h["tDeltaExt"].as<float>(), 0.2f, 5.0f, 1.0f);
+              float tde = clampF(h["tDeltaExt"].as<float>(), 0.1f, 5.0f, 0.4f);
               if (abs(tempDeltaArExt - tde) > 0.05f) { tempDeltaArExt = tde; configAlterada = true; }
             }
+            if (h.containsKey("tDeltaSaida")) {
+              float tds = clampF(h["tDeltaSaida"].as<float>(), 0.0f, 2.0f, 0.1f);
+              if (tds > tempDeltaArExt) tds = tempDeltaArExt;
+              if (abs(tempDeltaSaidaExt - tds) > 0.05f) { tempDeltaSaidaExt = tds; configAlterada = true; }
+            }
+            if (h.containsKey("tSifaoPosAc")) {
+              unsigned long tsp = clampMin(h["tSifaoPosAc"].as<long>(), 60UL, 15UL) * 60000UL;
+              if (tempoSifaoPosAcMs != tsp) { tempoSifaoPosAcMs = tsp; configAlterada = true; }
+            }
+            if (h.containsKey("tSifaoTempMin")) {
+              float tsm = clampF(h["tSifaoTempMin"].as<float>(), 15.0f, 30.0f, 22.0f);
+              if (abs(tempSifaoMin - tsm) > 0.05f) { tempSifaoMin = tsm; configAlterada = true; }
+            }
             if (h.containsKey("uGuardaCorte")) {
-              float ugc = clampF(h["uGuardaCorte"].as<float>(), 80.0f, 100.0f, 99.0f);
+              float ugc = clampF(h["uGuardaCorte"].as<float>(), 80.0f, 100.0f, 90.0f);
               if (abs(umidGuardaCorte - ugc) > 0.05f) { umidGuardaCorte = ugc; configAlterada = true; }
             }
+            if (h.containsKey("uRetornoAlvo")) {
+              bool ura = (h["uRetornoAlvo"].as<int>() != 0);
+              if (umidRetornoSeguirAlvo != ura) { umidRetornoSeguirAlvo = ura; configAlterada = true; }
+            }
             if (h.containsKey("uGuardaRetorno")) {
-              float ugr = clampF(h["uGuardaRetorno"].as<float>(), 80.0f, 100.0f, 99.8f);
+              float ugr = clampF(h["uGuardaRetorno"].as<float>(), 80.0f, 100.0f, 99.0f);
               if (ugr < umidGuardaCorte) ugr = umidGuardaCorte;
               if (abs(umidGuardaRetorno - ugr) > 0.05f) { umidGuardaRetorno = ugr; configAlterada = true; }
             }
+            if (tempDeltaSaidaExt > tempDeltaArExt) { tempDeltaSaidaExt = tempDeltaArExt; configAlterada = true; }
+            if (umidGuardaRetorno < umidGuardaCorte) { umidGuardaRetorno = umidGuardaCorte; configAlterada = true; }
           }
 
           if (configAlterada || (versaoNuvem > 0 && versaoNuvem != versaoLocal)) {
@@ -700,7 +723,11 @@ void enviarNuvem(unsigned long agora) {
             prefs.putUInt("tMaxRun", (uint32_t)(maxRunContinuoArMs / 60000UL));
             prefs.putFloat("tCorteLuz", tempCorteLuz);
             prefs.putFloat("tDeltaExt", tempDeltaArExt);
+            prefs.putFloat("tDeltaSaida", tempDeltaSaidaExt);
+            prefs.putUInt("tSifaoPosAc", (uint32_t)(tempoSifaoPosAcMs / 60000UL));
+            prefs.putFloat("tSifaoMin", tempSifaoMin);
             prefs.putFloat("uGuardaCorte", umidGuardaCorte);
+            prefs.putBool("uRetAlvo", umidRetornoSeguirAlvo);
             prefs.putFloat("uGuardaRet", umidGuardaRetorno);
             if (versaoNuvem > 0) prefs.putUInt("cfg_ver", versaoNuvem);
             prefs.end();
@@ -1134,8 +1161,28 @@ void verificarProgressao() {
   }
 }
 
+bool sifaoExaustAtivo = false;
+bool sifaoPosAcAtivo = false;
+bool sifaoRehidratando = false;
+
 void executarMotor(unsigned long agora) {
+  static bool modoRefrigeracaoAtivo = false;
+  static unsigned long tempoAlvoAtingido = 0;
+  static unsigned long descansoPreventivoAte = 0;
+  static bool cicloAcAtivoPrev = false;
+  static unsigned long janelaSifaoPosAcAte = 0;
+  static bool injecaoFriaTermoOk = false;
+  static bool guardaUmidadeOk = true;
+
   if (faseAtual == FASE_STANDBY) {
+    modoRefrigeracaoAtivo = false;
+    tempoAlvoAtingido = 0;
+    cicloAcAtivoPrev = false;
+    janelaSifaoPosAcAte = 0;
+    injecaoFriaTermoOk = false;
+    sifaoExaustAtivo = false;
+    sifaoPosAcAtivo = false;
+    sifaoRehidratando = false;
     releUmidific = false;
     releVentoInt = false;
     releExaustExt = false;
@@ -1145,6 +1192,14 @@ void executarMotor(unsigned long agora) {
     return;
   }
   if (faseAtual == FASE_SECAGEM) {
+    modoRefrigeracaoAtivo = false;
+    tempoAlvoAtingido = 0;
+    cicloAcAtivoPrev = false;
+    janelaSifaoPosAcAte = 0;
+    injecaoFriaTermoOk = false;
+    sifaoExaustAtivo = false;
+    sifaoPosAcAtivo = false;
+    sifaoRehidratando = false;
     releUmidific = false;
     releVentoInt = true;
     releExaustExt = true;
@@ -1181,10 +1236,6 @@ void executarMotor(unsigned long agora) {
   // Quando atinge a temperatura alvo máxima (pf.tempMax), aciona o Ar Condicionado.
   // Quando a meta é atingida (tempInt < pf.tempMax), mantém ligado pelo tempo pós-meta configurado
   // para estabilizar e fixar a climatização do ambiente antes de desligar.
-  static bool modoRefrigeracaoAtivo = false;
-  static unsigned long tempoAlvoAtingido = 0;
-  static unsigned long descansoPreventivoAte = 0;
-
   if (agora < descansoPreventivoAte) {
     modoRefrigeracaoAtivo = false;
     tempoAlvoAtingido = 0;
@@ -1229,26 +1280,72 @@ void executarMotor(unsigned long agora) {
     releExaustExt = true;
   }
 
-  // 2. Injeção de Ar Gelado no Grow (Quando o ambiente externo já foi resfriado pelo AC)
-  // O DHT11 confirma se o ar da sala está mais frio que a estufa (tempExt < tempInt - tempDeltaArExt)
-  // GUARDA CRÍTICA DE UMIDADE (Histerese Estrita configurável, padrão 99.0% -> 99.8%):
-  // Ao cair abaixo de umidGuardaCorte, pausa a injeção via exaustor imediatamente
-  // e só retoma quando recuperar até umidGuardaRetorno.
-  bool ambienteExternoFrio = (sensorExtOk && tempExt > -40.0f && tempExt < (tempInt - tempDeltaArExt) && tempExt <= pf.tempMax);
-  static bool guardaUmidadeOk = true;
+  // 2. Sifão Térmico em Ondas (Durante AC e Janela Pós-AC configurável)
+  // Se o ar do quarto ainda estiver mais frio que o grow mesmo após o AC desligar,
+  // mantém o exaustor trabalhando em ondas até resfriar ao máximo (limitado por tempSifaoMin).
+  bool cicloAcAtivo = modoRefrigeracaoAtivo || (modoAr == AR_FORCADA_ON);
+  if (modoAr == AR_FORCADA_OFF) {
+    cicloAcAtivo = false;
+  }
+  if (cicloAcAtivoPrev && !cicloAcAtivo && tempoSifaoPosAcMs > 0) {
+    janelaSifaoPosAcAte = agora + tempoSifaoPosAcMs;
+    Serial.printf("🌬️ SIFÃO PÓS-AC: Janela aberta por %lu min para aproveitar o ar frio da sala!\n", tempoSifaoPosAcMs / 60000UL);
+  }
+  if (cicloAcAtivo) {
+    janelaSifaoPosAcAte = 0;
+  }
+  cicloAcAtivoPrev = cicloAcAtivo;
+
+  bool emJanelaSifaoPosAc = (janelaSifaoPosAcAte > 0 && (long)(janelaSifaoPosAcAte - agora) > 0);
+  if (janelaSifaoPosAcAte > 0 && !emJanelaSifaoPosAc && !cicloAcAtivo) {
+    janelaSifaoPosAcAte = 0;
+    Serial.println("🌬️ SIFÃO PÓS-AC: Janela de aproveitamento encerrada.");
+  }
+  bool aproveitandoArGelado = cicloAcAtivo || emJanelaSifaoPosAc;
+
+  float deltaEntrada = tempDeltaArExt;
+  float deltaSaida = min(tempDeltaArExt, tempDeltaSaidaExt);
+  bool sensoresFrioOk = (sensorExtOk && tempExt > -40.0f);
+
+  if (!sensoresFrioOk || !aproveitandoArGelado || tempInt <= tempSifaoMin) {
+    if (emJanelaSifaoPosAc && tempInt <= tempSifaoMin) {
+      janelaSifaoPosAcAte = 0;
+      emJanelaSifaoPosAc = false;
+      aproveitandoArGelado = cicloAcAtivo;
+      Serial.printf("🌬️ SIFÃO PÓS-AC: Piso mínimo atingido (%.1f°C <= %.1f°C). Encerrando janela.\n", tempInt, tempSifaoMin);
+    }
+    injecaoFriaTermoOk = false;
+  } else if (tempExt <= (tempInt - deltaEntrada)) {
+    injecaoFriaTermoOk = true;
+  } else if (tempExt >= (tempInt - deltaSaida)) {
+    injecaoFriaTermoOk = false;
+  }
+
+  // GUARDA DINÂMICA DE UMIDADE NO SIFÃO:
+  // Desce até umidGuardaCorte (ex: 90%), pausa exaustor e força névoa até igualar à Umidade Alvo (ou valor manual).
+  float alvoUmid = (pf.umidMin > 0) ? pf.umidMin : 99.0f;
+  float alvoRetornoCfg = umidRetornoSeguirAlvo ? alvoUmid : umidGuardaRetorno;
   float limiarCorteUmid = umidGuardaCorte;
-  float limiarRetornoUmid = max(umidGuardaCorte, umidGuardaRetorno);
-  if (humInt < limiarCorteUmid) {
+  float limiarRetornoUmid = max(umidGuardaCorte, alvoRetornoCfg);
+
+  if (!aproveitandoArGelado) {
+    if (humInt >= limiarCorteUmid) guardaUmidadeOk = true;
+  } else if (humInt < limiarCorteUmid) {
     guardaUmidadeOk = false;
   } else if (humInt >= limiarRetornoUmid) {
     guardaUmidadeOk = true;
   }
 
-  if (modoRefrigeracaoAtivo && ambienteExternoFrio) {
+  sifaoExaustAtivo = false;
+  sifaoPosAcAtivo = emJanelaSifaoPosAc;
+  sifaoRehidratando = false;
+
+  if (aproveitandoArGelado && injecaoFriaTermoOk) {
     if (guardaUmidadeOk) {
-      releExaustExt = true; // Injeta o ar novo resfriado
+      releExaustExt = true; // Onda fria: injeta o ar novo resfriado
+      sifaoExaustAtivo = true;
     } else {
-      releExaustExt = false; // Pausa injeção para priorizar recuperação de umidade
+      sifaoRehidratando = true; // Onda de névoa: pausa Sifão (sem bloquear FAE programado) para recuperar umidade até o alvo
     }
   }
 
@@ -1280,7 +1377,6 @@ void executarMotor(unsigned long agora) {
 
   // CONTROLE DE UMIDADE ALVO ÚNICA:
   static bool umidificadorHisterese = false;
-  float alvoUmid = (pf.umidMin > 0) ? pf.umidMin : 99.0;
   if (humInt < alvoUmid) {
     umidificadorHisterese = true;
   } else if (humInt >= (alvoUmid + 0.5) || humInt >= 99.5) {
@@ -1291,8 +1387,8 @@ void executarMotor(unsigned long agora) {
   if (brisaUmidificadora) {
     querLigarUmid = true;
   }
-  // Se a guarda de umidade acusar que a umidade caiu durante a climatização, prioriza reidratação
-  if (modoRefrigeracaoAtivo && !guardaUmidadeOk) {
+  // Se a guarda de umidade pausou o Sifão de Ar Frio, força reidratação imediata até o limiar de retorno
+  if (aproveitandoArGelado && !guardaUmidadeOk) {
     querLigarUmid = true;
   }
 
@@ -1303,7 +1399,8 @@ void executarMotor(unsigned long agora) {
   }
 
   // BLOQUEIO CONTRA DESPERDÍCIO (EXAUSTOR):
-  if (releExaustExt && guardaUmidadeOk) {
+  // Sempre que o exaustor estiver ligado (FAE programado ou Sifão), não injeta névoa ao mesmo tempo
+  if (releExaustExt) {
     releUmidific = false;
   }
 
@@ -1433,10 +1530,14 @@ void setup() {
   tempMinCongelamento = prefs.getFloat("tCongela", 15.0f);
   tempoExtraRefrigeracaoMs = (unsigned long)prefs.getUInt("tPosMeta", 5) * 60000UL;
   maxRunContinuoArMs = (unsigned long)prefs.getUInt("tMaxRun", 45) * 60000UL;
+  tempoSifaoPosAcMs = (unsigned long)prefs.getUInt("tSifaoPosAc", 15) * 60000UL;
   tempCorteLuz = prefs.getFloat("tCorteLuz", 34.0f);
-  tempDeltaArExt = prefs.getFloat("tDeltaExt", 1.0f);
-  umidGuardaCorte = prefs.getFloat("uGuardaCorte", 99.0f);
-  umidGuardaRetorno = prefs.getFloat("uGuardaRet", 99.8f);
+  tempDeltaArExt = prefs.getFloat("tDeltaExt", 0.4f);
+  tempDeltaSaidaExt = min(tempDeltaArExt, prefs.getFloat("tDeltaSaida", 0.1f));
+  tempSifaoMin = prefs.getFloat("tSifaoMin", 22.0f);
+  umidGuardaCorte = prefs.getFloat("uGuardaCorte", 90.0f);
+  umidRetornoSeguirAlvo = prefs.getBool("uRetAlvo", true);
+  umidGuardaRetorno = prefs.getFloat("uGuardaRet", 99.0f);
   if (umidGuardaRetorno < umidGuardaCorte) umidGuardaRetorno = umidGuardaCorte;
   prefs.end();
 
@@ -1822,16 +1923,21 @@ void loop() {
       // LOG DE EVENTOS DETALHADOS (Por que cada relé está ligado?)
       PerfilClimatico pf = obterPerfil(faseAtual);
       String evtUmid = "Desligado", evtVento = "Desligado", evtExaust = "Desligado";
-      if (releExaustExt) evtExaust = faeLigado ? "Renovação Ar (FAE)" : "Secagem/Outro";
+      if (releExaustExt) {
+        if (sifaoExaustAtivo) evtExaust = sifaoPosAcAtivo ? "Sifão Pós-AC (Ar Frio)" : "Sifão AC (Ar Frio)";
+        else evtExaust = faeLigado ? "Renovação Ar (FAE)" : "Secagem/Outro";
+      }
       
       if (releVentoInt) {
         if (faeLigado) evtVento = "Junto com FAE";
+        else if (sifaoRehidratando) evtVento = "Reidratação Sifão";
         else if (tempInt >= pf.tempMax) evtVento = "Defesa Térmica";
         else evtVento = "Brisa Interna Programada";
       }
       
       if (releUmidific) {
-        if (tempInt >= pf.tempMax && humInt < 98.0) evtUmid = "Defesa Térmica (Evaporar)";
+        if (sifaoRehidratando) evtUmid = "Onda Névoa Sifão (Subindo até alvo)";
+        else if (tempInt >= pf.tempMax && humInt < 98.0) evtUmid = "Defesa Térmica (Evaporar)";
         else if (evtVento == "Brisa Interna Programada") evtUmid = "Névoa na Brisa";
         else if (humInt < pf.umidMax) evtUmid = "Histerese (Subindo até alvo)";
         else evtUmid = "Tempo Min Saturação/Outro";
