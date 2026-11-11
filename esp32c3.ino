@@ -2,10 +2,10 @@
 //  GROW IA - Firmware Inteligente + Nuvem IoT
 //  Placa: ESP32-C3 SuperMini (Produção) / ESP32-S3 Dual-Core
 //  Autor: Gabriel + Antigravity AI
-//  Versão Atual: v445 (Histerese Dinâmica p/ Desligar AC + Sifão Térmico Pós-AC)
+//  Versão Atual: v446 (Correções Motor AC, Pós-AC, Brisa e Persistência de Ciclo NVS)
 // ============================================================
 
-#define FW_VERSION 445
+#define FW_VERSION 446
 
 #include <Arduino.h>
 #include <ArduinoJson.h>
@@ -885,12 +885,10 @@ void enviarNuvem(unsigned long agora) {
     client.stop(); // Fecha o socket SSL de telemetria para liberar toda a memória RAM
     delay(30);
 
-    // Envia ACK imediato no mesmo ciclo se algum comando alterou fase, luz, ar ou perfil climático
-    static bool emAck = false;
-    if (dispararAckImediato && !deveFazerOta && !emAck) {
-      emAck = true;
-      enviarNuvem(millis());
-      emAck = false;
+    // Se algum comando alterou fase, luz, ar ou perfil climático, agenda envio imediato no próximo ciclo do loop()
+    // (evita chamar enviarNuvem recursivamente com 2 sessões TLS empilhadas na RAM do ESP32-C3)
+    if (dispararAckImediato && !deveFazerOta) {
+      ultimoEnvioNuvem = 0;
     }
 
     if (deveFazerOta) {
@@ -1179,6 +1177,68 @@ void executarMotor(unsigned long agora) {
   static unsigned long janelaSifaoPosAcAte = 0;
   static bool injecaoFriaTermoOk = false;
   static bool guardaUmidadeOk = true;
+  static bool estadoAcRestaurado = false;
+  static bool acAtivoSalvoNvs = false;
+  static bool acMetaSalvoNvs = false;
+  static bool sifPosSalvoNvs = false;
+  static unsigned long acElapsedPreBootMs = 0;
+  static unsigned long tempoMetaPreBootMs = 0;
+
+  time_t rtcAgoraSec = 0;
+  time(&rtcAgoraSec);
+  bool rtcValido = (rtcAgoraSec > 1700000000);
+
+  if (!estadoAcRestaurado) {
+    estadoAcRestaurado = true;
+    prefs.begin("grow", true);
+    acAtivoSalvoNvs = prefs.getBool("ac_ativo", false);
+    uint32_t acIniTsSalvo = prefs.getUInt("ac_ini_ts", 0);
+    uint32_t acMetaTsSalvo = prefs.getUInt("ac_meta_ts", 0);
+    uint32_t sifPosTsSalvo = prefs.getUInt("sif_pos_ts", 0);
+    prefs.end();
+
+    unsigned long janelaMaxCicloSec = (maxRunContinuoArMs / 1000UL) + 300UL;
+    if (faseAtual != FASE_STANDBY && faseAtual != FASE_SECAGEM) {
+      if (acAtivoSalvoNvs && rtcValido && acIniTsSalvo > 1700000000 &&
+          (uint32_t)rtcAgoraSec >= acIniTsSalvo &&
+          ((uint32_t)rtcAgoraSec - acIniTsSalvo) <= janelaMaxCicloSec &&
+          tempInt > (tempMinCongelamento + 0.3f) && modoAr != AR_FORCADA_OFF) {
+        modoRefrigeracaoAtivo = true;
+        acElapsedPreBootMs = ((unsigned long)((uint32_t)rtcAgoraSec - acIniTsSalvo)) * 1000UL;
+        if (tempoExtraRefrigeracaoMs > 0 && acMetaTsSalvo > 1700000000 &&
+            (uint32_t)rtcAgoraSec >= acMetaTsSalvo &&
+            ((uint32_t)rtcAgoraSec - acMetaTsSalvo) <= ((tempoExtraRefrigeracaoMs / 1000UL) + 300UL)) {
+          tempoMetaPreBootMs = min(tempoExtraRefrigeracaoMs, ((unsigned long)((uint32_t)rtcAgoraSec - acMetaTsSalvo)) * 1000UL);
+          tempoAlvoAtingido = agora;
+          acMetaSalvoNvs = true;
+        }
+        Serial.println("♻️ [NVS RESTORE] Ciclo de AC em andamento restaurado pós-reinício!");
+      } else if (rtcValido && sifPosTsSalvo > (uint32_t)rtcAgoraSec && tempoSifaoPosAcMs > 0) {
+        unsigned long restPosMs = min(tempoSifaoPosAcMs, ((unsigned long)(sifPosTsSalvo - (uint32_t)rtcAgoraSec)) * 1000UL);
+        janelaSifaoPosAcAte = agora + restPosMs;
+        sifPosSalvoNvs = true;
+        Serial.printf("♻️ [NVS RESTORE] Janela Pós-AC restaurada (%lu min restantes)!\n", (restPosMs + 59999UL) / 60000UL);
+      }
+    }
+  }
+
+  auto limparPersistenciaAc = [&]() {
+    acElapsedPreBootMs = 0;
+    tempoMetaPreBootMs = 0;
+    if (acAtivoSalvoNvs || acMetaSalvoNvs || sifPosSalvoNvs) {
+      prefs.begin("grow", false);
+      if (acAtivoSalvoNvs) {
+        prefs.putBool("ac_ativo", false);
+        prefs.putUInt("ac_ini_ts", 0);
+      }
+      if (acMetaSalvoNvs) prefs.putUInt("ac_meta_ts", 0);
+      if (sifPosSalvoNvs) prefs.putUInt("sif_pos_ts", 0);
+      prefs.end();
+      acAtivoSalvoNvs = false;
+      acMetaSalvoNvs = false;
+      sifPosSalvoNvs = false;
+    }
+  };
 
   if (faseAtual == FASE_STANDBY) {
     modoRefrigeracaoAtivo = false;
@@ -1195,6 +1255,7 @@ void executarMotor(unsigned long agora) {
     releArCond = false;
     // releVentoExt = false;
     if (modoLuz == LUZ_AUTO) releLuz = false;
+    limparPersistenciaAc();
     return;
   }
   if (faseAtual == FASE_SECAGEM) {
@@ -1212,6 +1273,7 @@ void executarMotor(unsigned long agora) {
     releArCond = false;
     // releVentoExt = true;
     if (modoLuz == LUZ_AUTO) releLuz = false;
+    limparPersistenciaAc();
     return;
   }
 
@@ -1240,23 +1302,30 @@ void executarMotor(unsigned long agora) {
 
   // --- CONTROLE TÉRMICO E CLIMATIZAÇÃO INTELIGENTE (AR CONDICIONADO) ---
   // Quando atinge a temperatura alvo máxima (pf.tempMax), aciona o Ar Condicionado.
-  // Quando a meta é atingida (tempInt < pf.tempMax), mantém ligado pelo tempo pós-meta configurado
+  // Quando atinge a meta de desligamento (metaDesligaAr), mantém ligado pelo tempo extra configurado
   // para estabilizar e fixar a climatização do ambiente antes de desligar.
-  if (agora < descansoPreventivoAte) {
+  bool corteCongelaAtivo = (sensorIntOk && tempInt <= tempMinCongelamento);
+  unsigned long runArAtualMs = acElapsedPreBootMs + (compressorUltimaPartida > 0 ? (agora - compressorUltimaPartida) : 0UL);
+  if (corteCongelaAtivo) {
+    // Encerra completamente o ciclo automático para não religar cedo após AC_MIN_REST_MS
     modoRefrigeracaoAtivo = false;
     tempoAlvoAtingido = 0;
+    tempoMetaPreBootMs = 0;
+  } else if (agora < descansoPreventivoAte) {
+    modoRefrigeracaoAtivo = false;
+    tempoAlvoAtingido = 0;
+    tempoMetaPreBootMs = 0;
+  } else if (modoRefrigeracaoAtivo && (lastReleArCond || acElapsedPreBootMs > 0) && runArAtualMs >= maxRunContinuoArMs) {
+    // Limite contínuo checado em TODA a faixa térmica ativa (mesmo abaixo de pf.tempMax durante a descida)
+    Serial.printf("⏳ SEGURANÇA: Ar Condicionado atingiu limite contínuo de %lu min. Pausa preventiva de 10 min de descanso...\n", maxRunContinuoArMs / 60000UL);
+    descansoPreventivoAte = agora + (10UL * 60UL * 1000UL);
+    modoRefrigeracaoAtivo = false;
+    tempoAlvoAtingido = 0;
+    tempoMetaPreBootMs = 0;
   } else if (tempInt >= pf.tempMax) {
-    // Se o compressor estiver rodando direto por mais do tempo máximo configurado (ex: 45 min),
-    // dá uma pausa de alívio e descanso preventivo obrigatório de 10 min para proteger a bobina do relé e o motor do ar
-    if (modoRefrigeracaoAtivo && compressorUltimaPartida > 0 && (agora - compressorUltimaPartida >= maxRunContinuoArMs)) {
-      Serial.printf("⏳ SEGURANÇA: Ar Condicionado atingiu limite contínuo de %lu min. Pausa preventiva de 10 min de descanso...\n", maxRunContinuoArMs / 60000UL);
-      descansoPreventivoAte = agora + (10UL * 60UL * 1000UL);
-      modoRefrigeracaoAtivo = false;
-      tempoAlvoAtingido = 0;
-    } else {
-      modoRefrigeracaoAtivo = true;
-      tempoAlvoAtingido = 0; // Se voltou a subir, cancela temporizador de desligamento
-    }
+    modoRefrigeracaoAtivo = true;
+    tempoAlvoAtingido = 0; // Se voltou a subir, cancela temporizador de desligamento
+    tempoMetaPreBootMs = 0;
   } else if (modoRefrigeracaoAtivo) {
     // Meta de desligamento dinâmica: pf.tempMax - tempHistereseAr (limitada acima do anti-congelamento)
     float metaDesligaAr = max(tempMinCongelamento + 0.2f, pf.tempMax - tempHistereseAr);
@@ -1264,18 +1333,25 @@ void executarMotor(unsigned long agora) {
       if (tempoExtraRefrigeracaoMs == 0) {
         modoRefrigeracaoAtivo = false;
         tempoAlvoAtingido = 0;
+        tempoMetaPreBootMs = 0;
         Serial.printf("❄️ CLIMATIZAÇÃO: Meta de desligamento atingida (%.1f°C < %.1f°C)! Desligando Ar Condicionado.\n", tempInt, metaDesligaAr);
       } else if (tempoAlvoAtingido == 0) {
         tempoAlvoAtingido = agora;
+        tempoMetaPreBootMs = 0;
         Serial.printf("❄️ CLIMATIZAÇÃO: Meta atingida (%.1f°C < %.1f°C)! Mantendo Ar ligado por mais %lu min para fixação...\n", tempInt, metaDesligaAr, tempoExtraRefrigeracaoMs / 60000UL);
-      } else if (agora - tempoAlvoAtingido >= tempoExtraRefrigeracaoMs) {
+      } else if ((tempoMetaPreBootMs + (agora - tempoAlvoAtingido)) >= tempoExtraRefrigeracaoMs) {
         modoRefrigeracaoAtivo = false;
         tempoAlvoAtingido = 0;
+        tempoMetaPreBootMs = 0;
         Serial.printf("❄️ CLIMATIZAÇÃO: %lu minutos de pós-resfriamento concluídos (%.1f°C < %.1f°C). Desligando Ar Condicionado.\n", tempoExtraRefrigeracaoMs / 60000UL, tempInt, metaDesligaAr);
       }
     } else {
       tempoAlvoAtingido = 0; // Ainda entre metaDesligaAr e pf.tempMax: segue resfriando antes de contar pós-meta
+      tempoMetaPreBootMs = 0;
     }
+  }
+  if (!modoRefrigeracaoAtivo) {
+    acElapsedPreBootMs = 0;
   }
 
   // Ar Condicionado (Refrigeração da Sala):
@@ -1298,37 +1374,57 @@ void executarMotor(unsigned long agora) {
   // 2. Sifão Térmico em Ondas (Durante AC e Janela Pós-AC configurável)
   // Se o ar do quarto ainda estiver mais frio que o grow mesmo após o AC desligar,
   // mantém o exaustor trabalhando em ondas até resfriar ao máximo (limitado por tempSifaoMin).
-  bool cicloAcAtivo = modoRefrigeracaoAtivo || (modoAr == AR_FORCADA_ON);
-  if (modoAr == AR_FORCADA_OFF) {
-    cicloAcAtivo = false;
-  }
-  if (cicloAcAtivoPrev && !cicloAcAtivo && tempoSifaoPosAcMs > 0) {
+  bool cicloAcAtivo = (modoRefrigeracaoAtivo || (modoAr == AR_FORCADA_ON)) && (modoAr != AR_FORCADA_OFF) && !corteCongelaAtivo;
+  bool acOperando = cicloAcAtivo || lastReleArCond;
+  if (cicloAcAtivoPrev && !acOperando && tempoSifaoPosAcMs > 0) {
     janelaSifaoPosAcAte = agora + tempoSifaoPosAcMs;
     Serial.printf("🌬️ SIFÃO PÓS-AC: Janela aberta por %lu min para aproveitar o ar frio da sala!\n", tempoSifaoPosAcMs / 60000UL);
   }
-  if (cicloAcAtivo) {
+  if (acOperando) {
     janelaSifaoPosAcAte = 0;
   }
-  cicloAcAtivoPrev = cicloAcAtivo;
+  cicloAcAtivoPrev = acOperando;
 
   bool emJanelaSifaoPosAc = (janelaSifaoPosAcAte > 0 && (long)(janelaSifaoPosAcAte - agora) > 0);
-  if (janelaSifaoPosAcAte > 0 && !emJanelaSifaoPosAc && !cicloAcAtivo) {
+  if (janelaSifaoPosAcAte > 0 && !emJanelaSifaoPosAc && !acOperando) {
     janelaSifaoPosAcAte = 0;
     Serial.println("🌬️ SIFÃO PÓS-AC: Janela de aproveitamento encerrada.");
   }
   bool aproveitandoArGelado = cicloAcAtivo || emJanelaSifaoPosAc;
+
+  // Persiste na Flash NVS apenas em mudanças reais de estado (protege pós-AC/meta contra micro-reset)
+  bool acAtivoDesejado = (modoRefrigeracaoAtivo && modoAr != AR_FORCADA_OFF && !corteCongelaAtivo);
+  bool acMetaDesejado = (acAtivoDesejado && tempoExtraRefrigeracaoMs > 0 && tempoAlvoAtingido > 0);
+  bool sifPosDesejado = (!acOperando && emJanelaSifaoPosAc);
+  if (acAtivoDesejado != acAtivoSalvoNvs || acMetaDesejado != acMetaSalvoNvs || sifPosDesejado != sifPosSalvoNvs) {
+    prefs.begin("grow", false);
+    if (acAtivoDesejado != acAtivoSalvoNvs) {
+      prefs.putBool("ac_ativo", acAtivoDesejado);
+      if (acAtivoDesejado && rtcValido) prefs.putUInt("ac_ini_ts", (uint32_t)rtcAgoraSec);
+      else if (!acAtivoDesejado) prefs.putUInt("ac_ini_ts", 0);
+      acAtivoSalvoNvs = acAtivoDesejado;
+    }
+    if (acMetaDesejado != acMetaSalvoNvs) {
+      prefs.putUInt("ac_meta_ts", (acMetaDesejado && rtcValido) ? (uint32_t)rtcAgoraSec : 0);
+      acMetaSalvoNvs = acMetaDesejado;
+    }
+    if (sifPosDesejado != sifPosSalvoNvs) {
+      uint32_t fimSifSec = 0;
+      if (sifPosDesejado && rtcValido && janelaSifaoPosAcAte > agora) {
+        fimSifSec = (uint32_t)rtcAgoraSec + (uint32_t)((janelaSifaoPosAcAte - agora + 500UL) / 1000UL);
+      }
+      prefs.putUInt("sif_pos_ts", fimSifSec);
+      sifPosSalvoNvs = sifPosDesejado;
+    }
+    prefs.end();
+  }
 
   float deltaEntrada = tempDeltaArExt;
   float deltaSaida = min(tempDeltaArExt, tempDeltaSaidaExt);
   bool sensoresFrioOk = (sensorExtOk && tempExt > -40.0f);
 
   if (!sensoresFrioOk || !aproveitandoArGelado || tempInt <= tempSifaoMin) {
-    if (emJanelaSifaoPosAc && tempInt <= tempSifaoMin) {
-      janelaSifaoPosAcAte = 0;
-      emJanelaSifaoPosAc = false;
-      aproveitandoArGelado = cicloAcAtivo;
-      Serial.printf("🌬️ SIFÃO PÓS-AC: Piso mínimo atingido (%.1f°C <= %.1f°C). Encerrando janela.\n", tempInt, tempSifaoMin);
-    }
+    // Apenas pausa a injeção abaixo do piso sem destruir a janela Pós-AC de 15 min
     injecaoFriaTermoOk = false;
   } else if (tempExt <= (tempInt - deltaEntrada)) {
     injecaoFriaTermoOk = true;
@@ -1347,7 +1443,7 @@ void executarMotor(unsigned long agora) {
     if (humInt >= limiarCorteUmid) guardaUmidadeOk = true;
   } else if (humInt < limiarCorteUmid) {
     guardaUmidadeOk = false;
-  } else if (humInt >= limiarRetornoUmid) {
+  } else if (humInt >= limiarRetornoUmid || humInt >= 99.5f) {
     guardaUmidadeOk = true;
   }
 
@@ -1399,7 +1495,7 @@ void executarMotor(unsigned long agora) {
   }
 
   bool querLigarUmid = umidificadorHisterese;
-  if (brisaUmidificadora) {
+  if (brisaUmidificadora && humInt < min(99.5f, alvoUmid + 0.5f)) {
     querLigarUmid = true;
   }
   // Se a guarda de umidade pausou o Sifão de Ar Frio, força reidratação imediata até o limiar de retorno
@@ -1861,11 +1957,13 @@ void loop() {
       // Em modo cego, executa o FAE (Renovação de ar) baseado no tempo para os cogumelos não sufocarem
       if (faseAtual != FASE_STANDBY && faseAtual != FASE_SECAGEM) {
         PerfilClimatico pf = obterPerfil(faseAtual);
-        if (pf.faeOnMs > 0 && pf.faeOffMs > 0) {
+        if (pf.faeOnMs == 0) {
+          releExaustExt = false;
+        } else if (pf.faeOffMs == 0) {
+          releExaustExt = true;
+        } else {
           unsigned long cicloFAE = pf.faeOnMs + pf.faeOffMs;
           releExaustExt = ((agora % cicloFAE) < pf.faeOnMs);
-        } else {
-          releExaustExt = false;
         }
       } else {
         releExaustExt = (faseAtual == FASE_SECAGEM);
