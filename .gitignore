@@ -2,6 +2,7 @@
 *.zip
 *.tar.gz
 *.bak
+*.bak*
 *.old
 esp32c3/
 out_s3/
