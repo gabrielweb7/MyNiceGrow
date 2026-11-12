@@ -1485,15 +1485,6 @@
             }
         }
 
-        async function resetarAgua() {
-            if (confirm("Você reabasteceu o reservatório de água?")) {
-                if (await enviarComando({reset_agua: 1})) {
-                    document.getElementById('releUmidStatus').textContent = "ENVIANDO...";
-                    loopDados(2000);
-                }
-            }
-        }
-
         function atualizarCoresDinamicas(ti, ui, te, faseOpt) {
             const cardTi = document.getElementById('cardTi');
             const valTi = document.getElementById('valTi');

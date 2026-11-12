@@ -2,10 +2,10 @@
 //  GROW IA - Firmware Inteligente + Nuvem IoT
 //  Placa: ESP32-C3 SuperMini (Produção) / ESP32-S3 Dual-Core
 //  Autor: Gabriel + Antigravity AI
-//  Versão Atual: v449 (Restaura Névoa na Brisa Incondicional + Pré-Resfriamento Evaporativo Antes do AC)
+//  Versão Atual: v450 (Faxina Segura de Código Morto & Logs Atualizados — VentoExt Reservado)
 // ============================================================
 
-#define FW_VERSION 449
+#define FW_VERSION 450
 
 #include <Arduino.h>
 #include <ArduinoJson.h>
@@ -42,7 +42,6 @@ const int LUZ_HORA_LIGA = 20;
 const int LUZ_HORA_DESLIGA = 8;
 
 // --- Temperaturas ---
-const float TEMP_MINIMA = 18.0;  // Limite de alerta (estufa não passa frio, sem injeção forçada de ar da sala)
 const float TEMP_ALVO_MAX = 29.0;
 const float TEMP_CRITICA = 32.0;    // Aumentado para evitar spam no calor de MS
 float tempCorteLuz = 34.0f;           // Desliga luz por segurança térmica extrema
@@ -61,10 +60,6 @@ unsigned long tempoEvapPreAcMs = 4UL * 60UL * 1000UL; // Tentativa evaporativa a
 float tempEvapAntecipa = 0.3f;        // Antecipa evaporação abaixo de pf.tempMax (°C)
 unsigned long evapCooldownMs = 45UL * 60UL * 1000UL;  // Intervalo mínimo após falha antes de tentar evaporação de novo
 
-// --- Umidade ---
-const float UMIDADE_MINIMA = 88.0;
-const float UMIDADE_MAXIMA = 95.0;
-
 // --- FAE ---
 const unsigned long FAE_ON_MS = 2UL * 60 * 1000;
 const unsigned long FAE_OFF_MS = 58UL * 60 * 1000;
@@ -75,13 +70,7 @@ const char* CLOUD_KEY = "GrowIA_V4_SuperSecreta!";
 const unsigned long INTERVALO_NUVEM = 4UL * 1000;  // 4 segundos (alinhado ao ciclo de 2s do loop principal)
 
 // --- Segurança ---
-const unsigned long TIMEOUT_UMID_MS = 30UL * 60 * 1000;
 const uint8_t LED_BRILHO = 20;
-
-
-// --- Progressão Automática (dias, 0 = manual) ---
-const int DIAS_PINANDO = 0;
-const int DIAS_FRUTIFICACAO = 0;
 
 // ============================================================
 //  PINOS & SUPORTE DE HARDWARE (ESP32-S3 DUAL USB & ESP32-C3)
@@ -230,10 +219,6 @@ uint32_t segLuzTotal = 0, segUmidTotal = 0, segVentoTotal = 0, segExaustTotal = 
 uint32_t segArTotal = 0, segVentoExtTotal = 0;
 unsigned long ultimoTickHorimetro = 0;
 unsigned long ultimoSaveHorimetro = 0;
-
-// --- Alerta de Falta de Água (mantido desarmado por design; usado apenas pelo LED/painel) ---
-// REMOVIDO do controle de relés por solicitação. Variável mantida para o LED não crashar.
-bool alertaFaltaAgua = false;
 
 // --- Fallback de Luz Sem NTP: millis() do boot para ciclo 12/12 quando NTP nunca sincroniza ---
 // Acumula ms desde a última inversão do ciclo. Liga por 12h, apaga por 12h.
@@ -861,15 +846,6 @@ void enviarNuvem(unsigned long agora) {
           dispararAckImediato = true;
         }
 
-        if (docRes.containsKey("comando_reset_agua")) {
-          prefs.begin("grow", false);
-          if (prefs.isKey("sem_agua")) prefs.remove("sem_agua");
-          if (prefs.isKey("umid_acum")) prefs.remove("umid_acum");
-          prefs.end();
-          alertaFaltaAgua = false;
-          Serial.println("📥 COMANDO NUVEM: Reset de Alerta de Agua confirmado e limpo da NVS.");
-        }
-
         // COMANDO ROLLBACK: Retorna instantaneamente para a partição anterior do Dual-Bank
         if (docRes.containsKey("comando_rollback")) {
           Serial.println("↩️ [ROLLBACK] Ordem recebida da nuvem! Revertendo para partição estável anterior...");
@@ -1174,19 +1150,6 @@ void aplicarReles() {
   // Se a placa tomou alguma decisão e ligou/desligou algo autonomamente,
   // força a comunicação imediata com o banco de dados para o painel não ficar defasado
   if (alterou) ultimoEnvioNuvem = 0;
-}
-
-void verificarProgressao() {
-  if (inicioFaseTempo == 0) return;
-  time_t agora;
-  time(&agora);
-  if (agora < 1600000000) return;
-  unsigned long dias = (agora - inicioFaseTempo) / 86400UL;
-  if (faseAtual == FASE_PINANDO && DIAS_PINANDO > 0 && dias >= (unsigned long)DIAS_PINANDO) {
-    setNovaFase(FASE_FRUTIFICACAO);
-  } else if (faseAtual == FASE_FRUTIFICACAO && DIAS_FRUTIFICACAO > 0 && dias >= (unsigned long)DIAS_FRUTIFICACAO) {
-    setNovaFase(FASE_STANDBY);
-  }
 }
 
 bool sifaoExaustAtivo = false;
@@ -2131,7 +2094,6 @@ void loop() {
       if (modoLuz == LUZ_FORCADA_OFF) releLuz = false;
     }
 
-    verificarProgressao();
     aplicarReles();
 
     // HORIMETRO: Acumula tempo de uso de cada componente a cada ciclo (aprox 2s)
@@ -2174,22 +2136,23 @@ void loop() {
       String evtUmid = "Desligado", evtVento = "Desligado", evtExaust = "Desligado";
       if (releExaustExt) {
         if (sifaoExaustAtivo) evtExaust = sifaoPosAcAtivo ? "Sifão Pós-AC (Ar Frio)" : "Sifão AC (Ar Frio)";
+        else if (evapPreAcAtivo) evtExaust = "Evaporação (Onda Seca)";
         else evtExaust = faeLigado ? "Renovação Ar (FAE)" : "Secagem/Outro";
       }
       
       if (releVentoInt) {
         if (faeLigado) evtVento = "Junto com FAE";
         else if (sifaoRehidratando) evtVento = "Reidratação Sifão";
-        else if (tempInt >= pf.tempMax) evtVento = "Defesa Térmica";
+        else if (evapPreAcAtivo) evtVento = "Pré-Resfriamento Evaporativo";
         else evtVento = "Brisa Interna Programada";
       }
       
       if (releUmidific) {
         if (sifaoRehidratando) evtUmid = "Onda Névoa Sifão (Subindo até alvo)";
-        else if (tempInt >= pf.tempMax && humInt < 98.0) evtUmid = "Defesa Térmica (Evaporar)";
+        else if (evapPreAcAtivo) evtUmid = "Evaporação (Névoa Fria)";
         else if (evtVento == "Brisa Interna Programada") evtUmid = "Névoa na Brisa";
-        else if (humInt < pf.umidMax) evtUmid = "Histerese (Subindo até alvo)";
-        else evtUmid = "Tempo Min Saturação/Outro";
+        else if (humInt < pf.umidMin) evtUmid = "Histerese (Subindo até alvo)";
+        else evtUmid = "Estabilizando Alvo";
       }
       
       Serial.printf("[EVENTOS ATUAIS] Umidificador: [%s] | Ventilador: [%s] | Exaustor: [%s]\n", 
@@ -2206,9 +2169,7 @@ void loop() {
   static unsigned long ultimoLed = 0;
   if (agora - ultimoLed >= 50) {
     ultimoLed = agora;
-    if (alertaFaltaAgua) {
-      rgbLedWrite(RGB_BUILTIN, (agora % 250 < 125) ? LED_BRILHO : 0, 0, 0);  // VERMELHO PISCANDO RÁPIDO (Emergência Água)
-    } else if (statusSis == SIS_ERRO_SENSOR) {
+    if (statusSis == SIS_ERRO_SENSOR) {
       rgbLedWrite(RGB_BUILTIN, LED_BRILHO, 0, 0);  // VERMELHO FIXO (Sensor SHT30 Morto/Desconectado)
     } else if (statusSis == SIS_SEM_WIFI) {
       rgbLedWrite(RGB_BUILTIN, (agora % 1000 < 500) ? LED_BRILHO : 0, 0, (agora % 1000 < 500) ? LED_BRILHO : 0);  // MAGENTA/ROXO PISCANDO (Modo Offline/Sem Wi-Fi)

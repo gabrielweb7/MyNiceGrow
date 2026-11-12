@@ -328,7 +328,6 @@ if ($method === 'POST') {
         if (isset($cmd['luz'])) $resposta['comando_luz'] = $cmd['luz'];
         if (isset($cmd['ar'])) $resposta['comando_ar'] = $cmd['ar'];
         if (isset($cmd['vento_ext'])) $resposta['comando_vento_ext'] = $cmd['vento_ext'];
-        if (isset($cmd['reset_agua'])) $resposta['comando_reset_agua'] = 1;
         if (isset($cmd['ota'])) $resposta['comando_ota'] = 1;
         if (isset($cmd['rollback'])) $resposta['comando_rollback'] = 1;
         if (isset($cmd['url_ota'])) $resposta['url_ota'] = $cmd['url_ota'];
