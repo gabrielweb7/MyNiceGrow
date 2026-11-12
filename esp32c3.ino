@@ -2,10 +2,10 @@
 //  GROW IA - Firmware Inteligente + Nuvem IoT
 //  Placa: ESP32-C3 SuperMini (Produção) / ESP32-S3 Dual-Core
 //  Autor: Gabriel + Antigravity AI
-//  Versão Atual: v448 (Pré-Resfriamento Evaporativo Inteligente Antes do AC + Paridade Total Painel)
+//  Versão Atual: v449 (Restaura Névoa na Brisa Incondicional + Pré-Resfriamento Evaporativo Antes do AC)
 // ============================================================
 
-#define FW_VERSION 448
+#define FW_VERSION 449
 
 #include <Arduino.h>
 #include <ArduinoJson.h>
@@ -1607,7 +1607,9 @@ void executarMotor(unsigned long agora) {
   }
 
   bool querLigarUmid = umidificadorHisterese;
-  if (brisaUmidificadora && humInt < min(99.5f, alvoUmid + 0.5f)) {
+  // Automação "Névoa na Brisa": se ativada no painel, liga o umidificador junto ao vento interno
+  // mesmo que a umidade já tenha atingido o alvo/teto (bloqueado apenas se exaustor estiver aberto).
+  if (brisaUmidificadora) {
     querLigarUmid = true;
   }
   // Se a guarda de umidade pausou o Sifão de Ar Frio, força reidratação imediata até o limiar de retorno

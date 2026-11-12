@@ -3834,22 +3834,22 @@
                     simPrevExaustOn = isFaeProgOn;
 
                     // Vento Interno
-                    let isVentoOn = false;
+                    let isVentoProgOn = false;
                     if (cfgProj && cfgProj.vO > 0) {
-                        if (cfgProj.vF == 0) isVentoOn = true;
+                        if (cfgProj.vF == 0) isVentoProgOn = true;
                         else {
                             const cVento = (cfgProj.vO + cfgProj.vF) * 60000;
-                            if ((t % cVento) < (cfgProj.vO * 60000)) isVentoOn = true;
+                            if ((t % cVento) < (cfgProj.vO * 60000)) isVentoProgOn = true;
                         }
                     }
-                    if (simEvapAtivo && !isEvapExaustOn) isVentoOn = true;
+                    let isVentoOn = isVentoProgOn || (simEvapAtivo && !isEvapExaustOn);
 
-                    // Umidificador (espelha histerese 0.5%, trava de brisa em 99.5%, Sifão e Evaporação)
-                    const tetoBrisaUmid = Math.min(99.5, uAlvoSim + 0.5);
+                    // Umidificador (histerese 0.5%, Névoa na Brisa livre do teto, Sifão e Evaporação)
+                    const tetoHistereseUmid = Math.min(99.5, uAlvoSim + 0.5);
                     if (simHumInt < uAlvoSim) simUmidHist = true;
-                    else if (simHumInt >= tetoBrisaUmid) simUmidHist = false;
+                    else if (simHumInt >= tetoHistereseUmid) simUmidHist = false;
                     let isUmidOn = simUmidHist;
-                    if (cfgProj && cfgProj.vU == 1 && isVentoOn && simHumInt < tetoBrisaUmid) isUmidOn = true;
+                    if (cfgProj && cfgProj.vU == 1 && isVentoProgOn) isUmidOn = true;
                     if (simAproveitandoFrio && !simGuardaUmidOk && simHumInt < 99.5) {
                         isUmidOn = true;
                         isVentoOn = true;
