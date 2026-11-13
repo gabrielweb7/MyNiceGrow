@@ -131,6 +131,9 @@
         });
         if (pickableItems.indexOf(obj) === -1) {
             obj.userData.itemIndex = pickableItems.length;
+            obj.userData.homePos = obj.position.clone();
+            obj.userData.homeRotY = obj.rotation.y;
+            obj.userData.homeSupportedBy = o.supportedBy || null;
             pickableItems.push(obj);
         }
         if (obj.userData.isShelf && shelfUnits.indexOf(obj) === -1) shelfUnits.push(obj);
@@ -3041,6 +3044,24 @@
     window.consumeTwinDroppedRock = function () {
         pendingDroppedRock = null;
         pendingDroppedItems.length = 0;
+    };
+
+    window.resetTwinWorldObjects = function () {
+        heldRock = null;
+        lastSnapTarget = null;
+        pendingDroppedRock = null;
+        pendingDroppedItems.length = 0;
+        fallingRocks.length = 0;
+        if (snapPreviewMesh) snapPreviewMesh.visible = false;
+        if (hoverAuraGroup) hoverAuraGroup.visible = false;
+        for (let i = 0; i < pickableItems.length; i++) {
+            const it = pickableItems[i];
+            if (!it || !it.userData.homePos) continue;
+            it.position.copy(it.userData.homePos);
+            it.rotation.y = it.userData.homeRotY || 0;
+            it.userData.supportedBy = it.userData.homeSupportedBy || null;
+            it.userData.velY = 0;
+        }
     };
 
     window.getTwinPlayerPose = function () {

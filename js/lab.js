@@ -120,6 +120,7 @@ function iniciarMultiplayerTwin() {
     let mpBusy = false;
     let lastSent = 0;
     let mpOnlineCount = 1;
+    let lastWorldResetSeq = null;
 
     async function syncMp(force) {
         if (mpBusy || !window.getTwinPlayerPose) return;
@@ -154,6 +155,12 @@ function iniciarMultiplayerTwin() {
             });
             const data = await res.json();
             if (data && data.ok) {
+                if (typeof data.resetSeq === 'number') {
+                    if (lastWorldResetSeq !== null && data.resetSeq > lastWorldResetSeq && window.resetTwinWorldObjects) {
+                        window.resetTwinWorldObjects();
+                    }
+                    lastWorldResetSeq = data.resetSeq;
+                }
                 if (pose.droppedItems && window.consumeTwinDroppedRock) {
                     window.consumeTwinDroppedRock();
                 }
@@ -172,6 +179,21 @@ function iniciarMultiplayerTwin() {
 
     syncMp(true);
     setInterval(() => syncMp(false), 120);
+
+    window.resetarObjetosMundoUI = async function () {
+        if (window.resetTwinWorldObjects) window.resetTwinWorldObjects();
+        try {
+            const res = await fetch('api/multiplayer.php', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ action: 'reset_world', id: mpId })
+            });
+            const data = await res.json();
+            if (data && data.ok && typeof data.resetSeq === 'number') {
+                lastWorldResetSeq = data.resetSeq;
+            }
+        } catch (e) {}
+    };
 
     function sairMp() {
         const payload = JSON.stringify({ action: 'leave', id: mpId });

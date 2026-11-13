@@ -71,6 +71,7 @@ flock($fp, LOCK_UN);
 fclose($fp);
 
 $worldRocks = [];
+$worldResetSeq = 0;
 $wfp = @fopen($worldFile, 'c+');
 if ($wfp) {
     flock($wfp, LOCK_EX);
@@ -78,31 +79,43 @@ if ($wfp) {
     $wdata = $wc ? json_decode($wc, true) : [];
     if (!is_array($wdata)) $wdata = [];
     if (!isset($wdata['rocks']) || !is_array($wdata['rocks'])) $wdata['rocks'] = [];
-    $saveItems = [];
-    if (!empty($input['droppedRock']) && is_array($input['droppedRock'])) {
-        $saveItems[] = $input['droppedRock'];
-    }
-    if (!empty($input['droppedItems']) && is_array($input['droppedItems'])) {
-        foreach ($input['droppedItems'] as $di) {
-            if (is_array($di)) $saveItems[] = $di;
-        }
-    }
-    if (!empty($saveItems)) {
-        foreach ($saveItems as $dr) {
-            $rid = (int)($dr['id'] ?? -1);
-            if ($rid >= 0 && $rid < 256 && isset($dr['x'], $dr['y'], $dr['z'])) {
-                $wdata['rocks'][(string)$rid] = [
-                    round((float)$dr['x'], 3),
-                    round((float)$dr['y'], 3),
-                    round((float)$dr['z'], 3),
-                    round((float)($dr['ry'] ?? 0), 3)
-                ];
-            }
-        }
+    $worldResetSeq = (int)($wdata['resetSeq'] ?? 0);
+
+    if ($action === 'reset_world') {
+        $wdata['rocks'] = [];
+        $worldResetSeq++;
+        $wdata['resetSeq'] = $worldResetSeq;
         ftruncate($wfp, 0);
         rewind($wfp);
         fwrite($wfp, json_encode($wdata));
         fflush($wfp);
+    } else {
+        $saveItems = [];
+        if (!empty($input['droppedRock']) && is_array($input['droppedRock'])) {
+            $saveItems[] = $input['droppedRock'];
+        }
+        if (!empty($input['droppedItems']) && is_array($input['droppedItems'])) {
+            foreach ($input['droppedItems'] as $di) {
+                if (is_array($di)) $saveItems[] = $di;
+            }
+        }
+        if (!empty($saveItems)) {
+            foreach ($saveItems as $dr) {
+                $rid = (int)($dr['id'] ?? -1);
+                if ($rid >= 0 && $rid < 256 && isset($dr['x'], $dr['y'], $dr['z'])) {
+                    $wdata['rocks'][(string)$rid] = [
+                        round((float)$dr['x'], 3),
+                        round((float)$dr['y'], 3),
+                        round((float)$dr['z'], 3),
+                        round((float)($dr['ry'] ?? 0), 3)
+                    ];
+                }
+            }
+            ftruncate($wfp, 0);
+            rewind($wfp);
+            fwrite($wfp, json_encode($wdata));
+            fflush($wfp);
+        }
     }
     $worldRocks = $wdata['rocks'];
     flock($wfp, LOCK_UN);
@@ -120,6 +133,7 @@ echo json_encode([
     'ok' => true,
     'online' => count($players),
     'players' => $others,
-    'rocks' => $worldRocks
+    'rocks' => $worldRocks,
+    'resetSeq' => $worldResetSeq
 ]);
 
