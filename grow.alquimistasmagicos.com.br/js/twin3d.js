@@ -16,6 +16,7 @@
     let ledBarMat, ledLight, ambientLight;
     let ventoHelice, exaustHelice;
     let acVaneMat, acLedMat;
+    const mushrooms = []; // Cogumelos animados (pin -> crescimento -> flush -> reinício)
 
     // Partículas persistentes DENTRO da estufa (homogêneas em todas as prateleiras)
     const GROW_COUNT = 320;
@@ -356,28 +357,51 @@
         ductOut.position.set(-halfW - 0.15, 0.16, 0.35);
         group.add(ductOut);
 
-        // 2 estantes pretas internas com blocos de cogumelos (como na foto real!)
+        // 2 estantes pretas internas com bolos marrons em bandejas e cogumelos crescendo em flush!
         const rackMat = new THREE.MeshStandardMaterial({ color: 0x1e293b, roughness: 0.7 });
-        const subMat = new THREE.MeshStandardMaterial({ color: 0xf1f5f9, roughness: 0.85 });
-        const capMat = new THREE.MeshStandardMaterial({ color: 0xd97706, roughness: 0.6 });
+        const trayMat = new THREE.MeshStandardMaterial({ color: 0x94a3b8, metalness: 0.75, roughness: 0.3 });
+        const subMat = new THREE.MeshStandardMaterial({ color: 0x6b4f3a, roughness: 0.9 });
+        const capMat = new THREE.MeshStandardMaterial({ color: 0xd97706, roughness: 0.55 });
         const stemMat = new THREE.MeshStandardMaterial({ color: 0xfef3c7, roughness: 0.7 });
 
-        [-0.34, 0.34].forEach(rx => {
-            [0.35, 0.92, 1.48].forEach(sy => {
+        [-0.34, 0.34].forEach((rx, rIdx) => {
+            [0.35, 0.92, 1.48].forEach((sy, sIdx) => {
                 const shelf = new THREE.Mesh(new THREE.BoxGeometry(0.56, 0.025, 0.78), rackMat);
                 shelf.position.set(rx, sy, -0.08);
                 group.add(shelf);
-                const block = new THREE.Mesh(new THREE.BoxGeometry(0.42, 0.16, 0.56), subMat);
-                block.position.set(rx, sy + 0.09, -0.08);
+                const tray = new THREE.Mesh(new THREE.BoxGeometry(0.45, 0.04, 0.59), trayMat);
+                tray.position.set(rx, sy + 0.032, -0.08);
+                group.add(tray);
+                const block = new THREE.Mesh(new THREE.BoxGeometry(0.42, 0.14, 0.56), subMat);
+                block.position.set(rx, sy + 0.095, -0.08);
                 group.add(block);
-                for (let m = 0; m < 4; m++) {
-                    const mz = -0.26 + m * 0.13;
-                    const stem = new THREE.Mesh(new THREE.CylinderGeometry(0.011, 0.015, 0.08, 8), stemMat);
-                    stem.position.set(rx + (m % 2 === 0 ? 0.06 : -0.06), sy + 0.21, mz);
-                    group.add(stem);
-                    const cap = new THREE.Mesh(new THREE.SphereGeometry(0.032, 10, 8, 0, Math.PI * 2, 0, Math.PI * 0.55), capMat);
-                    cap.position.set(rx + (m % 2 === 0 ? 0.06 : -0.06), sy + 0.245, mz);
-                    group.add(cap);
+
+                // 9 cogumelos por bolo nascendo e crescendo em tempos variados
+                for (let m = 0; m < 9; m++) {
+                    const row = Math.floor(m / 3) - 1;
+                    const col = (m % 3) - 1;
+                    const mx = rx + col * 0.11 + (Math.random() - 0.5) * 0.04;
+                    const mz = -0.08 + row * 0.15 + (Math.random() - 0.5) * 0.04;
+
+                    const mushGroup = new THREE.Group();
+                    mushGroup.position.set(mx, sy + 0.165, mz);
+                    mushGroup.rotation.z = (Math.random() - 0.5) * 0.18;
+                    mushGroup.rotation.x = (Math.random() - 0.5) * 0.18;
+
+                    const stem = new THREE.Mesh(new THREE.CylinderGeometry(0.011, 0.016, 0.09, 8), stemMat);
+                    stem.position.y = 0.045;
+                    mushGroup.add(stem);
+
+                    const cap = new THREE.Mesh(new THREE.SphereGeometry(0.034, 10, 8, 0, Math.PI * 2, 0, Math.PI * 0.55), capMat);
+                    cap.position.y = 0.085;
+                    mushGroup.add(cap);
+
+                    group.add(mushGroup);
+                    mushrooms.push({
+                        mesh: mushGroup,
+                        delay: (rIdx * 0.04 + sIdx * 0.05 + m * 0.025) % 0.25,
+                        maxScale: 0.75 + Math.random() * 0.55
+                    });
                 }
             });
         });
@@ -861,6 +885,28 @@
 
         if (state.vento && ventoHelice) ventoHelice.rotation.x += 0.42;
         if (state.exaust && exaustHelice) exaustHelice.rotation.y += 0.46;
+
+        // Animação contínua de flush dos cogumelos (pinagem -> crescimento -> colheita -> reinício)
+        const flushCycle = (simTime * 0.055) % 1.0;
+        for (let i = 0; i < mushrooms.length; i++) {
+            const m = mushrooms[i];
+            const t = (flushCycle - m.delay + 1.0) % 1.0;
+            let sc = 0.001;
+            if (t < 0.55) {
+                // Nascendo e crescendo suavemente
+                const u = t / 0.55;
+                sc = (u * u * (3 - 2 * u)) * m.maxScale;
+            } else if (t < 0.80) {
+                // Maduro
+                sc = m.maxScale;
+            } else if (t < 0.92) {
+                // Colheita / sumindo
+                const u = 1.0 - (t - 0.80) / 0.12;
+                sc = Math.max(0.001, u * m.maxScale);
+            }
+            m.mesh.visible = sc > 0.02;
+            m.mesh.scale.set(sc, sc * 1.12, sc);
+        }
 
         stepFluidPhysics();
         renderer.render(scene, camera);
