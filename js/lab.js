@@ -33,6 +33,7 @@ document.addEventListener('DOMContentLoaded', () => {
     setInterval(atualizarConsoleAoVivo, 10000);
     iniciarMultiplayerTwin();
     iniciarJoystickMinecraft();
+    updateTwinFpsHintText(false);
 });
 
 function iniciarJoystickMinecraft() {
@@ -566,6 +567,23 @@ function toggleSimRele(k) {
 
 let twinFpsAtivo = false;
 
+function isMobileTouch() {
+    return (window.matchMedia && window.matchMedia('(pointer: coarse)').matches)
+        || (navigator.maxTouchPoints > 0 && /Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent));
+}
+
+function updateTwinFpsHintText(locked) {
+    const hint = document.getElementById('twinFpsHint');
+    if (!hint) return;
+    if (isMobileTouch()) {
+        hint.textContent = '🕹️ Círculo esq. anda • Arraste tela p/ olhar • Toque p/ pegar';
+    } else if (locked) {
+        hint.textContent = '🎯 Mouse travado • WASD andar • ESC libera / F sai';
+    } else {
+        hint.textContent = 'Clique na cena p/ travar mouse • WASD • Shift correr • Espaço pular • F sair';
+    }
+}
+
 function toggleTwinFpsUI() {
     twinFpsAtivo = !twinFpsAtivo;
     if (window.setTwinFpsMode) window.setTwinFpsMode(twinFpsAtivo);
@@ -574,22 +592,22 @@ function toggleTwinFpsUI() {
     const jumpBtn = document.getElementById('btnTwinJump');
     const hud = document.getElementById('twinFpsHud');
     const cross = document.getElementById('twinFpsCrosshair');
-    const hint = document.getElementById('twinFpsHint');
+    const mobile = isMobileTouch();
     if (btn) {
-        btn.textContent = twinFpsAtivo ? '🚶 Sair FPS (F)' : '🚶 Modo FPS';
+        btn.textContent = twinFpsAtivo ? (mobile ? '🚶 Sair FPS' : '🚶 Sair FPS (F)') : '🚶 Modo FPS';
         btn.className = twinFpsAtivo
             ? 'px-2.5 py-1 rounded-lg bg-cyan-500/25 border border-cyan-400/60 text-[10px] font-bold text-cyan-200 shrink-0'
             : 'px-2.5 py-1 rounded-lg bg-slate-950/85 hover:bg-slate-800 border border-cyan-500/40 text-[10px] font-bold text-cyan-300 shrink-0';
     }
-    if (joy) joy.classList.toggle('hidden', !twinFpsAtivo);
-    if (jumpBtn) jumpBtn.classList.toggle('hidden', !twinFpsAtivo);
+    if (joy) joy.style.display = (twinFpsAtivo && mobile) ? 'flex' : 'none';
+    if (jumpBtn) jumpBtn.style.display = (twinFpsAtivo && mobile) ? 'flex' : 'none';
     if (hud) hud.classList.toggle('hidden', !twinFpsAtivo);
     if (cross) cross.classList.toggle('hidden', !twinFpsAtivo);
     if (!twinFpsAtivo) {
         const dp = document.getElementById('twinDoorPrompt');
         if (dp) dp.classList.add('hidden');
     }
-    if (hint && !twinFpsAtivo) hint.textContent = 'Clique na cena p/ ocultar mouse • WASD • Espaço pular • Shift correr';
+    updateTwinFpsHintText(false);
 }
 
 window.onTwinDoorHint = function (near, isOpen) {
@@ -600,11 +618,7 @@ window.onTwinDoorHint = function (near, isOpen) {
 };
 
 window.onTwinPointerLockChange = function (locked) {
-    const hint = document.getElementById('twinFpsHint');
-    if (!hint) return;
-    hint.textContent = locked
-        ? '🎯 Mouse travado • WASD andar • ESC libera / F sai'
-        : 'Clique na cena p/ ocultar mouse • WASD • F sair';
+    updateTwinFpsHintText(locked);
 };
 
 document.addEventListener('keydown', (e) => {
