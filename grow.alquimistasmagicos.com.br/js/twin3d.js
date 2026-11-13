@@ -1188,12 +1188,15 @@
         const pointerNdc = new THREE.Vector2();
 
         el.addEventListener('pointerdown', (e) => {
+            if (e.isPrimary === false) return;
             cam.dragging = true;
+            cam.pinchDist = 0;
             cam.downX = e.clientX; cam.downY = e.clientY;
             cam.lastX = e.clientX; cam.lastY = e.clientY;
         });
         window.addEventListener('pointermove', (e) => {
             if (cam.dragging) {
+                if (e.isPrimary === false || cam.pinchDist > 0) return;
                 const dx = e.clientX - cam.lastX;
                 const dy = e.clientY - cam.lastY;
                 if (cam.mode === 'fps') {
@@ -1279,9 +1282,12 @@
         const w = container.clientWidth, h = container.clientHeight;
         if (w > 0 && h > 0) {
             const dpr = Math.min(window.devicePixelRatio || 1, 2);
-            if (renderer.domElement.width !== Math.floor(w * dpr) || renderer.domElement.height !== Math.floor(h * dpr)) {
+            const aspect = w / h;
+            const targetFov = aspect < 0.85 ? 54 : 44;
+            if (renderer.domElement.width !== Math.floor(w * dpr) || renderer.domElement.height !== Math.floor(h * dpr) || camera.fov !== targetFov) {
                 renderer.setSize(w, h, false);
-                camera.aspect = w / h;
+                camera.aspect = aspect;
+                camera.fov = targetFov;
                 camera.updateProjectionMatrix();
             }
         }

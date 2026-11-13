@@ -459,37 +459,39 @@ function toggleAutoRotUI() {
 
 let twinCssFullscreen = false;
 
+function getNativeFullscreenEl() {
+    return document.fullscreenElement || document.webkitFullscreenElement || null;
+}
+
 function syncTwinFullscreenUI() {
     const card = document.getElementById('twinCanvasCard');
     const cont = document.getElementById('twin3dContainer');
     const btn = document.getElementById('btnTwinFullscreen');
-    const ativo = !!document.fullscreenElement || twinCssFullscreen;
+    const ativo = !!getNativeFullscreenEl() || twinCssFullscreen;
 
     if (card) {
-        card.classList.toggle('fixed', twinCssFullscreen && !document.fullscreenElement);
-        card.classList.toggle('inset-0', twinCssFullscreen && !document.fullscreenElement);
-        card.classList.toggle('z-50', twinCssFullscreen && !document.fullscreenElement);
-        card.classList.toggle('rounded-none', ativo);
-        card.classList.toggle('rounded-2xl', !ativo);
+        card.classList.toggle('twin-fullscreen-active', ativo);
     }
     if (cont) {
-        cont.classList.toggle('h-screen', ativo);
         cont.classList.toggle('h-[360px]', !ativo);
         cont.classList.toggle('sm:h-[460px]', !ativo);
     }
+    document.body.style.overflow = ativo ? 'hidden' : '';
     if (btn) {
-        btn.textContent = ativo ? '🗗 Sair Tela Cheia' : '⛶ Tela Cheia';
+        btn.textContent = ativo ? '🗗 Sair' : '⛶ Tela Cheia';
         btn.className = ativo
-            ? 'px-2.5 py-1 rounded-lg bg-emerald-500/25 border border-emerald-400/60 text-[10px] font-bold text-emerald-200'
-            : 'px-2.5 py-1 rounded-lg bg-slate-950/85 hover:bg-slate-800 border border-slate-700 text-[10px] font-bold text-slate-200';
+            ? 'px-2.5 py-1 rounded-lg bg-emerald-500/25 border border-emerald-400/60 text-[10px] font-bold text-emerald-200 shrink-0'
+            : 'px-2.5 py-1 rounded-lg bg-slate-950/85 hover:bg-slate-800 border border-slate-700 text-[10px] font-bold text-slate-200 shrink-0';
     }
+    setTimeout(() => window.dispatchEvent(new Event('resize')), 60);
 }
 
 async function toggleTwinFullscreen() {
     const card = document.getElementById('twinCanvasCard');
     if (!card) return;
-    if (document.fullscreenElement) {
-        await document.exitFullscreen().catch(() => {});
+    if (getNativeFullscreenEl()) {
+        const exitFn = document.exitFullscreen || document.webkitExitFullscreen;
+        if (exitFn) await exitFn.call(document).catch(() => {});
         twinCssFullscreen = false;
         syncTwinFullscreenUI();
         return;
@@ -499,20 +501,30 @@ async function toggleTwinFullscreen() {
         syncTwinFullscreenUI();
         return;
     }
-    if (card.requestFullscreen) {
+    const reqFn = card.requestFullscreen || card.webkitRequestFullscreen;
+    if (reqFn) {
         try {
-            await card.requestFullscreen();
+            await reqFn.call(card);
             syncTwinFullscreenUI();
             return;
-        } catch (e) { /* fallback CSS abaixo */ }
+        } catch (e) { /* iPhone Safari / WebView usa fallback CSS 100dvh */ }
     }
     twinCssFullscreen = true;
     syncTwinFullscreenUI();
 }
 
 document.addEventListener('fullscreenchange', () => {
-    if (!document.fullscreenElement) twinCssFullscreen = false;
+    if (!getNativeFullscreenEl()) twinCssFullscreen = false;
     syncTwinFullscreenUI();
+});
+document.addEventListener('webkitfullscreenchange', () => {
+    if (!getNativeFullscreenEl()) twinCssFullscreen = false;
+    syncTwinFullscreenUI();
+});
+window.addEventListener('orientationchange', () => {
+    setTimeout(() => {
+        if (twinCssFullscreen || getNativeFullscreenEl()) syncTwinFullscreenUI();
+    }, 150);
 });
 
 document.addEventListener('keydown', (e) => {
