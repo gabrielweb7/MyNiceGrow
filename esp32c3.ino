@@ -5,7 +5,7 @@
 //  Versão Atual: v451 (Sifão Exclusivo Pós-AC, FAE Protegido & Pré-AC Evap Sem Exaustão)
 // ============================================================
 
-#define FW_VERSION 451
+#define FW_VERSION 452
 
 #include <Arduino.h>
 #include <ArduinoJson.h>
