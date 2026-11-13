@@ -785,20 +785,6 @@ function calcularProjecaoTermica({
                 tIntPlot = tIntBase + faeOffset;
             } else {
                 if (simArOn) {
-                    // Queda exponencial natural em direção ao alvo pós-meta (curva orgânica em vez de V seco)
-                    const gapMeta = Math.max(0, tIntBase - tAlvoPos);
-                    const kCoolGrow = Math.min(0.14, Math.max(0.028, avgCoolRate / Math.max(1.2, (tMeta - tMetaOff) + 0.7)));
-                    const expPull = gapMeta * (1 - Math.exp(-kCoolGrow * subDtMin));
-                    const linearFloor = Math.min(avgCoolRate * subDtMin, gapMeta);
-                    const stepCool = Math.min(gapMeta, 0.55 * expPull + 0.45 * linearFloor) + (isSifaoExaustOn && tExtSim < tIntBase ? 0.015 * (tIntBase - tExtSim) : 0);
-                    tIntBase = tIntBase - stepCool;
-                    tIntPlot = tIntBase;
-                } else if (arState === 2 || !cfgProj) {
-                    simArOn = false;
-                    tIntBase += dNaturalStep;
-                    tIntPlot = tIntBase + faeOffset;
-                } else {
-                    if (simArOn) {
                         // Queda exponencial natural em direção ao alvo pós-meta (curva orgânica em vez de V seco)
                         const gapMeta = Math.max(0, tIntBase - tAlvoPos);
                         const kCoolGrow = Math.min(0.14, Math.max(0.028, avgCoolRate / Math.max(1.2, (tMeta - tMetaOff) + 0.7)));
