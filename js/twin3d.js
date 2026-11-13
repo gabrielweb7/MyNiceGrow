@@ -630,7 +630,8 @@
         simTime += 0.025;
         const topHeatBonus = state.luz ? 1.1 : 0.0;
 
-        growPoints.material.size += ((state.umid ? 0.22 : 0.16) - growPoints.material.size) * 0.08;
+        const humMistRatio = state.humInt <= 93.0 ? 0.0 : Math.min(0.48, Math.pow((state.humInt - 93.0) / 7.0, 1.8) * 0.48);
+        growPoints.material.size += (((state.umid || humMistRatio > 0.20) ? 0.21 : 0.16) - growPoints.material.size) * 0.08;
 
         const tentAirflow = state.vento || state.exaust;
         const tentCurl = tentAirflow ? 0.00055 : (state.umid ? 0.00028 : 0.00009);
@@ -679,7 +680,7 @@
             p.x += p.vx; p.y += p.vy; p.z += p.vz;
 
             const localGoal = state.tempInt + (p.y > 1.8 ? topHeatBonus : 0);
-            p.temp += (localGoal - p.temp) * 0.015;
+            p.temp += (localGoal - p.temp) * 0.045;
 
             // Se saiu pelo duto inferior esquerdo (durante exaustão), entra ar novo pelo TOPO (conservação de massa!)
             if (state.exaust && (p.x - GX) < -halfW - 0.05 && p.y < 0.45) {
@@ -713,7 +714,8 @@
             }
 
             growPos[i * 3] = p.x; growPos[i * 3 + 1] = p.y; growPos[i * 3 + 2] = p.z;
-            const [r, g, b] = tempToRGB(p.temp, p.mist && state.umid);
+            const showVapor = ((i / GROW_COUNT) < humMistRatio) || (p.mist && state.umid);
+            const [r, g, b] = tempToRGB(p.temp, showVapor);
             growCol[i * 3] = r; growCol[i * 3 + 1] = g; growCol[i * 3 + 2] = b;
         }
         growPoints.geometry.attributes.position.needsUpdate = true;
@@ -724,7 +726,7 @@
         // ============================================================
         // Campo de convecção, jato + retorno do AC Split, calor da janela,
         // sucção no topo da estufa e descarga pelo duto inferior esquerdo.
-        const acColdTemp = Math.min(20.5, state.tempExt - 4.0);
+        const acColdTemp = Math.min(18.5, state.tempExt - 6.0);
         const topExX = GX + 0.05, topExY = H + 0.15, topExZ = GZ - 0.20;
         const ductOutX = GX - halfW - 0.36, ductOutY = 0.16, ductOutZ = GZ + 0.35;
 
@@ -756,31 +758,36 @@
 
             // 4. Ar-Condicionado Split Inverter (acima da janela: x=-2.26, y=2.60, z=-0.35)
             if (state.ar) {
-                // Jato frio saindo da aleta inferior do Split para o quarto
-                if (p.x > -2.35 && p.x < -0.4 && p.y > 1.75 && p.y < 2.75 && Math.abs(p.z + 0.35) < 0.75) {
+                // Jato frio saindo da aleta inferior do Split e preenchendo o quarto
+                const jetCenterY = 2.60 - Math.max(0, p.x + 2.26) * 0.42;
+                if (p.x > -2.35 && p.x < 2.2 && Math.abs(p.y - jetCenterY) < 0.72 && Math.abs(p.z + 0.35) < 1.35) {
                     const distJet = Math.max(0.2, p.x + 2.35);
-                    const force = 0.0085 / (0.4 + distJet);
+                    const force = 0.0125 / (0.45 + distJet * 0.55);
                     p.vx += force;
-                    p.vy -= force * 0.42;
-                    p.temp += (acColdTemp - p.temp) * 0.14;
+                    p.vy -= force * 0.36;
+                    p.vz += (Math.sin(p.x * 1.3 + simTime) * 0.0012);
+                    p.temp += (acColdTemp - p.temp) * 0.16;
                 }
+                // Circulação global do ar frio pelo quarto inteiro (desce à direita, retorna por baixo/topo)
+                p.vx += (p.y > 1.55 ? 0.00085 : -0.00055);
+                p.vy += (p.x > 0.8 ? -0.00045 : 0.00020);
                 // Sucção de retorno no topo do Split (fecha a célula de convecção do quarto!)
                 const rx = -2.30 - p.x;
                 const ry = 2.95 - p.y;
                 const rz = -0.35 - p.z;
                 const dRet = Math.hypot(rx, ry, rz) + 0.3;
-                if (dRet < 2.6 && p.y > 2.2) {
-                    const pull = 0.0045 / (0.5 + dRet);
+                if (dRet < 2.8 && p.y > 2.1) {
+                    const pull = 0.0050 / (0.5 + dRet);
                     p.vx += (rx / dRet) * pull;
                     p.vy += (ry / dRet) * pull;
                     p.vz += (rz / dRet) * pull;
                 }
                 // Ar que passa muito perto do retorno do AC é resfriado e soprado pela aleta
-                if (p.x < -2.12 && p.y > 2.72 && Math.abs(p.z + 0.35) < 0.6) {
+                if (p.x < -2.10 && p.y > 2.70 && Math.abs(p.z + 0.35) < 0.65) {
                     p.y = 2.58;
                     p.x = -2.22;
-                    p.vx = 0.038;
-                    p.vy = -0.016;
+                    p.vx = 0.044;
+                    p.vy = -0.018;
                     p.temp = acColdTemp;
                 }
             }
@@ -811,9 +818,9 @@
             }
 
             // Difusão térmica em tempo real: acompanha tempExt do quarto e gela progressivamente quando AC liga!
-            const acCoolSpread = state.ar ? (1.8 + Math.max(0, 1.0 - (p.x + 2.4) * 0.18) * 1.4) : 0.0;
-            const goalRoom = (state.tempExt - acCoolSpread) + (p.y / 3.4 - 0.5) * 0.6;
-            p.temp += (goalRoom - p.temp) * (state.ar ? 0.025 : 0.015);
+            const acCoolSpread = state.ar ? (2.6 + Math.max(0, 1.0 - (p.x + 2.4) * 0.14) * 2.2) : 0.0;
+            const goalRoom = (state.tempExt - acCoolSpread) + (p.y / 3.4 - 0.5) * 0.5;
+            p.temp += (goalRoom - p.temp) * 0.04;
 
             p.vx *= roomDamp; p.vy *= roomDamp; p.vz *= roomDamp;
             p.x += p.vx; p.y += p.vy; p.z += p.vz;
@@ -979,9 +986,9 @@
             camera.lookAt(lookX, lookY, lookZ);
         }
 
-        ledLight.intensity += ((state.luz ? 1.85 : 0.0) - ledLight.intensity) * 0.12;
-        ledBarMat.emissiveIntensity = state.luz ? 1.4 : 0.05;
-        ambientLight.intensity = state.luz ? 0.95 : 0.72;
+        ledLight.intensity += ((state.luz ? 0.75 : 0.0) - ledLight.intensity) * 0.12;
+        ledBarMat.emissiveIntensity = state.luz ? 0.85 : 0.05;
+        ambientLight.intensity = state.luz ? 0.80 : 0.72;
         acVaneMat.emissiveIntensity = state.ar ? 0.85 : 0.05;
         acLedMat.color.setHex(state.ar ? 0x38bdf8 : 0x475569);
         if (acVanePivot) {
