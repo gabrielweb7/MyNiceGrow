@@ -62,7 +62,7 @@ function calcularProjecaoTermica({
         const FAE_LEN = 18;
         const duracoesCicloMin = [], coolRatesObs = [], dropsObs = [], roomCoolRatesObs = [], roomDropsObs = [], minRoomTempsObs = [];
         const roomReboundFastObs = [], roomReboundSlowObs = [], growWarmRatesObs = [], sifaoMixRatesObs = [];
-        const humExaustRatesObs = [], humUmidRiseObs = [];
+        const humExaustRatesObs = [], humUmidRiseObs = [], humArRatesObs = [];
         const roomCeilingObs = [], newtonRoomPairs = [];
         const hourOffsetSum = new Array(24).fill(0), hourOffsetW = new Array(24).fill(0);
         const sumFaeDelta = new Array(FAE_LEN + 1).fill(0);
@@ -216,6 +216,9 @@ function calcularProjecaoTermica({
                         } else if (!exOn && !prevEx && umOn && prevUm && prevHi < 97.5 && hItem > prevHi) {
                             const rUp = (hItem - prevHi) / dtM;
                             if (rUp > 0.5 && rUp < 9.0) humUmidRiseObs.push(rUp);
+                        } else if (arOn && prevAr && !exOn && !prevEx && !umOn && !prevUm && hItem < prevHi) {
+                            const rArDrop = (prevHi - hItem) / dtM;
+                            if (rArDrop > 0.02 && rArDrop < 0.85) humArRatesObs.push(rArDrop);
                         }
                     }
                 }
@@ -443,12 +446,13 @@ function calcularProjecaoTermica({
         const avgRoomDropAc = calcMediana(roomDropsObs, 2.2, 1.2, 4.2);
         const avgMinRoomAc = calcMediana(minRoomTempsObs, (tRoomNatNow - 2.4), 16.0, 32.0);
         const tRoomCycleRef = acCycleRefCnt > 0 ? (acCycleRefSum / acCycleRefCnt) : tRoomNatNow;
-        const kRoomReboundFast = calcMediana(roomReboundFastObs, 0.085, 0.030, 0.24);
-        const kRoomDriftSlow = calcMediana(roomReboundSlowObs, Math.min(0.045, kRoomReboundFast * 0.50), 0.015, 0.09);
+        const kRoomReboundFast = calcMediana(roomReboundFastObs, 0.065, 0.025, 0.11);
+        const kRoomDriftSlow = calcMediana(roomReboundSlowObs, Math.min(0.035, kRoomReboundFast * 0.45), 0.012, 0.055);
         const kGrowWarm = calcMediana(growWarmRatesObs, 0.036, 0.015, 0.11);
         const kSifaoMix = calcMediana(sifaoMixRatesObs, 0.11, 0.04, 0.25);
         const kHumExaust = calcMediana(humExaustRatesObs, 0.082, 0.035, 0.22);
         const rHumUmidUp = calcMediana(humUmidRiseObs, 3.6, 1.4, 7.5);
+        const rHumArDrop = calcMediana(humArRatesObs, 0.12, 0.03, 0.55);
         const avgDropPostMeta = dropsObs.length > 0
             ? Math.max(0.5, Math.min(1.4, calcMediana(dropsObs, 1.2, 0.4, 3.0) * 0.45))
             : 0.7;
@@ -586,9 +590,9 @@ function calcularProjecaoTermica({
                     const hSimInfo = getHourOffsetInfo(hSim);
                     const refOffBase = (baseHourInfo.val !== null && baseHourInfo.w >= 0.8) ? baseHourInfo.val : offsetBaseGlobal;
                     let deltaHorario = 0;
-                    if (hSimInfo.val !== null && refOffBase !== null && hSimInfo.w >= 0.8) {
-                        const wBlendH = Math.min(0.65, hSimInfo.w / 6.0);
-                        deltaHorario = Math.max(-2.2, Math.min(2.2, (hSimInfo.val - refOffBase))) * wBlendH;
+                    if (hSimInfo.val !== null && refOffBase !== null && hSimInfo.w >= 1.5) {
+                        const wBlendH = Math.min(0.35, hSimInfo.w / 10.0);
+                        deltaHorario = Math.max(-1.5, Math.min(1.5, (hSimInfo.val - refOffBase))) * wBlendH;
                     }
                     const tRoomTarget = tRoomNatNow + (mPt.tRua - meteoBase.tRua) * fatorParede + deltaHorario;
                     tRoomEqSim += (tRoomTarget - tRoomEqSim) * (1 - Math.exp(-subDtMin / 65));
@@ -601,7 +605,7 @@ function calcularProjecaoTermica({
                     ? Math.max(15.5, avgMinRoomAc + (tRoomEqSim - tRoomCycleRef) * 0.30)
                     : Math.max(16.0, tRoomEqSim - Math.max(2.0, avgRoomDropAc));
                 if (tExtSim > floorSalaAc) {
-                    const kRoomCool = Math.max(0.06, Math.min(0.20, avgRoomCoolRate / Math.max(1.2, avgRoomDropAc)));
+                    const kRoomCool = Math.max(0.045, Math.min(0.10, avgRoomCoolRate / Math.max(1.2, avgRoomDropAc)));
                     tExtSim += (floorSalaAc - tExtSim) * (1 - Math.exp(-kRoomCool * subDtMin));
                 }
             } else {
@@ -740,6 +744,8 @@ function calcularProjecaoTermica({
             } else if (isUmidOn) {
                 const fatorTopo = simHumInt > 96.5 ? Math.max(0.35, (100.2 - simHumInt) / 3.7) : 1.0;
                 simHumInt = Math.min(100.0, simHumInt + (rHumUmidUp * fatorTopo) * subDtMin);
+            } else if (simArOn) {
+                simHumInt = Math.max(70.0, simHumInt - rHumArDrop * subDtMin);
             } else {
                 simHumInt += (uAlvoSim - simHumInt) * Math.min(1, 0.04 * subDtMin);
             }
