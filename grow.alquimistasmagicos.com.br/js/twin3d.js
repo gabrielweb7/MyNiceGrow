@@ -13,7 +13,7 @@
     let initialized = false;
     let simTime = 0;
 
-    let ledBarMat, ledLight, ambientLight;
+    let ledBarMat, ledLight, ledConeMat, ambientLight;
     let ventoHelice, exaustHelice;
     let acVaneMat, acLedMat, acVanePivot;
     let espHeartbeatMat, relayLedMats = {};
@@ -137,24 +137,40 @@
         const floor = new THREE.Mesh(new THREE.PlaneGeometry(7.2, 5.8), floorMat);
         floor.rotation.x = -Math.PI / 2;
         floor.position.set(0.3, 0, 0.3);
+        floor.receiveShadow = true;
         room.add(floor);
 
         // Parede do fundo
         const backWall = new THREE.Mesh(new THREE.PlaneGeometry(7.2, 3.6), wallMat);
         backWall.position.set(0.3, 1.8, -2.1);
+        backWall.receiveShadow = true;
         room.add(backWall);
 
         // Parede esquerda (com janela e Split Inverter)
         const leftWall = new THREE.Mesh(new THREE.PlaneGeometry(5.8, 3.6), wallMat);
         leftWall.rotation.y = Math.PI / 2;
         leftWall.position.set(-2.6, 1.8, 0.3);
+        leftWall.receiveShadow = true;
         room.add(leftWall);
 
         // Parede direita (fecha o quarto para o modo FPS)
         const rightWall = new THREE.Mesh(new THREE.PlaneGeometry(5.8, 3.6), wallMat);
         rightWall.rotation.y = -Math.PI / 2;
         rightWall.position.set(3.5, 1.8, 0.3);
+        rightWall.receiveShadow = true;
         room.add(rightWall);
+
+        // Rodapés modernos nas paredes
+        const baseMat = new THREE.MeshStandardMaterial({ color: 0x64748b, roughness: 0.55 });
+        const baseBack = new THREE.Mesh(new THREE.BoxGeometry(6.1, 0.09, 0.025), baseMat);
+        baseBack.position.set(0.45, 0.045, -2.09);
+        room.add(baseBack);
+        const baseLeft = new THREE.Mesh(new THREE.BoxGeometry(0.025, 0.09, 4.6), baseMat);
+        baseLeft.position.set(-2.59, 0.045, 0.2);
+        room.add(baseLeft);
+        const baseRight = new THREE.Mesh(new THREE.BoxGeometry(0.025, 0.09, 4.6), baseMat);
+        baseRight.position.set(3.49, 0.045, 0.2);
+        room.add(baseRight);
 
         // Parede frontal + Porta (visíveis apenas no modo FPS para não obstruir a câmera 360°)
         frontWallGroup = new THREE.Group();
@@ -307,6 +323,18 @@
         });
         room.add(ctrlGroup);
 
+        // Cabo preto ligando o controlador ESP32 à estufa
+        const wireCurve = new THREE.CatmullRomCurve3([
+            new THREE.Vector3(rx - 0.47, 0.94, rz + 0.24),
+            new THREE.Vector3(rx - 0.62, 0.72, rz + 0.28),
+            new THREE.Vector3(GX + halfW, 0.85, GZ + 0.25)
+        ]);
+        const wire = new THREE.Mesh(
+            new THREE.TubeGeometry(wireCurve, 12, 0.008, 6, false),
+            new THREE.MeshStandardMaterial({ color: 0x0f172a, roughness: 0.7 })
+        );
+        room.add(wire);
+
         // Estante aramada de SPAWNS mais à direita (como na 3ª foto!)
         const sx = 2.35, sz = -0.85;
         const chromeMat = new THREE.MeshStandardMaterial({ color: 0xcbd5e1, metalness: 0.85, roughness: 0.25 });
@@ -316,18 +344,51 @@
             const p = new THREE.Mesh(new THREE.BoxGeometry(1.15, 0.025, 0.52), chromeMat);
             p.position.set(sx, sy, sz);
             room.add(p);
-            // Sacos de spawn dourados em cima
-            const matSaco = idx >= 2 ? grainMat : subBagMat;
-            for (let k = -2; k <= 2; k++) {
-                const bag = new THREE.Mesh(new THREE.BoxGeometry(0.18, 0.26, 0.24), matSaco);
-                bag.position.set(sx + k * 0.21, sy + 0.145, sz);
-                room.add(bag);
+            if (idx === 2) {
+                // Placas de Petri empilhadas na estante (como na foto real)
+                [0x86efac, 0xfef08a, 0xbae6fd, 0xe2e8f0].forEach((col, pIdx) => {
+                    for (let st = 0; st < 4; st++) {
+                        const dish = new THREE.Mesh(
+                            new THREE.CylinderGeometry(0.048, 0.048, 0.014, 14),
+                            new THREE.MeshStandardMaterial({ color: col, roughness: 0.2, transparent: true, opacity: 0.82 })
+                        );
+                        dish.position.set(sx - 0.35 + pIdx * 0.14, sy + 0.022 + st * 0.015, sz + 0.08);
+                        room.add(dish);
+                    }
+                });
+                for (let k = 1; k <= 2; k++) {
+                    const bag = new THREE.Mesh(new THREE.BoxGeometry(0.18, 0.26, 0.24), grainMat);
+                    bag.position.set(sx + k * 0.21, sy + 0.145, sz - 0.06);
+                    room.add(bag);
+                }
+            } else {
+                const matSaco = idx >= 2 ? grainMat : subBagMat;
+                for (let k = -2; k <= 2; k++) {
+                    const bag = new THREE.Mesh(new THREE.BoxGeometry(0.18, 0.26, 0.24), matSaco);
+                    bag.position.set(sx + k * 0.21, sy + 0.145, sz);
+                    room.add(bag);
+                }
             }
         });
         [[-0.55, -0.24], [0.55, -0.24], [-0.55, 0.24], [0.55, 0.24]].forEach(([ox, oz]) => {
             const leg = new THREE.Mesh(new THREE.CylinderGeometry(0.018, 0.018, 2.0, 8), chromeMat);
             leg.position.set(sx + ox, 1.0, sz + oz);
             room.add(leg);
+        });
+
+        // Caixa organizadora translúcida no chão ao lado da estante de spawns
+        const tub = new THREE.Mesh(
+            new THREE.BoxGeometry(0.46, 0.26, 0.34),
+            new THREE.MeshStandardMaterial({ color: 0xe2e8f0, roughness: 0.35, transparent: true, opacity: 0.55 })
+        );
+        tub.position.set(sx - 0.82, 0.13, sz + 0.34);
+        room.add(tub);
+
+        room.traverse(obj => {
+            if (obj.isMesh && obj !== floor && obj !== backWall && obj !== leftWall && obj !== rightWall && obj !== ceiling && obj !== frontWall) {
+                obj.castShadow = true;
+                obj.receiveShadow = true;
+            }
         });
 
         return room;
@@ -501,6 +562,17 @@
         ledLight = new THREE.PointLight(0xfef9c3, 0, 4.5, 1.5);
         ledLight.position.set(-0.15, H - 0.22, -0.1);
         group.add(ledLight);
+
+        ledConeMat = new THREE.MeshBasicMaterial({
+            color: 0xfef9c3,
+            transparent: true,
+            opacity: 0.0,
+            depthWrite: false,
+            side: THREE.DoubleSide
+        });
+        const ledCone = new THREE.Mesh(new THREE.CylinderGeometry(0.14, 0.68, 1.35, 18, 1, true), ledConeMat);
+        ledCone.position.set(-0.15, H - 0.82, -0.1);
+        group.add(ledCone);
 
         // Ventilador Interno (canto superior direito)
         const fanHousing = new THREE.Mesh(new THREE.CylinderGeometry(0.13, 0.13, 0.07, 16), rackMat);
@@ -988,6 +1060,7 @@
 
         ledLight.intensity += ((state.luz ? 0.75 : 0.0) - ledLight.intensity) * 0.12;
         ledBarMat.emissiveIntensity = state.luz ? 0.85 : 0.05;
+        if (ledConeMat) ledConeMat.opacity += ((state.luz ? 0.045 : 0.0) - ledConeMat.opacity) * 0.12;
         ambientLight.intensity = state.luz ? 0.80 : 0.72;
         acVaneMat.emissiveIntensity = state.ar ? 0.85 : 0.05;
         acLedMat.color.setHex(state.ar ? 0x38bdf8 : 0x475569);
@@ -1053,16 +1126,29 @@
         renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: 'high-performance' });
         renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
         renderer.setSize(w, h, false);
+        renderer.shadowMap.enabled = true;
+        renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+        renderer.toneMapping = THREE.ACESFilmicToneMapping;
+        renderer.toneMappingExposure = 1.05;
         renderer.domElement.style.width = '100%';
         renderer.domElement.style.height = '100%';
         renderer.domElement.style.display = 'block';
         container.innerHTML = '';
         container.appendChild(renderer.domElement);
 
-        ambientLight = new THREE.AmbientLight(0xffffff, 0.75);
+        ambientLight = new THREE.AmbientLight(0xffffff, 0.70);
         scene.add(ambientLight);
-        const keyLight = new THREE.DirectionalLight(0xfffbeb, 0.95);
-        keyLight.position.set(3.0, 5.5, 4.5);
+        const keyLight = new THREE.DirectionalLight(0xfffbeb, 0.92);
+        keyLight.position.set(2.5, 4.8, 3.8);
+        keyLight.castShadow = true;
+        keyLight.shadow.mapSize.set(1024, 1024);
+        keyLight.shadow.camera.left = -4.2;
+        keyLight.shadow.camera.right = 4.2;
+        keyLight.shadow.camera.top = 4.2;
+        keyLight.shadow.camera.bottom = -4.2;
+        keyLight.shadow.camera.near = 0.5;
+        keyLight.shadow.camera.far = 14;
+        keyLight.shadow.bias = -0.0008;
         scene.add(keyLight);
         const winLight = new THREE.DirectionalLight(0xbae6fd, 0.45);
         winLight.position.set(-4, 2.5, 1);
