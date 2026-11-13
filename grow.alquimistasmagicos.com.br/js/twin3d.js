@@ -1189,12 +1189,26 @@
 
         el.addEventListener('pointerdown', (e) => {
             if (e.isPrimary === false) return;
+            if (cam.mode === 'fps' && e.pointerType === 'mouse' && document.pointerLockElement !== el && el.requestPointerLock) {
+                try { el.requestPointerLock(); } catch (err) {}
+            }
             cam.dragging = true;
             cam.pinchDist = 0;
             cam.downX = e.clientX; cam.downY = e.clientY;
             cam.lastX = e.clientX; cam.lastY = e.clientY;
         });
+        document.addEventListener('pointerlockchange', () => {
+            const locked = document.pointerLockElement === el;
+            if (typeof window.onTwinPointerLockChange === 'function') {
+                window.onTwinPointerLockChange(locked);
+            }
+        });
         window.addEventListener('pointermove', (e) => {
+            if (cam.mode === 'fps' && document.pointerLockElement === el) {
+                cam.fpsYaw -= (e.movementX || 0) * 0.0022;
+                cam.fpsPitch = Math.max(-1.1, Math.min(1.1, cam.fpsPitch - (e.movementY || 0) * 0.0020));
+                return;
+            }
             if (cam.dragging) {
                 if (e.isPrimary === false || cam.pinchDist > 0) return;
                 const dx = e.clientX - cam.lastX;
@@ -1283,7 +1297,7 @@
         if (w > 0 && h > 0) {
             const dpr = Math.min(window.devicePixelRatio || 1, 2);
             const aspect = w / h;
-            const targetFov = aspect < 0.85 ? 54 : 44;
+            const targetFov = cam.mode === 'fps' ? (aspect < 0.85 ? 76 : 68) : (aspect < 0.85 ? 54 : 44);
             if (renderer.domElement.width !== Math.floor(w * dpr) || renderer.domElement.height !== Math.floor(h * dpr) || camera.fov !== targetFov) {
                 renderer.setSize(w, h, false);
                 camera.aspect = aspect;
@@ -1547,9 +1561,12 @@
     window.setTwinFpsMode = function (ativo) {
         cam.mode = ativo ? 'fps' : 'orbit';
         if (frontWallGroup) frontWallGroup.visible = !!ativo;
+        cam.keys = { w: false, s: false, a: false, d: false };
         if (ativo) {
-            cam.fpsX = 0.45; cam.fpsY = 1.65; cam.fpsZ = 1.65;
-            cam.fpsYaw = 0.22; cam.fpsPitch = -0.06;
+            cam.fpsX = 1.15; cam.fpsY = 1.62; cam.fpsZ = 1.85;
+            cam.fpsYaw = 0.42; cam.fpsPitch = -0.05;
+        } else if (document.pointerLockElement && document.exitPointerLock) {
+            try { document.exitPointerLock(); } catch (e) {}
         }
         return cam.mode === 'fps';
     };

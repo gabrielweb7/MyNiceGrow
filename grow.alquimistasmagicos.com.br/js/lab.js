@@ -432,14 +432,35 @@ function toggleTwinFpsUI() {
     if (window.setTwinFpsMode) window.setTwinFpsMode(twinFpsAtivo);
     const btn = document.getElementById('btnTwinFps');
     const pad = document.getElementById('twinFpsPad');
+    const hud = document.getElementById('twinFpsHud');
+    const cross = document.getElementById('twinFpsCrosshair');
+    const hint = document.getElementById('twinFpsHint');
     if (btn) {
-        btn.textContent = twinFpsAtivo ? '🚶 FPS Ativo (WASD)' : '🚶 Modo FPS';
+        btn.textContent = twinFpsAtivo ? '🚶 Sair FPS (F)' : '🚶 Modo FPS';
         btn.className = twinFpsAtivo
-            ? 'px-2.5 py-1 rounded-lg bg-cyan-500/25 border border-cyan-400/60 text-[10px] font-bold text-cyan-200'
-            : 'px-2.5 py-1 rounded-lg bg-slate-950/85 hover:bg-slate-800 border border-cyan-500/40 text-[10px] font-bold text-cyan-300';
+            ? 'px-2.5 py-1 rounded-lg bg-cyan-500/25 border border-cyan-400/60 text-[10px] font-bold text-cyan-200 shrink-0'
+            : 'px-2.5 py-1 rounded-lg bg-slate-950/85 hover:bg-slate-800 border border-cyan-500/40 text-[10px] font-bold text-cyan-300 shrink-0';
     }
     if (pad) pad.classList.toggle('hidden', !twinFpsAtivo);
+    if (hud) hud.classList.toggle('hidden', !twinFpsAtivo);
+    if (cross) cross.classList.toggle('hidden', !twinFpsAtivo);
+    if (hint && !twinFpsAtivo) hint.textContent = 'Clique na cena p/ ocultar mouse • WASD • F sair';
 }
+
+window.onTwinPointerLockChange = function (locked) {
+    const hint = document.getElementById('twinFpsHint');
+    if (!hint) return;
+    hint.textContent = locked
+        ? '🎯 Mouse travado • WASD andar • ESC libera / F sai'
+        : 'Clique na cena p/ ocultar mouse • WASD • F sair';
+};
+
+document.addEventListener('keydown', (e) => {
+    if (e.key && e.key.toLowerCase() === 'f' && twinFpsAtivo && !['INPUT', 'TEXTAREA'].includes((e.target && e.target.tagName) || '')) {
+        e.preventDefault();
+        toggleTwinFpsUI();
+    }
+});
 
 function desativarFpsSetPreset(preset) {
     if (twinFpsAtivo) toggleTwinFpsUI();
