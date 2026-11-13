@@ -1,6 +1,6 @@
 {
-  "name": "Grow do Txai",
-  "short_name": "Grow Txai",
+  "name": "Grow de Cogumelos",
+  "short_name": "Grow Cogumelos",
   "description": "Painel de Controle IoT e Automação de Cultivo",
   "start_url": "./",
   "scope": "./",

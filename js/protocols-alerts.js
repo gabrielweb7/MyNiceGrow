@@ -614,7 +614,7 @@ function toggleNotificacoes() {
                 notificacoesAtivas = true;
                 localStorage.setItem('grow_alertas_notif', 'true');
                 atualizarBtnNotificacoes();
-                new Notification("🍄 Grow do Txai", {
+                new Notification("🍄 Grow de Cogumelos", {
                     body: "Alertas críticos e bipes ativados com sucesso!",
                     icon: "icon.png"
                 });
