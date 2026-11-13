@@ -148,16 +148,10 @@
                         </div>
                         <div class="absolute bottom-3 left-3 right-3 flex items-end justify-between gap-2 pointer-events-none">
                             <div class="flex items-center gap-1.5 pointer-events-auto flex-nowrap sm:flex-wrap overflow-x-auto no-scrollbar max-w-full pb-0.5">
-                                <button onclick="desativarFpsSetPreset('frente')" class="px-2 py-1 rounded-lg bg-slate-950/85 hover:bg-slate-800 border border-slate-700 text-[10px] font-bold text-slate-300">Frente</button>
-                                <button onclick="desativarFpsSetPreset('interior')" class="px-2 py-1 rounded-lg bg-slate-950/85 hover:bg-slate-800 border border-slate-700 text-[10px] font-bold text-slate-300">Interior</button>
-                                <button onclick="desativarFpsSetPreset('topo')" class="px-2 py-1 rounded-lg bg-slate-950/85 hover:bg-slate-800 border border-slate-700 text-[10px] font-bold text-slate-300">Topo</button>
-                                <button onclick="desativarFpsSetPreset('esp32')" class="px-2 py-1 rounded-lg bg-slate-950/85 hover:bg-slate-800 border border-slate-700 text-[10px] font-bold text-cyan-300">ESP32</button>
-                                <button onclick="desativarFpsSetPreset('cogumelos')" class="px-2 py-1 rounded-lg bg-slate-950/85 hover:bg-slate-800 border border-slate-700 text-[10px] font-bold text-amber-300">Cogumelos</button>
-                                <button onclick="desativarFpsSetPreset('ar')" class="px-2 py-1 rounded-lg bg-slate-950/85 hover:bg-slate-800 border border-slate-700 text-[10px] font-bold text-sky-300">AC</button>
-                                <button id="btnTwinFluxo" onclick="toggleTwinStreamlinesUI()" class="px-2 py-1 rounded-lg bg-slate-950/85 hover:bg-slate-800 border border-slate-700 text-[10px] font-bold text-slate-300" title="Setas de fluxo de ar 3D">💨 Fluxo</button>
-                                <button id="btnTwinAutoRot" onclick="toggleAutoRotUI()" class="px-2 py-1 rounded-lg bg-slate-950/85 hover:bg-slate-800 border border-slate-700 text-[10px] font-bold text-slate-300">🔄 360°</button>
-                                <button id="btnTwinFps" onclick="toggleTwinFpsUI()" class="px-2.5 py-1 rounded-lg bg-slate-950/85 hover:bg-slate-800 border border-cyan-500/40 text-[10px] font-bold text-cyan-300">🚶 Modo FPS</button>
-                                <button id="btnTwinFullscreen" onclick="toggleTwinFullscreen()" class="px-2.5 py-1 rounded-lg bg-slate-950/85 hover:bg-slate-800 border border-slate-700 text-[10px] font-bold text-slate-200" title="Tela Cheia">⛶ Tela Cheia</button>
+                                <button id="btnTwinFluxo" onclick="toggleTwinStreamlinesUI()" class="px-2.5 py-1 rounded-lg bg-slate-950/85 hover:bg-slate-800 border border-slate-700 text-[10px] font-bold text-slate-300 shrink-0" title="Setas de fluxo de ar 3D">💨 Fluxo</button>
+                                <button id="btnTwinAutoRot" onclick="toggleAutoRotUI()" class="px-2.5 py-1 rounded-lg bg-slate-950/85 hover:bg-slate-800 border border-slate-700 text-[10px] font-bold text-slate-300 shrink-0">🔄 360°</button>
+                                <button id="btnTwinFps" onclick="toggleTwinFpsUI()" class="px-2.5 py-1 rounded-lg bg-slate-950/85 hover:bg-slate-800 border border-cyan-500/40 text-[10px] font-bold text-cyan-300 shrink-0">🚶 Modo FPS</button>
+                                <button id="btnTwinFullscreen" onclick="toggleTwinFullscreen()" class="px-2.5 py-1 rounded-lg bg-slate-950/85 hover:bg-slate-800 border border-slate-700 text-[10px] font-bold text-slate-200 shrink-0" title="Tela Cheia">⛶ Tela Cheia</button>
                             </div>
                             <!-- D-Pad virtual para andar no celular quando Modo FPS estiver ativo -->
                             <div id="twinFpsPad" class="hidden pointer-events-auto grid grid-cols-3 gap-1 bg-slate-950/80 p-1.5 rounded-xl border border-slate-700/80 select-none">
