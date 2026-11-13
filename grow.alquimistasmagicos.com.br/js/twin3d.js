@@ -73,6 +73,8 @@
         fpsYaw: 0.12,
         fpsPitch: -0.06,
         keys: { w: false, s: false, a: false, d: false, shift: false, lookL: false, lookR: false, lookU: false, lookD: false },
+        joyX: 0,
+        joyY: 0,
         dragging: false,
         downX: 0,
         downY: 0,
@@ -1151,12 +1153,12 @@
                 + Math.sin(r * 0.028) * 0.25;
             h = Math.max(h, mt * mt * (45 + ridge * 92));
         }
-        // Escava suavemente o terreno sob a fundação da casa/píer para nunca invadir o piso ou o deck
-        if (x > -5.5 && x < 5.6 && z > -3.4 && z < 6.2) {
-            return -0.55;
+        // Escava uma área ampla (> 2 células de 7.7m da malha) sob a fundação da casa/píer para nenhum triângulo invadir o piso ou deck
+        if (x > -11.5 && x < 12.0 && z > -10.5 && z < 13.0) {
+            return -0.85;
         }
-        // Nivelamento suave na transição da ponte para a península
-        if (x >= 5.6 && x < 10.5 && z > -4 && z < 8) {
+        // Transição suave na ponta da ponte para a península
+        if (x >= 12.0 && x < 18.0 && z > -8.0 && z < 11.0) {
             h = Math.min(h, 0.02);
         }
         return h;
@@ -1165,9 +1167,9 @@
     function getGroundHeight(x, z) {
         // Piso da sala do grow e deck de madeira sobre o píer de pedra
         if (x >= -4.4 && x <= 5.0 && z >= -2.3 && z <= 5.5) return 0.02;
-        // Degraus de madeira saindo do deck para a península (lado direito do deck)
-        if (x >= 4.8 && x <= 7.5 && z >= 2.2 && z <= 5.4) {
-            const t = (x - 4.8) / 2.7;
+        // Ponte de madeira saindo do deck até a terra firme da península (x = 4.8..12.8)
+        if (x >= 4.8 && x <= 12.8 && z >= 2.2 && z <= 5.4) {
+            const t = (x - 4.8) / 8.0;
             return (1 - t) * 0.02 + t * Math.max(-0.04, terrainHeight(x, z));
         }
         return terrainHeight(x, z);
@@ -1348,10 +1350,9 @@
         railLeft.position.set(-4.15, 0.88, 3.95);
         cabin.add(railLeft);
 
-        // Rampa/escada de madeira conectando o deck à terra firme da península
-        const bridge = new THREE.Mesh(new THREE.BoxGeometry(2.8, 0.10, 2.4), woodDeckMat);
-        bridge.position.set(5.9, -0.10, 3.8);
-        bridge.rotation.z = -0.05;
+        // Ponte/passarela de madeira conectando o deck à terra firme da península
+        const bridge = new THREE.Mesh(new THREE.BoxGeometry(8.2, 0.12, 2.6), woodDeckMat);
+        bridge.position.set(8.8, -0.05, 3.8);
         bridge.receiveShadow = true;
         cabin.add(bridge);
 
@@ -1885,18 +1886,51 @@
             cam.targetRadius = Math.max(1.1, Math.min(48.0, cam.targetRadius + e.deltaY * 0.008));
         }, { passive: false });
 
+        let lookTouchId = null, lookLastX = 0, lookLastY = 0;
+
         el.addEventListener('touchstart', (e) => {
+            if (cam.mode === 'fps') {
+                for (let i = 0; i < e.changedTouches.length; i++) {
+                    const t = e.changedTouches[i];
+                    if (lookTouchId === null) {
+                        lookTouchId = t.identifier;
+                        lookLastX = t.clientX;
+                        lookLastY = t.clientY;
+                    }
+                }
+                return;
+            }
             if (e.touches.length === 2) {
                 cam.pinchDist = Math.hypot(e.touches[0].clientX - e.touches[1].clientX, e.touches[0].clientY - e.touches[1].clientY);
             }
         }, { passive: true });
         el.addEventListener('touchmove', (e) => {
+            if (cam.mode === 'fps') {
+                for (let i = 0; i < e.changedTouches.length; i++) {
+                    const t = e.changedTouches[i];
+                    if (t.identifier === lookTouchId) {
+                        const dx = t.clientX - lookLastX;
+                        const dy = t.clientY - lookLastY;
+                        cam.fpsYaw -= dx * 0.0065;
+                        cam.fpsPitch = Math.max(-1.1, Math.min(1.1, cam.fpsPitch - dy * 0.0055));
+                        lookLastX = t.clientX;
+                        lookLastY = t.clientY;
+                    }
+                }
+                return;
+            }
             if (e.touches.length === 2 && cam.pinchDist > 0) {
                 const dist = Math.hypot(e.touches[0].clientX - e.touches[1].clientX, e.touches[0].clientY - e.touches[1].clientY);
                 cam.targetRadius = Math.max(1.5, Math.min(48.0, cam.targetRadius - (dist - cam.pinchDist) * 0.03));
                 cam.pinchDist = dist;
             }
         }, { passive: true });
+        el.addEventListener('touchend', (e) => {
+            for (let i = 0; i < e.changedTouches.length; i++) {
+                if (e.changedTouches[i].identifier === lookTouchId) lookTouchId = null;
+            }
+        }, { passive: true });
+        el.addEventListener('touchcancel', () => { lookTouchId = null; }, { passive: true });
         el.addEventListener('dblclick', () => window.resetTwinCamera());
     }
 
@@ -1923,16 +1957,17 @@
             if (cam.keys.lookU) cam.fpsPitch = Math.min(1.1, cam.fpsPitch + 0.032);
             if (cam.keys.lookD) cam.fpsPitch = Math.max(-1.1, cam.fpsPitch - 0.032);
 
-            const speed = cam.keys.shift ? 0.16 : 0.058;
+            const joyMag = Math.hypot(cam.joyX, cam.joyY);
+            const isSprinting = cam.keys.shift || joyMag > 0.85;
+            const speed = isSprinting ? 0.14 : 0.058;
             const fwdX = -Math.sin(cam.fpsYaw);
             const fwdZ = -Math.cos(cam.fpsYaw);
             const rightX = Math.cos(cam.fpsYaw);
             const rightZ = -Math.sin(cam.fpsYaw);
-            let mx = 0, mz = 0;
-            if (cam.keys.w) { mx += fwdX * speed; mz += fwdZ * speed; }
-            if (cam.keys.s) { mx -= fwdX * speed; mz -= fwdZ * speed; }
-            if (cam.keys.d) { mx += rightX * speed; mz += rightZ * speed; }
-            if (cam.keys.a) { mx -= rightX * speed; mz -= rightZ * speed; }
+            const fwdIn = (cam.keys.w ? 1 : 0) - (cam.keys.s ? 1 : 0) + cam.joyY;
+            const strIn = (cam.keys.d ? 1 : 0) - (cam.keys.a ? 1 : 0) + cam.joyX;
+            let mx = fwdX * fwdIn * speed + rightX * strIn * speed;
+            let mz = fwdZ * fwdIn * speed + rightZ * strIn * speed;
 
             let nx = Math.max(-450, Math.min(450, cam.fpsX + mx));
             let nz = Math.max(-450, Math.min(450, cam.fpsZ + mz));
@@ -2398,6 +2433,8 @@
         if (frontWallGroup) frontWallGroup.visible = !!ativo;
         if (cabinRoofGroup) cabinRoofGroup.visible = !!ativo;
         cam.keys = { w: false, s: false, a: false, d: false, shift: false, lookL: false, lookR: false, lookU: false, lookD: false };
+        cam.joyX = 0;
+        cam.joyY = 0;
         if (ativo) {
             cam.fpsX = 1.15; cam.fpsY = 1.62; cam.fpsZ = 1.85;
             cam.fpsYaw = 0.42; cam.fpsPitch = -0.05;
@@ -2411,6 +2448,11 @@
         if (k in cam.keys) cam.keys[k] = !!pressed;
     };
 
+    window.setTwinJoystick = function (jx, jy) {
+        cam.joyX = Math.max(-1, Math.min(1, Number(jx) || 0));
+        cam.joyY = Math.max(-1, Math.min(1, Number(jy) || 0));
+    };
+
     window.toggleTwinAutoRotate = function () {
         cam.autoRotate = !cam.autoRotate;
         return cam.autoRotate;
@@ -2421,7 +2463,7 @@
     };
 
     window.getTwinPlayerPose = function () {
-        const walking = cam.mode === 'fps' && (cam.keys.w || cam.keys.s || cam.keys.a || cam.keys.d);
+        const walking = cam.mode === 'fps' && (cam.keys.w || cam.keys.s || cam.keys.a || cam.keys.d || Math.hypot(cam.joyX, cam.joyY) > 0.1);
         if (cam.mode === 'fps') {
             return {
                 x: cam.fpsX,

@@ -32,7 +32,77 @@ document.addEventListener('DOMContentLoaded', () => {
     atualizarConsoleAoVivo();
     setInterval(atualizarConsoleAoVivo, 10000);
     iniciarMultiplayerTwin();
+    iniciarJoystickMinecraft();
 });
+
+function iniciarJoystickMinecraft() {
+    const joy = document.getElementById('twinJoystick');
+    const knob = document.getElementById('twinJoystickKnob');
+    if (!joy || !knob) return;
+    let joyTouchId = null;
+    let mouseDown = false;
+    const maxR = 40;
+
+    function updateJoy(clientX, clientY) {
+        const rect = joy.getBoundingClientRect();
+        const cx = rect.left + rect.width / 2;
+        const cy = rect.top + rect.height / 2;
+        let dx = clientX - cx;
+        let dy = clientY - cy;
+        const dist = Math.hypot(dx, dy);
+        if (dist > maxR) {
+            dx = (dx / dist) * maxR;
+            dy = (dy / dist) * maxR;
+        }
+        knob.style.transform = `translate(${dx}px, ${dy}px)`;
+        if (window.setTwinJoystick) {
+            window.setTwinJoystick(dx / maxR, -dy / maxR);
+        }
+    }
+
+    function resetJoy() {
+        joyTouchId = null;
+        mouseDown = false;
+        knob.style.transform = 'translate(0px, 0px)';
+        if (window.setTwinJoystick) window.setTwinJoystick(0, 0);
+    }
+
+    joy.addEventListener('touchstart', (e) => {
+        e.stopPropagation();
+        if (joyTouchId === null && e.changedTouches.length) {
+            joyTouchId = e.changedTouches[0].identifier;
+            updateJoy(e.changedTouches[0].clientX, e.changedTouches[0].clientY);
+        }
+    }, { passive: true });
+    joy.addEventListener('touchmove', (e) => {
+        e.stopPropagation();
+        for (let i = 0; i < e.changedTouches.length; i++) {
+            const t = e.changedTouches[i];
+            if (t.identifier === joyTouchId) updateJoy(t.clientX, t.clientY);
+        }
+    }, { passive: true });
+    joy.addEventListener('touchend', (e) => {
+        e.stopPropagation();
+        for (let i = 0; i < e.changedTouches.length; i++) {
+            if (e.changedTouches[i].identifier === joyTouchId) resetJoy();
+        }
+    }, { passive: true });
+    joy.addEventListener('touchcancel', resetJoy, { passive: true });
+
+    joy.addEventListener('pointerdown', (e) => {
+        if (e.pointerType === 'mouse') {
+            e.stopPropagation();
+            mouseDown = true;
+            updateJoy(e.clientX, e.clientY);
+        }
+    });
+    window.addEventListener('pointermove', (e) => {
+        if (mouseDown && e.pointerType === 'mouse') updateJoy(e.clientX, e.clientY);
+    });
+    window.addEventListener('pointerup', (e) => {
+        if (mouseDown && e.pointerType === 'mouse') resetJoy();
+    });
+}
 
 function iniciarMultiplayerTwin() {
     let mpId = sessionStorage.getItem('twin_mp_id');
@@ -510,26 +580,11 @@ function toggleSimRele(k) {
 
 let twinFpsAtivo = false;
 
-let mobileSprintAtivo = false;
-
-function toggleMobileSprint() {
-    mobileSprintAtivo = !mobileSprintAtivo;
-    if (window.setTwinFpsKey) window.setTwinFpsKey('shift', mobileSprintAtivo);
-    const btn = document.getElementById('btnMobileSprint');
-    if (btn) {
-        btn.className = mobileSprintAtivo
-            ? 'w-8 h-8 rounded-lg bg-amber-500/35 border border-amber-400 text-[11px] font-bold text-amber-200'
-            : 'w-8 h-8 rounded-lg bg-slate-800 text-[11px] font-bold text-amber-300';
-    }
-}
-
 function toggleTwinFpsUI() {
     twinFpsAtivo = !twinFpsAtivo;
-    if (!twinFpsAtivo) mobileSprintAtivo = false;
     if (window.setTwinFpsMode) window.setTwinFpsMode(twinFpsAtivo);
     const btn = document.getElementById('btnTwinFps');
-    const pad = document.getElementById('twinFpsPad');
-    const lookPad = document.getElementById('twinFpsLookPad');
+    const joy = document.getElementById('twinJoystick');
     const hud = document.getElementById('twinFpsHud');
     const cross = document.getElementById('twinFpsCrosshair');
     const hint = document.getElementById('twinFpsHint');
@@ -539,8 +594,7 @@ function toggleTwinFpsUI() {
             ? 'px-2.5 py-1 rounded-lg bg-cyan-500/25 border border-cyan-400/60 text-[10px] font-bold text-cyan-200 shrink-0'
             : 'px-2.5 py-1 rounded-lg bg-slate-950/85 hover:bg-slate-800 border border-cyan-500/40 text-[10px] font-bold text-cyan-300 shrink-0';
     }
-    if (pad) pad.classList.toggle('hidden', !twinFpsAtivo);
-    if (lookPad) lookPad.classList.toggle('hidden', !twinFpsAtivo);
+    if (joy) joy.classList.toggle('hidden', !twinFpsAtivo);
     if (hud) hud.classList.toggle('hidden', !twinFpsAtivo);
     if (cross) cross.classList.toggle('hidden', !twinFpsAtivo);
     if (!twinFpsAtivo) {
