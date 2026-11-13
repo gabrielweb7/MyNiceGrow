@@ -27,6 +27,11 @@
     let airLines, airLinePos, airLineCol;
     const airParticles = [];
 
+    // Emissor dedicado de névoa na mangueira amarela (não rouba partículas suspensas do ar!)
+    const MIST_COUNT = 45;
+    let mistPoints, mistPos;
+    const mistParticles = [];
+
     const state = {
         tempInt: 26.5,
         tempExt: 25.0,
@@ -707,6 +712,34 @@
             opacity: 0.65
         }));
         scene.add(airLines);
+
+        // Emissor dedicado de vapor azul-clarinho na boca da mangueira amarela
+        const mGeo = new THREE.BufferGeometry();
+        mistPos = new Float32Array(MIST_COUNT * 3);
+        for (let i = 0; i < MIST_COUNT; i++) {
+            mistParticles.push({
+                x: GX + halfW - 0.12,
+                y: 2.12 - (i / MIST_COUNT) * 0.85,
+                z: GZ + 0.15,
+                vx: -(0.002 + Math.random() * 0.002),
+                vy: -(0.004 + Math.random() * 0.003),
+                vz: (Math.random() - 0.5) * 0.002,
+                life: (i / MIST_COUNT)
+            });
+            mistPos[i * 3] = mistParticles[i].x;
+            mistPos[i * 3 + 1] = mistParticles[i].y;
+            mistPos[i * 3 + 2] = mistParticles[i].z;
+        }
+        mGeo.setAttribute('position', new THREE.BufferAttribute(mistPos, 3));
+        mistPoints = new THREE.Points(mGeo, new THREE.PointsMaterial({
+            size: 0.17,
+            color: 0x7dd3fc,
+            map: tex,
+            transparent: true,
+            opacity: 0.0,
+            depthWrite: false
+        }));
+        scene.add(mistPoints);
     }
 
     function stepFluidPhysics() {
@@ -784,18 +817,8 @@
                     }
                 }
 
-                // Se ainda está na estufa, mantém colisão interna e difusão térmica da estufa
+                // Se ainda está na estufa, mantém colisão interna e difusão térmica da estufa (sem teleporte!)
                 if (p.inTent) {
-                    if (state.umid && Math.random() < 0.007) {
-                        p.x = GX + halfW - 0.12;
-                        p.y = 2.12;
-                        p.z = GZ + 0.15;
-                        p.vx = -(0.004 + Math.random() * 0.003);
-                        p.vy = -(0.005 + Math.random() * 0.004);
-                        p.vz = (Math.random() - 0.5) * 0.003;
-                        p.temp = state.tempInt - 0.6;
-                        p.mist = true;
-                    }
                     p.vx *= tentDamp; p.vy *= tentDamp; p.vz *= tentDamp;
                     p.x += p.vx; p.y += p.vy; p.z += p.vz;
 
@@ -827,17 +850,8 @@
                     p.temp += ((state.tempExt + 1.2) - p.temp) * 0.015;
                 }
 
-                // Ar-Condicionado Split Inverter
+                // Ar-Condicionado Split Inverter (zero teleporte: só recicla quem entra de fato na grade superior!)
                 if (state.ar) {
-                    if (Math.random() < 0.012) {
-                        p.x = -2.18;
-                        p.y = 2.56 + (Math.random() - 0.5) * 0.06;
-                        p.z = -0.35 + (Math.random() - 0.5) * 0.90;
-                        p.vx = 0.016 + Math.random() * 0.008;
-                        p.vy = -(0.0035 + Math.random() * 0.0025);
-                        p.vz = (Math.random() - 0.5) * 0.003;
-                        p.temp = acColdTemp;
-                    }
                     const jetCenterY = 2.56 - Math.max(0, p.x + 2.20) * 0.30;
                     if (p.x > -2.30 && p.x < 1.8 && Math.abs(p.y - jetCenterY) < 0.65 && Math.abs(p.z + 0.35) < 1.15) {
                         const distJet = Math.max(0.2, p.x + 2.30);
@@ -852,12 +866,21 @@
                     const rx = -2.30 - p.x;
                     const ry = 2.95 - p.y;
                     const rz = -0.35 - p.z;
-                    const dRet = Math.hypot(rx, ry, rz) + 0.3;
-                    if (dRet < 2.6 && p.y > 2.2) {
-                        const pull = 0.0032 / (0.6 + dRet);
+                    const dRet = Math.hypot(rx, ry, rz) + 0.2;
+                    if (dRet < 2.8 && p.y > 2.0) {
+                        const pull = 0.0042 / (0.5 + dRet);
                         p.vx += (rx / dRet) * pull;
                         p.vy += (ry / dRet) * pull;
                         p.vz += (rz / dRet) * pull;
+                    }
+                    if (dRet < 0.52) {
+                        p.x = -2.18;
+                        p.y = 2.56 + (Math.random() - 0.5) * 0.05;
+                        p.z = -0.35 + (Math.random() - 0.5) * 0.85;
+                        p.vx = 0.022 + Math.random() * 0.008;
+                        p.vy = -(0.004 + Math.random() * 0.002);
+                        p.vz = (Math.random() - 0.5) * 0.003;
+                        p.temp = acColdTemp;
                     }
                 }
 
@@ -936,6 +959,30 @@
         airPoints.geometry.attributes.color.needsUpdate = true;
         airLines.geometry.attributes.position.needsUpdate = true;
         airLines.geometry.attributes.color.needsUpdate = true;
+
+        if (mistPoints) {
+            mistPoints.material.opacity += ((state.umid ? 0.52 : 0.0) - mistPoints.material.opacity) * 0.08;
+            if (mistPoints.material.opacity > 0.01) {
+                for (let i = 0; i < MIST_COUNT; i++) {
+                    const m = mistParticles[i];
+                    m.life += 0.008;
+                    m.x += m.vx + Math.sin(simTime + i) * 0.0004;
+                    m.y += m.vy;
+                    m.z += m.vz + Math.cos(simTime + i) * 0.0004;
+                    if (m.life >= 1.0 || m.y < 0.95) {
+                        m.x = GX + halfW - 0.12;
+                        m.y = 2.12;
+                        m.z = GZ + 0.15;
+                        m.vx = -(0.002 + Math.random() * 0.0025);
+                        m.vy = -(0.0035 + Math.random() * 0.003);
+                        m.vz = (Math.random() - 0.5) * 0.002;
+                        m.life = 0;
+                    }
+                    mistPos[i * 3] = m.x; mistPos[i * 3 + 1] = m.y; mistPos[i * 3 + 2] = m.z;
+                }
+                mistPoints.geometry.attributes.position.needsUpdate = true;
+            }
+        }
     }
 
     function bindControls(el) {
