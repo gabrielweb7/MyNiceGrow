@@ -72,7 +72,7 @@
         fpsZ: 1.65,
         fpsYaw: 0.12,
         fpsPitch: -0.06,
-        keys: { w: false, s: false, a: false, d: false, shift: false },
+        keys: { w: false, s: false, a: false, d: false, shift: false, lookL: false, lookR: false, lookU: false, lookD: false },
         dragging: false,
         downX: 0,
         downY: 0,
@@ -1918,7 +1918,12 @@
         }
 
         if (cam.mode === 'fps') {
-            const speed = cam.keys.shift ? 0.16 : 0.055;
+            if (cam.keys.lookL) cam.fpsYaw += 0.042;
+            if (cam.keys.lookR) cam.fpsYaw -= 0.042;
+            if (cam.keys.lookU) cam.fpsPitch = Math.min(1.1, cam.fpsPitch + 0.032);
+            if (cam.keys.lookD) cam.fpsPitch = Math.max(-1.1, cam.fpsPitch - 0.032);
+
+            const speed = cam.keys.shift ? 0.16 : 0.058;
             const fwdX = -Math.sin(cam.fpsYaw);
             const fwdZ = -Math.cos(cam.fpsYaw);
             const rightX = Math.cos(cam.fpsYaw);
@@ -1940,13 +1945,18 @@
                 nz = cam.fpsZ;
             }
 
-            // Colisão com paredes da casa da lagoa (permite passar pela porta x: [1.85..2.65] quando aberta!)
-            const nearFrontWall = (cam.fpsZ < 2.45 && nz >= 2.25) || (cam.fpsZ > 2.45 && nz <= 2.65);
-            if (nearFrontWall && nx >= -2.9 && nx <= 3.7) {
-                const inDoorway = nx > 1.85 && nx < 2.65 && roomDoorOpen;
-                if (!inDoorway) {
+            // Colisão com a parede frontal e folha da porta (só passa se a porta estiver aberta!)
+            const inFrontWallBand = (nz >= 2.28 && nz <= 2.66) && nx >= -2.9 && nx <= 3.7;
+            if (inFrontWallBand) {
+                const inOpenDoorway = (nx >= 1.82 && nx <= 2.68) && roomDoorAngle > 0.85;
+                if (!inOpenDoorway) {
                     nz = cam.fpsZ;
                 }
+            }
+            // Folha sólida da porta aberta para fora (x ~ 2.70, z: 2.45..3.35)
+            if (roomDoorAngle > 0.85 && nx > 2.54 && nx < 2.86 && nz > 2.45 && nz < 3.35) {
+                nx = cam.fpsX;
+                nz = cam.fpsZ;
             }
             const crossingBackOrSide = (nx < -2.4 && nx > -3.0 && nz > -2.3 && nz < 2.6)
                 || (nx > 3.3 && nx < 3.9 && nz > -2.3 && nz < 2.6)
@@ -2387,7 +2397,7 @@
         cam.mode = ativo ? 'fps' : 'orbit';
         if (frontWallGroup) frontWallGroup.visible = !!ativo;
         if (cabinRoofGroup) cabinRoofGroup.visible = !!ativo;
-        cam.keys = { w: false, s: false, a: false, d: false, shift: false };
+        cam.keys = { w: false, s: false, a: false, d: false, shift: false, lookL: false, lookR: false, lookU: false, lookD: false };
         if (ativo) {
             cam.fpsX = 1.15; cam.fpsY = 1.62; cam.fpsZ = 1.85;
             cam.fpsYaw = 0.42; cam.fpsPitch = -0.05;

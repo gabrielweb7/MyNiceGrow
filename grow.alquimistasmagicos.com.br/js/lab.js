@@ -510,11 +510,26 @@ function toggleSimRele(k) {
 
 let twinFpsAtivo = false;
 
+let mobileSprintAtivo = false;
+
+function toggleMobileSprint() {
+    mobileSprintAtivo = !mobileSprintAtivo;
+    if (window.setTwinFpsKey) window.setTwinFpsKey('shift', mobileSprintAtivo);
+    const btn = document.getElementById('btnMobileSprint');
+    if (btn) {
+        btn.className = mobileSprintAtivo
+            ? 'w-8 h-8 rounded-lg bg-amber-500/35 border border-amber-400 text-[11px] font-bold text-amber-200'
+            : 'w-8 h-8 rounded-lg bg-slate-800 text-[11px] font-bold text-amber-300';
+    }
+}
+
 function toggleTwinFpsUI() {
     twinFpsAtivo = !twinFpsAtivo;
+    if (!twinFpsAtivo) mobileSprintAtivo = false;
     if (window.setTwinFpsMode) window.setTwinFpsMode(twinFpsAtivo);
     const btn = document.getElementById('btnTwinFps');
     const pad = document.getElementById('twinFpsPad');
+    const lookPad = document.getElementById('twinFpsLookPad');
     const hud = document.getElementById('twinFpsHud');
     const cross = document.getElementById('twinFpsCrosshair');
     const hint = document.getElementById('twinFpsHint');
@@ -525,6 +540,7 @@ function toggleTwinFpsUI() {
             : 'px-2.5 py-1 rounded-lg bg-slate-950/85 hover:bg-slate-800 border border-cyan-500/40 text-[10px] font-bold text-cyan-300 shrink-0';
     }
     if (pad) pad.classList.toggle('hidden', !twinFpsAtivo);
+    if (lookPad) lookPad.classList.toggle('hidden', !twinFpsAtivo);
     if (hud) hud.classList.toggle('hidden', !twinFpsAtivo);
     if (cross) cross.classList.toggle('hidden', !twinFpsAtivo);
     if (!twinFpsAtivo) {
@@ -607,11 +623,17 @@ async function toggleTwinFullscreen() {
     if (getNativeFullscreenEl()) {
         const exitFn = document.exitFullscreen || document.webkitExitFullscreen;
         if (exitFn) await exitFn.call(document).catch(() => {});
+        if (screen.orientation && screen.orientation.unlock) {
+            try { screen.orientation.unlock(); } catch (e) {}
+        }
         twinCssFullscreen = false;
         syncTwinFullscreenUI();
         return;
     }
     if (twinCssFullscreen) {
+        if (screen.orientation && screen.orientation.unlock) {
+            try { screen.orientation.unlock(); } catch (e) {}
+        }
         twinCssFullscreen = false;
         syncTwinFullscreenUI();
         return;
@@ -620,6 +642,9 @@ async function toggleTwinFullscreen() {
     if (reqFn) {
         try {
             await reqFn.call(card);
+            if (screen.orientation && screen.orientation.lock) {
+                screen.orientation.lock('landscape').catch(() => {});
+            }
             syncTwinFullscreenUI();
             return;
         } catch (e) { /* iPhone Safari / WebView usa fallback CSS 100dvh */ }
