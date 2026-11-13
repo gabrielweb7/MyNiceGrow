@@ -26,6 +26,10 @@
     let heldRock = null, grabAnim = 0;
     const fallingRocks = [];
     const pickableRocks = [];
+    const pickableItems = [];
+    const shelfUnits = [];
+    let snapPreviewMesh = null;
+    let lastSnapTarget = null;
     let pendingDroppedRock = null;
     let waterTexRef;
     const lakeMists = [];
@@ -95,9 +99,146 @@
         obj.traverse(child => {
             if (child.isMesh) {
                 child.userData.equipId = equipId;
-                interactiveMeshes.push(child);
+                if (interactiveMeshes.indexOf(child) === -1) interactiveMeshes.push(child);
             }
         });
+    }
+
+    function registerPickable(obj, opts) {
+        const o = opts || {};
+        obj.userData.isPickable = true;
+        obj.userData.halfH = typeof o.halfH === 'number' ? o.halfH : 0.12;
+        obj.userData.holdDist = o.holdDist || 1.45;
+        obj.userData.isShelf = !!o.isShelf;
+        obj.userData.shelfLevels = o.shelfLevels || null;
+        obj.userData.halfW = o.halfW || 0.5;
+        obj.userData.halfD = o.halfD || 0.3;
+        obj.userData.supportedBy = o.supportedBy || null;
+        obj.userData.snapToWall = !!o.snapToWall;
+        if (o.rockIndex !== undefined) {
+            obj.userData.isPickableRock = true;
+            obj.userData.rockIndex = o.rockIndex;
+        }
+        obj.traverse(child => {
+            if (child.isMesh) {
+                child.userData.pickRoot = obj;
+                if (interactiveMeshes.indexOf(child) === -1) interactiveMeshes.push(child);
+            }
+        });
+        if (pickableItems.indexOf(obj) === -1) pickableItems.push(obj);
+        if (obj.userData.isShelf && shelfUnits.indexOf(obj) === -1) shelfUnits.push(obj);
+        return obj;
+    }
+
+    function dropUnsupportedItems(shelfObj) {
+        if (!shelfObj) return;
+        const sx = shelfObj.position.x, sz = shelfObj.position.z;
+        const hw = (shelfObj.userData.halfW || 0.55) + 0.12;
+        const hd = (shelfObj.userData.halfD || 0.35) + 0.12;
+        for (let i = 0; i < pickableItems.length; i++) {
+            const it = pickableItems[i];
+            if (!it || it === shelfObj || it === heldRock) continue;
+            const onShelfRef = it.userData.supportedBy === shelfObj;
+            const aboveBox = Math.abs(it.position.x - sx) <= hw && Math.abs(it.position.z - sz) <= hd && it.position.y > shelfObj.position.y + 0.08;
+            if (onShelfRef || aboveBox) {
+                it.userData.supportedBy = null;
+                it.userData.velY = 0;
+                if (fallingRocks.indexOf(it) === -1) fallingRocks.push(it);
+            }
+        }
+    }
+
+    function findPlacementTarget(item) {
+        if (!item || !camera) return null;
+        const origin = camera.position.clone();
+        const dir = new THREE.Vector3();
+        camera.getWorldDirection(dir);
+        const maxDist = item.userData.isShelf ? 5.2 : 5.0;
+        const itemHalfH = item.userData.halfH || 0;
+
+        // 1. Verifica encaixe em prateleiras (apenas se o item não for uma estante)
+        if (!item.userData.isShelf && dir.y < 0.35) {
+            let bestShelfHit = null;
+            for (let i = 0; i < shelfUnits.length; i++) {
+                const sh = shelfUnits[i];
+                if (!sh || sh === item || !sh.userData.shelfLevels) continue;
+                const levels = sh.userData.shelfLevels;
+                const cosY = Math.cos(-sh.rotation.y), sinY = Math.sin(-sh.rotation.y);
+                for (let l = 0; l < levels.length; l++) {
+                    const planeY = sh.position.y + levels[l];
+                    if (Math.abs(dir.y) < 0.02) continue;
+                    const t = (planeY - origin.y) / dir.y;
+                    if (t < 0.4 || t > maxDist) continue;
+                    const hx = origin.x + dir.x * t;
+                    const hz = origin.z + dir.z * t;
+                    const dx = hx - sh.position.x, dz = hz - sh.position.z;
+                    const lx = dx * cosY - dz * sinY;
+                    const lz = dx * sinY + dz * cosY;
+                    const marginW = (sh.userData.halfW || 0.45) - 0.06;
+                    const marginD = (sh.userData.halfD || 0.25) - 0.05;
+                    if (Math.abs(lx) <= marginW && Math.abs(lz) <= marginD) {
+                        if (!bestShelfHit || t < bestShelfHit.t) {
+                            bestShelfHit = {
+                                t,
+                                x: hx,
+                                y: planeY + itemHalfH,
+                                z: hz,
+                                planeY,
+                                shelf: sh
+                            };
+                        }
+                    }
+                }
+            }
+            if (bestShelfHit) return bestShelfHit;
+        }
+
+        // 2. Encaixe na parede (para o Ar-Condicionado)
+        if (item.userData.snapToWall && dir.y > -0.25) {
+            // Parede esquerda x = -2.42, parede fundo z = -2.02
+            if (dir.x < -0.2) {
+                const t = (-2.42 - origin.x) / dir.x;
+                if (t > 0.5 && t < 5.5) {
+                    const hy = origin.y + dir.y * t;
+                    const hz = origin.z + dir.z * t;
+                    if (hy > 1.3 && hy < 3.1 && hz > -2.0 && hz < 2.0) {
+                        return { t, x: -2.42, y: hy, z: hz, planeY: hy - 0.17, shelf: null, wallRotY: 0 };
+                    }
+                }
+            }
+            if (dir.z < -0.2) {
+                const t = (-2.02 - origin.z) / dir.z;
+                if (t > 0.5 && t < 5.5) {
+                    const hx = origin.x + dir.x * t;
+                    const hy = origin.y + dir.y * t;
+                    if (hy > 1.3 && hy < 3.1 && hx > -2.3 && hx < 3.1) {
+                        return { t, x: hx, y: hy, z: -2.02, planeY: hy - 0.17, shelf: null, wallRotY: -Math.PI / 2 };
+                    }
+                }
+            }
+        }
+
+        // 3. Encaixe no chão / piso da casa / deck
+        if (dir.y < -0.05) {
+            const approxFloor = Math.max(-0.2, getGroundHeight(origin.x + dir.x * 2.5, origin.z + dir.z * 2.5));
+            const t = (approxFloor - origin.y) / dir.y;
+            if (t > 0.4 && t < maxDist) {
+                const hx = origin.x + dir.x * t;
+                const hz = origin.z + dir.z * t;
+                const gh = getGroundHeight(hx, hz);
+                if (gh >= -0.22) {
+                    return {
+                        t,
+                        x: hx,
+                        y: gh + itemHalfH,
+                        z: hz,
+                        planeY: gh + 0.015,
+                        shelf: null
+                    };
+                }
+            }
+        }
+        return null;
     }
 
     // Dimensões da estufa (centrada em x = -0.35, z = -0.25)
@@ -285,50 +426,65 @@
             room.add(slat);
         }
 
-        // Ar-Condicionado Split Inverter ACIMA DA JANELA
+        // Ar-Condicionado Split Inverter ACIMA DA JANELA (pegável e encaixável na parede)
+        const acGroup = new THREE.Group();
+        acGroup.position.set(-2.42, 2.75, -0.35);
         const acBody = new THREE.Mesh(
             new THREE.BoxGeometry(0.34, 0.34, 1.18),
             new THREE.MeshStandardMaterial({ color: 0xf8fafc, roughness: 0.28, metalness: 0.15 })
         );
-        acBody.position.set(-2.42, 2.75, -0.35);
-        room.add(acBody);
+        acGroup.add(acBody);
 
         acVanePivot = new THREE.Group();
-        acVanePivot.position.set(-2.25, 2.61, -0.35);
+        acVanePivot.position.set(0.17, -0.14, 0);
         acVaneMat = new THREE.MeshStandardMaterial({ color: 0xe2e8f0, emissive: 0x38bdf8, emissiveIntensity: 0.05, roughness: 0.3 });
         const acVane = new THREE.Mesh(new THREE.BoxGeometry(0.08, 0.025, 1.06), acVaneMat);
         acVane.position.set(0.02, -0.015, 0);
         acVanePivot.add(acVane);
-        room.add(acVanePivot);
+        acGroup.add(acVanePivot);
 
         acLedMat = new THREE.MeshBasicMaterial({ color: 0x38bdf8 });
         const acLed = new THREE.Mesh(new THREE.BoxGeometry(0.02, 0.03, 0.08), acLedMat);
-        acLed.position.set(-2.24, 2.74, 0.12);
-        room.add(acLed);
-        tagInteractive(acBody, 'ar');
-        tagInteractive(acVanePivot, 'ar');
+        acLed.position.set(0.18, -0.01, 0.47);
+        acGroup.add(acLed);
+        room.add(acGroup);
+        tagInteractive(acGroup, 'ar');
+        registerPickable(acGroup, { halfH: 0.17, holdDist: 1.85, snapToWall: true });
 
-        // Estante preta de apoio à DIREITA da estufa (com Umidificador + mangueira amarela + frascos)
+        // Estante preta de apoio à DIREITA da estufa (pegável; se pegar, itens em cima caem no chão!)
         const shelfMat = new THREE.MeshStandardMaterial({ color: 0x1e293b, roughness: 0.6 });
         const rx = 1.05, rz = -0.55;
+        const blackShelfGroup = new THREE.Group();
+        blackShelfGroup.position.set(rx, 0, rz);
         [0.12, 0.72, 1.32].forEach(sy => {
             const p = new THREE.Mesh(new THREE.BoxGeometry(0.95, 0.04, 0.55), shelfMat);
-            p.position.set(rx, sy, rz);
-            room.add(p);
+            p.position.set(0, sy, 0);
+            blackShelfGroup.add(p);
         });
         [[-0.44, -0.24], [0.44, -0.24], [-0.44, 0.24], [0.44, 0.24]].forEach(([ox, oz]) => {
             const leg = new THREE.Mesh(new THREE.CylinderGeometry(0.02, 0.02, 1.45, 8), shelfMat);
-            leg.position.set(rx + ox, 0.73, rz + oz);
-            room.add(leg);
+            leg.position.set(ox, 0.73, oz);
+            blackShelfGroup.add(leg);
+        });
+        room.add(blackShelfGroup);
+        registerPickable(blackShelfGroup, {
+            isShelf: true,
+            halfH: 0,
+            holdDist: 2.15,
+            halfW: 0.475,
+            halfD: 0.275,
+            shelfLevels: [0.14, 0.74, 1.34]
         });
 
-        // Umidificador azul no topo da estante preta
+        // Umidificador azul no topo da estante preta (pegável)
         const umidBase = new THREE.Mesh(
             new THREE.CylinderGeometry(0.16, 0.19, 0.36, 16),
             new THREE.MeshStandardMaterial({ color: 0x38bdf8, roughness: 0.3, transparent: true, opacity: 0.88 })
         );
         umidBase.position.set(rx - 0.18, 1.52, rz);
         room.add(umidBase);
+        tagInteractive(umidBase, 'umid');
+        registerPickable(umidBase, { halfH: 0.18, holdDist: 1.4, supportedBy: blackShelfGroup });
 
         // Mangueira amarela do umidificador entrando no topo da estufa
         const hoseMat = new THREE.MeshStandardMaterial({ color: 0xfacc15, roughness: 0.5 });
@@ -340,18 +496,19 @@
         ]);
         const hose = new THREE.Mesh(new THREE.TubeGeometry(hoseCurve, 18, 0.04, 10, false), hoseMat);
         room.add(hose);
-        tagInteractive(umidBase, 'umid');
         tagInteractive(hose, 'umid');
 
-        // Potes de vidro / frascos na estante
+        // Potes de vidro / frascos na estante (pegáveis)
         const jarMat = new THREE.MeshStandardMaterial({ color: 0xe2e8f0, roughness: 0.15, transparent: true, opacity: 0.65 });
         [0.12, 0.30].forEach(ox => {
             const jar = new THREE.Mesh(new THREE.CylinderGeometry(0.07, 0.07, 0.18, 12), jarMat);
             jar.position.set(rx + ox, 1.43, rz + 0.05);
             room.add(jar);
+            registerPickable(jar, { halfH: 0.09, holdDist: 1.2, supportedBy: blackShelfGroup });
             const bottle = new THREE.Mesh(new THREE.CylinderGeometry(0.06, 0.06, 0.22, 12), new THREE.MeshStandardMaterial({ color: 0x1d4ed8, roughness: 0.3 }));
             bottle.position.set(rx + ox - 0.15, 0.85, rz);
             room.add(bottle);
+            registerPickable(bottle, { halfH: 0.11, holdDist: 1.2, supportedBy: blackShelfGroup });
         });
 
         // Controlador ESP32-C3 + Régua de Relés preso na lateral esquerda da estante
@@ -389,6 +546,7 @@
         });
         room.add(ctrlGroup);
         tagInteractive(ctrlGroup, 'esp32');
+        registerPickable(ctrlGroup, { halfH: 0.11, holdDist: 1.2, supportedBy: blackShelfGroup });
 
         // Termômetro digital de parede no quarto (entre a janela/AC e a estufa)
         roomThermDisplay = createThermometerDisplay(0.48, 0.24);
@@ -407,54 +565,73 @@
         );
         room.add(wire);
 
-        // Estante aramada de SPAWNS mais à direita (como na 3ª foto!)
+        // Estante aramada de SPAWNS mais à direita (pegável; itens em cima caem se mover!)
         const sx = 2.35, sz = -0.85;
         const chromeMat = new THREE.MeshStandardMaterial({ color: 0xcbd5e1, metalness: 0.85, roughness: 0.25 });
         const grainMat = new THREE.MeshStandardMaterial({ color: 0xf59e0b, roughness: 0.75 });
         const subBagMat = new THREE.MeshStandardMaterial({ color: 0xa8a29e, roughness: 0.85 });
-        [0.2, 0.75, 1.3, 1.85].forEach((sy, idx) => {
+        const wireShelfGroup = new THREE.Group();
+        wireShelfGroup.position.set(sx, 0, sz);
+        [0.2, 0.75, 1.3, 1.85].forEach(sy => {
             const p = new THREE.Mesh(new THREE.BoxGeometry(1.15, 0.025, 0.52), chromeMat);
-            p.position.set(sx, sy, sz);
-            room.add(p);
+            p.position.set(0, sy, 0);
+            wireShelfGroup.add(p);
+        });
+        [[-0.55, -0.24], [0.55, -0.24], [-0.55, 0.24], [0.55, 0.24]].forEach(([ox, oz]) => {
+            const leg = new THREE.Mesh(new THREE.CylinderGeometry(0.018, 0.018, 2.0, 8), chromeMat);
+            leg.position.set(ox, 1.0, oz);
+            wireShelfGroup.add(leg);
+        });
+        room.add(wireShelfGroup);
+        registerPickable(wireShelfGroup, {
+            isShelf: true,
+            halfH: 0,
+            holdDist: 2.25,
+            halfW: 0.575,
+            halfD: 0.26,
+            shelfLevels: [0.212, 0.762, 1.312, 1.862]
+        });
+
+        [0.2, 0.75, 1.3, 1.85].forEach((sy, idx) => {
             if (idx === 2) {
-                // Placas de Petri empilhadas na estante (como na foto real)
+                // Placas de Petri empilhadas na estante (pegáveis em pilhas)
                 [0x86efac, 0xfef08a, 0xbae6fd, 0xe2e8f0].forEach((col, pIdx) => {
+                    const petriStack = new THREE.Group();
+                    petriStack.position.set(sx - 0.35 + pIdx * 0.14, sy + 0.012, sz + 0.08);
+                    const dishMat = new THREE.MeshStandardMaterial({ color: col, roughness: 0.2, transparent: true, opacity: 0.82 });
                     for (let st = 0; st < 4; st++) {
-                        const dish = new THREE.Mesh(
-                            new THREE.CylinderGeometry(0.048, 0.048, 0.014, 14),
-                            new THREE.MeshStandardMaterial({ color: col, roughness: 0.2, transparent: true, opacity: 0.82 })
-                        );
-                        dish.position.set(sx - 0.35 + pIdx * 0.14, sy + 0.022 + st * 0.015, sz + 0.08);
-                        room.add(dish);
+                        const dish = new THREE.Mesh(new THREE.CylinderGeometry(0.048, 0.048, 0.014, 14), dishMat);
+                        dish.position.y = 0.008 + st * 0.015;
+                        petriStack.add(dish);
                     }
+                    room.add(petriStack);
+                    registerPickable(petriStack, { halfH: 0, holdDist: 1.15, supportedBy: wireShelfGroup });
                 });
                 for (let k = 1; k <= 2; k++) {
                     const bag = new THREE.Mesh(new THREE.BoxGeometry(0.18, 0.26, 0.24), grainMat);
-                    bag.position.set(sx + k * 0.21, sy + 0.145, sz - 0.06);
+                    bag.position.set(sx + k * 0.21, sy + 0.142, sz - 0.06);
                     room.add(bag);
+                    registerPickable(bag, { halfH: 0.13, holdDist: 1.3, supportedBy: wireShelfGroup });
                 }
             } else {
                 const matSaco = idx >= 2 ? grainMat : subBagMat;
                 for (let k = -2; k <= 2; k++) {
                     const bag = new THREE.Mesh(new THREE.BoxGeometry(0.18, 0.26, 0.24), matSaco);
-                    bag.position.set(sx + k * 0.21, sy + 0.145, sz);
+                    bag.position.set(sx + k * 0.21, sy + 0.142, sz);
                     room.add(bag);
+                    registerPickable(bag, { halfH: 0.13, holdDist: 1.3, supportedBy: wireShelfGroup });
                 }
             }
         });
-        [[-0.55, -0.24], [0.55, -0.24], [-0.55, 0.24], [0.55, 0.24]].forEach(([ox, oz]) => {
-            const leg = new THREE.Mesh(new THREE.CylinderGeometry(0.018, 0.018, 2.0, 8), chromeMat);
-            leg.position.set(sx + ox, 1.0, sz + oz);
-            room.add(leg);
-        });
 
-        // Caixa organizadora translúcida no chão ao lado da estante de spawns
+        // Caixa organizadora translúcida no chão ao lado da estante de spawns (pegável)
         const tub = new THREE.Mesh(
             new THREE.BoxGeometry(0.46, 0.26, 0.34),
             new THREE.MeshStandardMaterial({ color: 0xe2e8f0, roughness: 0.35, transparent: true, opacity: 0.55 })
         );
         tub.position.set(sx - 0.82, 0.13, sz + 0.34);
         room.add(tub);
+        registerPickable(tub, { halfH: 0.13, holdDist: 1.45 });
 
         room.traverse(obj => {
             if (obj.isMesh && obj !== floor && obj !== backWall && obj !== leftWall && obj !== rightWall && obj !== ceiling && obj !== fwLeft && obj !== fwRight && obj !== fwTop) {
@@ -650,29 +827,41 @@
         const capMat = new THREE.MeshStandardMaterial({ color: 0xd97706, roughness: 0.55 });
         const stemMat = new THREE.MeshStandardMaterial({ color: 0xfef3c7, roughness: 0.7 });
 
+        // Prateleiras internas da estufa como superfície de encaixe para os bolos
+        const tentRackProxy = new THREE.Object3D();
+        tentRackProxy.position.set(GX, 0, GZ);
+        tentRackProxy.userData.isShelf = true;
+        tentRackProxy.userData.halfW = 0.65;
+        tentRackProxy.userData.halfD = 0.45;
+        tentRackProxy.userData.shelfLevels = [0.362, 0.932, 1.492];
+        shelfUnits.push(tentRackProxy);
+
         [-0.34, 0.34].forEach((rx, rIdx) => {
             [0.35, 0.92, 1.48].forEach((sy, sIdx) => {
                 const shelf = new THREE.Mesh(new THREE.BoxGeometry(0.56, 0.025, 0.78), rackMat);
                 shelf.position.set(rx, sy, -0.08);
                 group.add(shelf);
+
+                // Bolo + bandeja + 9 cogumelos agrupados e pegáveis (em coordenadas do mundo para poder sair da estufa!)
+                const cakeGroup = new THREE.Group();
+                cakeGroup.position.set(GX + rx, sy + 0.012, GZ - 0.08);
+
                 const tray = new THREE.Mesh(new THREE.BoxGeometry(0.45, 0.04, 0.59), trayMat);
-                tray.position.set(rx, sy + 0.032, -0.08);
-                group.add(tray);
+                tray.position.set(0, 0.02, 0);
+                cakeGroup.add(tray);
                 const block = new THREE.Mesh(new THREE.BoxGeometry(0.42, 0.14, 0.56), subMat);
-                block.position.set(rx, sy + 0.095, -0.08);
-                group.add(block);
-                tagInteractive(tray, 'cogumelos');
-                tagInteractive(block, 'cogumelos');
+                block.position.set(0, 0.083, 0);
+                cakeGroup.add(block);
 
                 // 9 cogumelos por bolo nascendo e crescendo em tempos variados
                 for (let m = 0; m < 9; m++) {
                     const row = Math.floor(m / 3) - 1;
                     const col = (m % 3) - 1;
-                    const mx = rx + col * 0.11 + (Math.random() - 0.5) * 0.04;
-                    const mz = -0.08 + row * 0.15 + (Math.random() - 0.5) * 0.04;
+                    const mx = col * 0.11 + (Math.random() - 0.5) * 0.04;
+                    const mz = row * 0.15 + (Math.random() - 0.5) * 0.04;
 
                     const mushGroup = new THREE.Group();
-                    mushGroup.position.set(mx, sy + 0.165, mz);
+                    mushGroup.position.set(mx, 0.153, mz);
                     mushGroup.rotation.z = (Math.random() - 0.5) * 0.18;
                     mushGroup.rotation.x = (Math.random() - 0.5) * 0.18;
 
@@ -684,13 +873,17 @@
                     cap.position.y = 0.085;
                     mushGroup.add(cap);
 
-                    group.add(mushGroup);
+                    cakeGroup.add(mushGroup);
                     mushrooms.push({
                         mesh: mushGroup,
                         delay: (rIdx * 0.04 + sIdx * 0.05 + m * 0.025) % 0.25,
                         maxScale: 0.75 + Math.random() * 0.55
                     });
                 }
+
+                world.add(cakeGroup);
+                tagInteractive(cakeGroup, 'cogumelos');
+                registerPickable(cakeGroup, { halfH: 0, holdDist: 1.35, supportedBy: tentRackProxy });
             });
         });
 
@@ -1674,11 +1867,8 @@
             rock.rotation.set(rand() * 2, rand() * 3, rand() * 2);
             rock.castShadow = true;
             rock.receiveShadow = true;
-            rock.userData.isPickableRock = true;
-            rock.userData.rockIndex = rockCount;
-            rock.userData.halfH = 0.22 * rs;
             world.add(rock);
-            interactiveMeshes.push(rock);
+            registerPickable(rock, { halfH: 0.22 * rs, holdDist: 1.45, rockIndex: rockCount });
             pickableRocks.push(rock);
             rockCount++;
         }
@@ -1856,9 +2046,32 @@
             const moved = Math.hypot(e.clientX - refX, e.clientY - refY);
             if (moved < (e.pointerType === 'touch' ? 12 : 6)) {
                 if (cam.mode === 'fps' && heldRock) {
-                    heldRock.userData.velY = 0;
-                    fallingRocks.push(heldRock);
+                    if (lastSnapTarget) {
+                        heldRock.position.set(lastSnapTarget.x, lastSnapTarget.y, lastSnapTarget.z);
+                        heldRock.userData.supportedBy = lastSnapTarget.shelf || null;
+                        heldRock.userData.velY = 0;
+                        if (typeof lastSnapTarget.wallRotY === 'number') {
+                            heldRock.rotation.y = lastSnapTarget.wallRotY;
+                        } else if (heldRock.userData.isShelf) {
+                            // Alinha estante em ângulos suaves de 45° para encaixar certinho na parede
+                            heldRock.rotation.y = Math.round(cam.fpsYaw / (Math.PI / 4)) * (Math.PI / 4);
+                        }
+                        if (typeof heldRock.userData.rockIndex === 'number') {
+                            pendingDroppedRock = {
+                                id: heldRock.userData.rockIndex,
+                                x: heldRock.position.x,
+                                y: heldRock.position.y,
+                                z: heldRock.position.z
+                            };
+                        }
+                    } else {
+                        heldRock.userData.supportedBy = null;
+                        heldRock.userData.velY = 0;
+                        fallingRocks.push(heldRock);
+                    }
                     heldRock = null;
+                    lastSnapTarget = null;
+                    if (snapPreviewMesh) snapPreviewMesh.visible = false;
                     return;
                 }
                 if (interactiveMeshes.length) {
@@ -1869,13 +2082,20 @@
                     const hits = raycaster.intersectObjects(interactiveMeshes, false);
                     if (hits.length) {
                         const hit = hits[0];
-                        if (cam.mode === 'fps' && hit.object.userData.isPickableRock && hit.distance < 7.5) {
-                            heldRock = hit.object;
-                            return;
-                        }
                         const eqId = hit.object.userData.equipId;
                         if (eqId === 'porta') {
                             window.toggleTwinDoor();
+                            return;
+                        }
+                        const pickTarget = hit.object.userData.pickRoot || (hit.object.userData.isPickable ? hit.object : null);
+                        if (cam.mode === 'fps' && pickTarget && hit.distance < 7.5) {
+                            heldRock = pickTarget;
+                            heldRock.userData.supportedBy = null;
+                            const fi = fallingRocks.indexOf(heldRock);
+                            if (fi !== -1) fallingRocks.splice(fi, 1);
+                            if (heldRock.userData.isShelf) {
+                                dropUnsupportedItems(heldRock);
+                            }
                             return;
                         }
                         if (cam.mode !== 'fps' && eqId) {
@@ -2109,13 +2329,35 @@
             if (heldRock) {
                 const dir = new THREE.Vector3();
                 camera.getWorldDirection(dir);
-                const tx = camera.position.x + dir.x * 1.45;
-                const ty = camera.position.y + dir.y * 1.45 - 0.06 + Math.sin(simTime * 3.0) * 0.03;
-                const tz = camera.position.z + dir.z * 1.45;
+                const distHold = heldRock.userData.holdDist || 1.45;
+                const tx = camera.position.x + dir.x * distHold;
+                const ty = camera.position.y + dir.y * distHold - 0.10 + Math.sin(simTime * 3.0) * 0.025;
+                const tz = camera.position.z + dir.z * distHold;
                 heldRock.position.x += (tx - heldRock.position.x) * 0.28;
                 heldRock.position.y += (ty - heldRock.position.y) * 0.28;
                 heldRock.position.z += (tz - heldRock.position.z) * 0.28;
-                heldRock.rotation.y += 0.018;
+                if (heldRock.userData.isPickableRock) {
+                    heldRock.rotation.y += 0.018;
+                } else {
+                    const targetYaw = cam.fpsYaw;
+                    let dy = targetYaw - heldRock.rotation.y;
+                    while (dy > Math.PI) dy -= Math.PI * 2;
+                    while (dy < -Math.PI) dy += Math.PI * 2;
+                    heldRock.rotation.y += dy * 0.18;
+                }
+
+                lastSnapTarget = findPlacementTarget(heldRock);
+                if (snapPreviewMesh) {
+                    if (lastSnapTarget) {
+                        snapPreviewMesh.visible = true;
+                        snapPreviewMesh.position.set(lastSnapTarget.x, lastSnapTarget.planeY + 0.015, lastSnapTarget.z);
+                    } else {
+                        snapPreviewMesh.visible = false;
+                    }
+                }
+            } else {
+                lastSnapTarget = null;
+                if (snapPreviewMesh) snapPreviewMesh.visible = false;
             }
 
             if (typeof window.onTwinDoorHint === 'function') {
@@ -2124,6 +2366,7 @@
             }
         } else {
             if (fpsHandsGroup) fpsHandsGroup.visible = false;
+            if (snapPreviewMesh) snapPreviewMesh.visible = false;
             if (cam.autoRotate && !cam.dragging) cam.targetTheta += 0.003;
             cam.theta += (cam.targetTheta - cam.theta) * 0.12;
             cam.phi += (cam.targetPhi - cam.phi) * 0.12;
@@ -2144,15 +2387,39 @@
             camera.lookAt(cam.lookX, cam.lookY, cam.lookZ);
         }
 
-        // Física de queda das pedras soltas
+        // Física de queda dos itens e pedras soltas (com pouso em prateleira ou chão)
         for (let i = fallingRocks.length - 1; i >= 0; i--) {
             const r = fallingRocks[i];
+            const prevY = r.position.y;
             r.userData.velY = (r.userData.velY || 0) - 0.012;
             r.position.y += r.userData.velY;
-            const floorY = Math.max(-0.26, getGroundHeight(r.position.x, r.position.z)) + (r.userData.halfH || 0.2);
+            const halfH = r.userData.halfH || 0;
+            let floorY = Math.max(-0.26, getGroundHeight(r.position.x, r.position.z)) + halfH;
+            let landedShelf = null;
+
+            if (!r.userData.isShelf) {
+                for (let s = 0; s < shelfUnits.length; s++) {
+                    const sh = shelfUnits[s];
+                    if (!sh || sh === r || sh === heldRock || !sh.userData.shelfLevels) continue;
+                    const dx = r.position.x - sh.position.x, dz = r.position.z - sh.position.z;
+                    const cosY = Math.cos(-sh.rotation.y), sinY = Math.sin(-sh.rotation.y);
+                    const lx = dx * cosY - dz * sinY, lz = dx * sinY + dz * cosY;
+                    if (Math.abs(lx) <= (sh.userData.halfW || 0.45) && Math.abs(lz) <= (sh.userData.halfD || 0.25)) {
+                        for (let l = 0; l < sh.userData.shelfLevels.length; l++) {
+                            const sy = sh.position.y + sh.userData.shelfLevels[l] + halfH;
+                            if (prevY >= sy - 0.02 && sy > floorY) {
+                                floorY = sy;
+                                landedShelf = sh;
+                            }
+                        }
+                    }
+                }
+            }
+
             if (r.position.y <= floorY) {
                 r.position.y = floorY;
                 r.userData.velY = 0;
+                r.userData.supportedBy = landedShelf;
                 if (typeof r.userData.rockIndex === 'number') {
                     pendingDroppedRock = {
                         id: r.userData.rockIndex,
@@ -2396,18 +2663,14 @@
         const keys = Object.keys(remotePlayers);
         for (let i = 0; i < keys.length; i++) {
             const rp = remotePlayers[keys[i]];
-            // Predição leve + interpolação contínua para eliminar saltos entre pacotes
-            if (rp.walking) {
-                rp.tx += (rp.vx || 0) * 0.65;
-                rp.tz += (rp.vz || 0) * 0.65;
-            }
+            // Interpolação direta até a posição real recebida (sem predição oscilatória)
             const distErr = Math.hypot(rp.tx - rp.group.position.x, rp.tz - rp.group.position.z);
             if (distErr > 12) {
                 rp.group.position.set(rp.tx, rp.ty, rp.tz);
             } else {
-                rp.group.position.x += (rp.tx - rp.group.position.x) * 0.14;
-                rp.group.position.y += (rp.ty - rp.group.position.y) * 0.16;
-                rp.group.position.z += (rp.tz - rp.group.position.z) * 0.14;
+                rp.group.position.x += (rp.tx - rp.group.position.x) * 0.16;
+                rp.group.position.y += (rp.ty - rp.group.position.y) * 0.18;
+                rp.group.position.z += (rp.tz - rp.group.position.z) * 0.16;
             }
 
             // Interpolação angular suave (corpo no eixo Y, cabeça no eixo X)
@@ -2422,15 +2685,16 @@
             }
 
             const holding = typeof rp.holdingRock === 'number' && rp.holdingRock >= 0 && pickableRocks[rp.holdingRock];
-            if (rp.walking) {
-                const sw = Math.sin(simTime * 9.5 + rp.phase) * 0.65;
+            const isActuallyMoving = rp.walking || distErr > 0.045;
+            if (isActuallyMoving) {
+                const sw = Math.sin(simTime * 8.5 + rp.phase) * 0.62;
                 rp.legL.rotation.x = sw;
                 rp.legR.rotation.x = -sw;
                 if (!holding) {
-                    rp.armL.rotation.x = -sw * 0.7;
-                    rp.armR.rotation.x = sw * 0.7;
+                    rp.armL.rotation.x = -sw * 0.68;
+                    rp.armR.rotation.x = sw * 0.68;
                 }
-                rp.group.position.y += Math.abs(Math.sin(simTime * 9.5 + rp.phase)) * 0.032;
+                rp.group.position.y += Math.abs(Math.sin(simTime * 8.5 + rp.phase)) * 0.025;
             } else {
                 rp.legL.rotation.x *= 0.82;
                 rp.legR.rotation.x *= 0.82;
@@ -2498,6 +2762,14 @@
         scene.add(ambientLight);
         const hemiLight = new THREE.HemisphereLight(0xdbeafe, 0x2d4a3e, 0.58);
         scene.add(hemiLight);
+
+        snapPreviewMesh = new THREE.Mesh(
+            new THREE.RingGeometry(0.14, 0.19, 24),
+            new THREE.MeshBasicMaterial({ color: 0x22d3ee, side: THREE.DoubleSide, transparent: true, opacity: 0.85 })
+        );
+        snapPreviewMesh.rotation.x = -Math.PI / 2;
+        snapPreviewMesh.visible = false;
+        scene.add(snapPreviewMesh);
 
         const keyLight = new THREE.DirectionalLight(0xfff1d6, 1.28);
         keyLight.position.set(32, 42, -55);
@@ -2727,8 +2999,6 @@
                 };
             } else {
                 const rp = remotePlayers[p.id];
-                rp.vx = Math.max(-0.18, Math.min(0.18, (p.x - rp.tx) * 0.14));
-                rp.vz = Math.max(-0.18, Math.min(0.18, (p.z - rp.tz) * 0.14));
                 rp.tx = p.x;
                 rp.ty = p.y;
                 rp.tz = p.z;
