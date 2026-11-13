@@ -378,7 +378,6 @@ const tEnd = proj.tEnd;
 }
 
 
-let loopGen = 0;
 async function loopDados(forceDelay = null) {
     const myGen = ++loopGen;
     if (loopTimeout) { clearTimeout(loopTimeout); loopTimeout = null; }
