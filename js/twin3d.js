@@ -1936,8 +1936,8 @@
                     if (t.identifier === lookTouchId) {
                         const dx = t.clientX - lookLastX;
                         const dy = t.clientY - lookLastY;
-                        cam.fpsYaw -= dx * 0.0065;
-                        cam.fpsPitch = Math.max(-1.1, Math.min(1.1, cam.fpsPitch - dy * 0.0055));
+                        cam.fpsYaw -= dx * 0.0042;
+                        cam.fpsPitch = Math.max(-1.1, Math.min(1.1, cam.fpsPitch - dy * 0.0036));
                         lookLastX = t.clientX;
                         lookLastY = t.clientY;
                     }
@@ -1983,14 +1983,17 @@
             if (cam.keys.lookD) cam.fpsPitch = Math.max(-1.1, cam.fpsPitch - 0.032);
 
             const joyMag = Math.hypot(cam.joyX, cam.joyY);
-            const isSprinting = cam.keys.shift || joyMag > 0.85;
-            const speed = isSprinting ? 0.24 : 0.068;
+            const joyDead = joyMag < 0.08 ? 0 : (joyMag - 0.08) / 0.92;
+            const joyScale = joyMag > 0.001 ? Math.pow(joyDead, 1.35) / joyMag : 0;
+            const jx = cam.joyX * joyScale;
+            const jy = cam.joyY * joyScale;
+            const speed = cam.keys.shift ? 0.16 : (joyMag > 0.08 ? 0.092 : 0.068);
             const fwdX = -Math.sin(cam.fpsYaw);
             const fwdZ = -Math.cos(cam.fpsYaw);
             const rightX = Math.cos(cam.fpsYaw);
             const rightZ = -Math.sin(cam.fpsYaw);
-            const fwdIn = (cam.keys.w ? 1 : 0) - (cam.keys.s ? 1 : 0) + cam.joyY;
-            const strIn = (cam.keys.d ? 1 : 0) - (cam.keys.a ? 1 : 0) + cam.joyX;
+            const fwdIn = (cam.keys.w ? 1 : 0) - (cam.keys.s ? 1 : 0) + jy;
+            const strIn = (cam.keys.d ? 1 : 0) - (cam.keys.a ? 1 : 0) + jx;
             let mx = fwdX * fwdIn * speed + rightX * strIn * speed;
             let mz = fwdZ * fwdIn * speed + rightZ * strIn * speed;
 

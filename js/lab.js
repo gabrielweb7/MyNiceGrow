@@ -41,7 +41,7 @@ function iniciarJoystickMinecraft() {
     const knob = document.getElementById('twinJoystickKnob');
     if (!joy || !knob) return;
     let activePointerId = null;
-    const maxR = 46;
+    const maxR = 52;
 
     function updateJoy(clientX, clientY) {
         const rect = joy.getBoundingClientRect();

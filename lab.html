@@ -40,10 +40,10 @@
         }
         #twinJoystick {
             position: absolute;
-            bottom: 58px;
-            left: 16px;
-            width: 124px;
-            height: 124px;
+            bottom: calc(64px + env(safe-area-inset-bottom, 0px));
+            left: calc(28px + env(safe-area-inset-left, 0px));
+            width: 152px;
+            height: 152px;
             border-radius: 9999px;
             z-index: 30;
             display: none;
@@ -53,17 +53,17 @@
             user-select: none;
         }
         #twinJoystickKnob {
-            width: 48px;
-            height: 48px;
+            width: 58px;
+            height: 58px;
             border-radius: 9999px;
             pointer-events: none;
         }
         #btnTwinJump {
             position: absolute;
-            bottom: 64px;
-            right: 16px;
-            width: 56px;
-            height: 56px;
+            bottom: calc(68px + env(safe-area-inset-bottom, 0px));
+            right: calc(28px + env(safe-area-inset-right, 0px));
+            width: 62px;
+            height: 62px;
             border-radius: 9999px;
             z-index: 30;
             display: none;
@@ -398,7 +398,7 @@
 
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js" defer></script>
     <script src="js/vendor/charts-bundle.min.js?v=1.8.0" defer></script>
-    <script src="js/twin3d.js?v=1.9.32" defer></script>
-    <script src="js/lab.js?v=1.9.17" defer></script>
+    <script src="js/twin3d.js?v=1.9.33" defer></script>
+    <script src="js/lab.js?v=1.9.18" defer></script>
 </body>
 </html>
