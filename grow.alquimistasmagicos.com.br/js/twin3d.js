@@ -20,16 +20,12 @@
     let frontWallGroup; // Parede frontal + porta (visível apenas no modo FPS)
     const mushrooms = []; // Cogumelos animados (pin -> crescimento -> flush -> reinício)
 
-    // Partículas persistentes DENTRO da estufa (homogêneas em todas as prateleiras)
-    const GROW_COUNT = 320;
-    let growPoints, growPos, growCol;
-    const growParticles = [];
-
-    // Partículas + Linhas de Fluxo CFD homogêneas no QUARTO INTEIRO
-    const ROOM_COUNT = 640;
-    let roomPoints, roomPos, roomCol;
-    let roomLines, roomLinePos, roomLineCol;
-    const roomParticles = [];
+    // Sistema UNIFICADO de fluido (o mesmo ar circula entre o quarto, exaustor superior, estufa e duto inferior)
+    const AIR_COUNT = 880;
+    const TENT_SEED = 260;
+    let airPoints, airPos, airCol;
+    let airLines, airLinePos, airLineCol;
+    const airParticles = [];
 
     const state = {
         tempInt: 26.5,
@@ -608,339 +604,338 @@
         return group;
     }
 
+    function assignTentHome(p) {
+        p.homeX = GX + (Math.random() - 0.5) * (W * 0.85);
+        p.homeY = 0.15 + Math.random() * (H - 0.30);
+        p.homeZ = GZ + (Math.random() - 0.5) * (D * 0.82);
+    }
+
+    function assignRoomHome(p) {
+        let rx = -2.38 + Math.random() * 5.65;
+        let ry = 0.22 + Math.random() * 3.00;
+        let rz = -1.88 + Math.random() * 3.95;
+        if (rx > GX - halfW - 0.10 && rx < GX + halfW + 0.10 && rz > GZ - halfD - 0.10 && rz < GZ + halfD + 0.10 && ry < H + 0.08) {
+            rx = (rx < GX) ? (GX - halfW - 0.28) : (GX + halfW + 0.28);
+        }
+        p.homeX = rx; p.homeY = ry; p.homeZ = rz;
+    }
+
     function buildFluids(tex) {
-        // 1. Fluido interno da estufa (partículas contínuas que nunca desaparecem)
-        const gGeo = new THREE.BufferGeometry();
-        growPos = new Float32Array(GROW_COUNT * 3);
-        growCol = new Float32Array(GROW_COUNT * 3);
-        for (let i = 0; i < GROW_COUNT; i++) {
-            const gx0 = GX + (Math.random() - 0.5) * (W * 0.85);
-            const gy0 = 0.15 + Math.random() * (H - 0.3);
-            const gz0 = GZ + (Math.random() - 0.5) * (D * 0.82);
+        const aGeo = new THREE.BufferGeometry();
+        airPos = new Float32Array(AIR_COUNT * 3);
+        airCol = new Float32Array(AIR_COUNT * 3);
+
+        // 1. Partículas iniciais dentro da estufa (TENT_SEED)
+        for (let i = 0; i < TENT_SEED; i++) {
             const p = {
-                homeX: gx0, homeY: gy0, homeZ: gz0,
-                x: gx0, y: gy0, z: gz0,
+                inTent: true,
+                homeX: 0, homeY: 0, homeZ: 0,
+                x: 0, y: 0, z: 0,
                 vx: 0, vy: 0, vz: 0,
                 temp: state.tempInt,
                 mist: false
             };
-            growParticles.push(p);
-            growPos[i * 3] = p.x; growPos[i * 3 + 1] = p.y; growPos[i * 3 + 2] = p.z;
+            assignTentHome(p);
+            p.x = p.homeX; p.y = p.homeY; p.z = p.homeZ;
+            airParticles.push(p);
+            airPos[i * 3] = p.x; airPos[i * 3 + 1] = p.y; airPos[i * 3 + 2] = p.z;
             const [r, g, b] = tempToRGB(p.temp, false);
-            growCol[i * 3] = r; growCol[i * 3 + 1] = g; growCol[i * 3 + 2] = b;
+            airCol[i * 3] = r; airCol[i * 3 + 1] = g; airCol[i * 3 + 2] = b;
         }
-        gGeo.setAttribute('position', new THREE.BufferAttribute(growPos, 3));
-        gGeo.setAttribute('color', new THREE.BufferAttribute(growCol, 3));
-        growPoints = new THREE.Points(gGeo, new THREE.PointsMaterial({
-            size: 0.18,
-            map: tex,
-            vertexColors: true,
-            transparent: true,
-            opacity: 0.72,
-            depthWrite: false
-        }));
-        scene.add(growPoints);
 
-        // 2. Fluido homogêneo no Quarto INTEIRO (grade 3D estratificada + jitter para cobertura uniforme)
-        const rGeo = new THREE.BufferGeometry();
-        roomPos = new Float32Array(ROOM_COUNT * 3);
-        roomCol = new Float32Array(ROOM_COUNT * 3);
-        const nx = 10, ny = 8, nz = 8; // 10 * 8 * 8 = 640 partículas homogêneas
-        let idx = 0;
-        for (let ix = 0; ix < nx; ix++) {
-            for (let iy = 0; iy < ny; iy++) {
-                for (let iz = 0; iz < nz; iz++) {
-                    let rx = -2.38 + ((ix + 0.5) / nx) * 5.65 + (Math.random() - 0.5) * 0.32;
-                    let ry = 0.18 + ((iy + 0.5) / ny) * 3.05 + (Math.random() - 0.5) * 0.22;
-                    let rz = -1.88 + ((iz + 0.5) / nz) * 3.95 + (Math.random() - 0.5) * 0.30;
-                    if (rx > GX - halfW - 0.08 && rx < GX + halfW + 0.08 && rz > GZ - halfD - 0.08 && rz < GZ + halfD + 0.08 && ry < H + 0.05) {
-                        rx = (rx < GX) ? (GX - halfW - 0.22) : (GX + halfW + 0.22);
+        // 2. Partículas iniciais homogêneas no quarto (620 em grade estratificada 3D)
+        const roomRem = AIR_COUNT - TENT_SEED;
+        const nx = 10, ny = 8, nz = 8;
+        let idx = TENT_SEED;
+        for (let ix = 0; ix < nx && idx < AIR_COUNT; ix++) {
+            for (let iy = 0; iy < ny && idx < AIR_COUNT; iy++) {
+                for (let iz = 0; iz < nz && idx < AIR_COUNT; iz++) {
+                    let rx = -2.38 + ((ix + 0.5) / nx) * 5.65 + (Math.random() - 0.5) * 0.28;
+                    let ry = 0.22 + ((iy + 0.5) / ny) * 3.00 + (Math.random() - 0.5) * 0.20;
+                    let rz = -1.88 + ((iz + 0.5) / nz) * 3.95 + (Math.random() - 0.5) * 0.28;
+                    if (rx > GX - halfW - 0.10 && rx < GX + halfW + 0.10 && rz > GZ - halfD - 0.10 && rz < GZ + halfD + 0.10 && ry < H + 0.08) {
+                        rx = (rx < GX) ? (GX - halfW - 0.26) : (GX + halfW + 0.26);
                     }
                     const p = {
+                        inTent: false,
                         homeX: rx, homeY: ry, homeZ: rz,
                         x: rx, y: ry, z: rz,
-                        vx: (Math.random() - 0.5) * 0.006,
-                        vy: (Math.random() - 0.5) * 0.004,
-                        vz: (Math.random() - 0.5) * 0.006,
-                        temp: state.tempExt
+                        vx: 0, vy: 0, vz: 0,
+                        temp: state.tempExt,
+                        mist: false
                     };
-                    roomParticles.push(p);
-                    roomPos[idx * 3] = p.x; roomPos[idx * 3 + 1] = p.y; roomPos[idx * 3 + 2] = p.z;
+                    airParticles.push(p);
+                    airPos[idx * 3] = p.x; airPos[idx * 3 + 1] = p.y; airPos[idx * 3 + 2] = p.z;
                     const [r, g, b] = tempToRGB(p.temp, false);
-                    roomCol[idx * 3] = r; roomCol[idx * 3 + 1] = g; roomCol[idx * 3 + 2] = b;
+                    airCol[idx * 3] = r; airCol[idx * 3 + 1] = g; airCol[idx * 3 + 2] = b;
                     idx++;
                 }
             }
         }
-        rGeo.setAttribute('position', new THREE.BufferAttribute(roomPos, 3));
-        rGeo.setAttribute('color', new THREE.BufferAttribute(roomCol, 3));
-        roomPoints = new THREE.Points(rGeo, new THREE.PointsMaterial({
-            size: 0.20,
+        while (airParticles.length < AIR_COUNT) {
+            const p = { inTent: false, homeX: 0, homeY: 1, homeZ: 0, x: 0, y: 1, z: 0, vx: 0, vy: 0, vz: 0, temp: state.tempExt, mist: false };
+            assignRoomHome(p);
+            p.x = p.homeX; p.y = p.homeY; p.z = p.homeZ;
+            const k = airParticles.length;
+            airParticles.push(p);
+            airPos[k * 3] = p.x; airPos[k * 3 + 1] = p.y; airPos[k * 3 + 2] = p.z;
+            const [r, g, b] = tempToRGB(p.temp, false);
+            airCol[k * 3] = r; airCol[k * 3 + 1] = g; airCol[k * 3 + 2] = b;
+        }
+
+        aGeo.setAttribute('position', new THREE.BufferAttribute(airPos, 3));
+        aGeo.setAttribute('color', new THREE.BufferAttribute(airCol, 3));
+        airPoints = new THREE.Points(aGeo, new THREE.PointsMaterial({
+            size: 0.19,
             map: tex,
             vertexColors: true,
             transparent: true,
-            opacity: 0.48,
+            opacity: 0.56,
             depthWrite: false
         }));
-        scene.add(roomPoints);
+        scene.add(airPoints);
 
-        // Linhas de fluxo CFD (mostram direção e velocidade real do ar no quarto!)
+        // Linhas de fluxo CFD unificadas (aparecem apenas onde há corrente real de ar)
         const lGeo = new THREE.BufferGeometry();
-        roomLinePos = new Float32Array(ROOM_COUNT * 6);
-        roomLineCol = new Float32Array(ROOM_COUNT * 6);
-        lGeo.setAttribute('position', new THREE.BufferAttribute(roomLinePos, 3));
-        lGeo.setAttribute('color', new THREE.BufferAttribute(roomLineCol, 3));
-        roomLines = new THREE.LineSegments(lGeo, new THREE.LineBasicMaterial({
+        airLinePos = new Float32Array(AIR_COUNT * 6);
+        airLineCol = new Float32Array(AIR_COUNT * 6);
+        lGeo.setAttribute('position', new THREE.BufferAttribute(airLinePos, 3));
+        lGeo.setAttribute('color', new THREE.BufferAttribute(airLineCol, 3));
+        airLines = new THREE.LineSegments(lGeo, new THREE.LineBasicMaterial({
             vertexColors: true,
             transparent: true,
-            opacity: 0.68
+            opacity: 0.65
         }));
-        scene.add(roomLines);
+        scene.add(airLines);
     }
 
     function stepFluidPhysics() {
         simTime += 0.025;
         const topHeatBonus = state.luz ? 1.1 : 0.0;
-
         const humMistRatio = state.humInt <= 93.0 ? 0.0 : Math.min(0.48, Math.pow((state.humInt - 93.0) / 7.0, 1.8) * 0.48);
-        growPoints.material.size += (((state.umid || humMistRatio > 0.20) ? 0.21 : 0.16) - growPoints.material.size) * 0.08;
 
         const tentAirflow = state.vento || state.exaust;
-        const tentCurl = tentAirflow ? 0.00055 : (state.umid ? 0.00028 : 0.00009);
+        const tentCurl = tentAirflow ? 0.00050 : (state.umid ? 0.00025 : 0.00009);
         const tentTime = tentAirflow ? simTime : (state.umid ? simTime * 0.5 : simTime * 0.25);
         const tentDamp = tentAirflow ? 0.95 : (state.umid ? 0.94 : 0.90);
 
-        for (let i = 0; i < GROW_COUNT; i++) {
-            const p = growParticles[i];
-            const lx = p.x - GX;
-            const lz = p.z - GZ;
-
-            // Ar suspenso em repouso; corrente suave quando umidificador/exaustor/vento ligam
-            p.vx += Math.sin(p.y * 2.5 + tentTime) * Math.cos(lz * 2.3 + tentTime * 0.7) * tentCurl;
-            p.vy += Math.sin(lx * 2.4 + tentTime * 0.8) * (tentCurl * 0.7);
-            p.vz += Math.cos(p.y * 2.3 - tentTime) * Math.sin(lx * 2.5 + tentTime * 0.6) * tentCurl;
-            p.vx += (p.homeX - p.x) * (tentAirflow ? 0.00008 : 0.00014);
-            p.vy += (p.homeY - p.y) * (tentAirflow ? 0.00008 : 0.00014);
-            p.vz += (p.homeZ - p.z) * (tentAirflow ? 0.00008 : 0.00014);
-
-            // Empuxo térmico suave
-            p.vy += (p.temp - state.tempInt) * (tentAirflow ? 0.00020 : 0.00007);
-
-            // Ventilador Interno (vórtice interno suave)
-            if (state.vento) {
-                const dist = Math.hypot(lx, lz) + 0.06;
-                p.vx += (-lz / dist) * 0.0024;
-                p.vz += (lx / dist) * 0.0024;
-            }
-
-            // Exaustor no TOPO empurra ar de cima para baixo, e o ar sai pelo duto INFERIOR ESQUERDO!
-            if (state.exaust) {
-                p.vy -= 0.0022; // Downwash tranquilo de cima para baixo
-                // Atrai em direção ao duto inferior esquerdo (-halfW, 0.16, 0.35)
-                if (p.y < 0.75) {
-                    const dx = (-halfW - 0.15) - lx;
-                    const dy = 0.16 - p.y;
-                    const dz = 0.35 - lz;
-                    const d = Math.hypot(dx, dy, dz) + 0.15;
-                    p.vx += (dx / d) * 0.0036;
-                    p.vy += (dy / d) * 0.0030;
-                    p.vz += (dz / d) * 0.0036;
-                }
-            }
-
-            p.vx *= tentDamp; p.vy *= tentDamp; p.vz *= tentDamp;
-            p.x += p.vx; p.y += p.vy; p.z += p.vz;
-
-            const localGoal = state.tempInt + (p.y > 1.8 ? topHeatBonus : 0);
-            p.temp += (localGoal - p.temp) * 0.045;
-
-            // Se saiu pelo duto inferior esquerdo (durante exaustão), entra ar novo pelo TOPO (conservação de massa!)
-            if (state.exaust && (p.x - GX) < -halfW - 0.05 && p.y < 0.45) {
-                p.x = GX + 0.05 + (Math.random() - 0.5) * 0.22;
-                p.y = H - 0.15;
-                p.z = GZ - 0.2 + (Math.random() - 0.5) * 0.22;
-                p.vx = (Math.random() - 0.5) * 0.012;
-                p.vy = -(0.025 + Math.random() * 0.015);
-                p.vz = (Math.random() - 0.5) * 0.012;
-                p.temp = state.tempExt;
-                p.mist = false;
-            } else {
-                // Se umidificador ligado, névoa azul clarinha sai bem devagar da mangueira amarela (topo direito)
-                if (state.umid && Math.random() < 0.008) {
-                    p.x = GX + halfW - 0.12;
-                    p.y = 2.12;
-                    p.z = GZ + 0.15;
-                    p.vx = -(0.004 + Math.random() * 0.003);
-                    p.vy = -(0.005 + Math.random() * 0.004);
-                    p.vz = (Math.random() - 0.5) * 0.003;
-                    p.temp = state.tempInt - 0.7;
-                    p.mist = true;
-                }
-                // Colisão suave nas paredes internas (partícula NUNCA some!)
-                if (p.x < GX - halfW + 0.06) { p.x = GX - halfW + 0.06; p.vx *= -0.6; }
-                if (p.x > GX + halfW - 0.06) { p.x = GX + halfW - 0.06; p.vx *= -0.6; }
-                if (p.z < GZ - halfD + 0.06) { p.z = GZ - halfD + 0.06; p.vz *= -0.6; }
-                if (p.z > GZ + halfD - 0.06) { p.z = GZ + halfD - 0.06; p.vz *= -0.6; }
-                if (p.y < 0.08) { p.y = 0.08; p.vy *= -0.45; }
-                if (p.y > H - 0.08) { p.y = H - 0.08; p.vy *= -0.45; }
-            }
-
-            growPos[i * 3] = p.x; growPos[i * 3 + 1] = p.y; growPos[i * 3 + 2] = p.z;
-            const showVapor = ((i / GROW_COUNT) < humMistRatio) || (p.mist && state.umid);
-            const [r, g, b] = tempToRGB(p.temp, showVapor);
-            growCol[i * 3] = r; growCol[i * 3 + 1] = g; growCol[i * 3 + 2] = b;
-        }
-        growPoints.geometry.attributes.position.needsUpdate = true;
-        growPoints.geometry.attributes.color.needsUpdate = true;
-
-        // ============================================================
-        // FÍSICA REAL DO AR DENTRO DO QUARTO INTEIRO
-        // ============================================================
-        // Campo de convecção, jato + retorno do AC Split, calor da janela,
-        // sucção no topo da estufa e descarga pelo duto inferior esquerdo.
-        const acColdTemp = Math.min(18.5, state.tempExt - 6.0);
-        const topExX = GX + 0.05, topExY = H + 0.15, topExZ = GZ - 0.20;
-        const ductOutX = GX - halfW - 0.36, ductOutY = 0.16, ductOutZ = GZ + 0.35;
-
         const roomActive = state.ar || state.exaust;
-        const roomCurl = roomActive ? 0.00065 : 0.00009;
+        const roomCurl = roomActive ? 0.00050 : 0.00009;
         const roomTime = roomActive ? simTime : simTime * 0.25;
-        const roomDamp = roomActive ? 0.96 : 0.90;
-        const roomTail = roomActive ? 5.5 : 1.8;
+        const roomDamp = roomActive ? 0.955 : 0.90;
 
-        for (let i = 0; i < ROOM_COUNT; i++) {
-            const p = roomParticles[i];
+        const acColdTemp = Math.min(18.5, state.tempExt - 6.0);
+        const topExX = GX + 0.05, topExY = H + 0.14, topExZ = GZ - 0.20;
+        const ductInX = GX - halfW + 0.04, ductInY = 0.19, ductInZ = GZ + 0.35;
+        const ductOutX = GX - halfW - 0.56, ductOutY = 0.10, ductOutZ = GZ + 0.56;
+        const minTX = GX - halfW - 0.06, maxTX = GX + halfW + 0.06;
+        const minTZ = GZ - halfD - 0.06, maxTZ = GZ + halfD + 0.06;
 
-            // 1. Convecção natural calma em repouso; turbulência apenas quando AC ou Exaustor estão ligados
-            p.vx += Math.sin(p.y * 1.4 + roomTime * 0.9) * Math.cos(p.z * 1.2 + roomTime * 0.6) * roomCurl;
-            p.vy += Math.sin(p.x * 1.1 + roomTime * 0.7) * Math.cos(p.z * 1.1 + roomTime * 0.5) * (roomCurl * 0.75);
-            p.vz += Math.cos(p.y * 1.3 - roomTime * 0.8) * Math.sin(p.x * 1.2 + roomTime * 0.5) * roomCurl;
-            p.vx += (p.homeX - p.x) * (roomActive ? 0.00030 : 0.00014);
-            p.vy += (p.homeY - p.y) * (roomActive ? 0.00055 : 0.00018);
-            p.vz += (p.homeZ - p.z) * (roomActive ? 0.00030 : 0.00014);
+        let tentIdx = 0;
 
-            // 2. Empuxo térmico suave relativo à temperatura média do quarto (sem colapsar no piso)
-            const refTempY = (state.ar ? state.tempExt - 2.6 : state.tempExt) + (p.y / 3.4 - 0.5) * 0.35;
-            p.vy += (p.temp - refTempY) * (roomActive ? 0.00004 : 0.00003);
+        for (let i = 0; i < AIR_COUNT; i++) {
+            const p = airParticles[i];
+            let showVapor = false;
 
-            // 3. Fonte térmica da janela (condução leve na parede esquerda)
-            if (p.x < -2.0 && p.y > 0.8 && p.y < 2.3 && Math.abs(p.z + 0.35) < 0.9) {
-                p.temp += ((state.tempExt + 1.2) - p.temp) * 0.015;
+            if (p.inTent) {
+                tentIdx++;
+                const lx = p.x - GX;
+                const lz = p.z - GZ;
+
+                // Ar suspenso em repouso; corrente suave quando umidificador/exaustor/vento ligam
+                p.vx += Math.sin(p.y * 2.5 + tentTime) * Math.cos(lz * 2.3 + tentTime * 0.7) * tentCurl;
+                p.vy += Math.sin(lx * 2.4 + tentTime * 0.8) * (tentCurl * 0.7);
+                p.vz += Math.cos(p.y * 2.3 - tentTime) * Math.sin(lx * 2.5 + tentTime * 0.6) * tentCurl;
+                p.vx += (p.homeX - p.x) * (tentAirflow ? 0.00008 : 0.00014);
+                p.vy += (p.homeY - p.y) * (tentAirflow ? 0.00008 : 0.00014);
+                p.vz += (p.homeZ - p.z) * (tentAirflow ? 0.00008 : 0.00014);
+                p.vy += (p.temp - state.tempInt) * (tentAirflow ? 0.00015 : 0.00006);
+
+                if (state.vento) {
+                    const dist = Math.hypot(lx, lz) + 0.06;
+                    p.vx += (-lz / dist) * 0.0024;
+                    p.vz += (lx / dist) * 0.0024;
+                }
+
+                // Exaustor ligado: empurra ar de cima para baixo e puxa para o duto inferior esquerdo
+                if (state.exaust) {
+                    p.vy -= 0.0018;
+                    if (p.y < 0.78) {
+                        const dx = ductInX - p.x;
+                        const dy = ductInY - p.y;
+                        const dz = ductInZ - p.z;
+                        const dDuct = Math.hypot(dx, dy, dz) + 0.05;
+                        p.vx += (dx / dDuct) * 0.0038;
+                        p.vy += (dy / dDuct) * 0.0030;
+                        p.vz += (dz / dDuct) * 0.0038;
+                        // Sai fisicamente pela boca aberta do duto sanfonado seguindo o ângulo exato do tubo!
+                        if (dDuct < 0.28) {
+                            const spd = 0.018 + Math.random() * 0.006;
+                            p.inTent = false;
+                            p.mist = false;
+                            p.x = ductOutX + (Math.random() - 0.5) * 0.04;
+                            p.y = ductOutY + (Math.random() - 0.5) * 0.04;
+                            p.z = ductOutZ + (Math.random() - 0.5) * 0.04;
+                            p.vx = -0.914 * spd;
+                            p.vy = 0.002 + Math.random() * 0.002;
+                            p.vz = 0.406 * spd + (Math.random() - 0.5) * 0.003;
+                            assignRoomHome(p);
+                        }
+                    }
+                }
+
+                // Se ainda está na estufa, mantém colisão interna e difusão térmica da estufa
+                if (p.inTent) {
+                    if (state.umid && Math.random() < 0.007) {
+                        p.x = GX + halfW - 0.12;
+                        p.y = 2.12;
+                        p.z = GZ + 0.15;
+                        p.vx = -(0.004 + Math.random() * 0.003);
+                        p.vy = -(0.005 + Math.random() * 0.004);
+                        p.vz = (Math.random() - 0.5) * 0.003;
+                        p.temp = state.tempInt - 0.6;
+                        p.mist = true;
+                    }
+                    p.vx *= tentDamp; p.vy *= tentDamp; p.vz *= tentDamp;
+                    p.x += p.vx; p.y += p.vy; p.z += p.vz;
+
+                    const localGoal = state.tempInt + (p.y > 1.8 ? topHeatBonus : 0);
+                    p.temp += (localGoal - p.temp) * 0.032;
+
+                    if (p.x < GX - halfW + 0.06) { p.x = GX - halfW + 0.06; p.vx *= -0.6; }
+                    if (p.x > GX + halfW - 0.06) { p.x = GX + halfW - 0.06; p.vx *= -0.6; }
+                    if (p.z < GZ - halfD + 0.06) { p.z = GZ - halfD + 0.06; p.vz *= -0.6; }
+                    if (p.z > GZ + halfD - 0.06) { p.z = GZ + halfD - 0.06; p.vz *= -0.6; }
+                    if (p.y < 0.08) { p.y = 0.08; p.vy *= -0.45; }
+                    if (p.y > H - 0.08) { p.y = H - 0.08; p.vy *= -0.45; }
+
+                    showVapor = (((tentIdx % 100) / 100) < humMistRatio) || (p.mist && state.umid);
+                }
+            } else {
+                // PARTÍCULA NO QUARTO (pode entrar na estufa pelo exaustor superior!)
+                p.vx += Math.sin(p.y * 1.4 + roomTime * 0.9) * Math.cos(p.z * 1.2 + roomTime * 0.6) * roomCurl;
+                p.vy += Math.sin(p.x * 1.1 + roomTime * 0.7) * Math.cos(p.z * 1.1 + roomTime * 0.5) * (roomCurl * 0.75);
+                p.vz += Math.cos(p.y * 1.3 - roomTime * 0.8) * Math.sin(p.x * 1.2 + roomTime * 0.5) * roomCurl;
+                p.vx += (p.homeX - p.x) * (roomActive ? 0.00030 : 0.00014);
+                p.vy += (p.homeY - p.y) * (roomActive ? 0.00055 : 0.00018);
+                p.vz += (p.homeZ - p.z) * (roomActive ? 0.00030 : 0.00014);
+
+                const refTempY = (state.ar ? state.tempExt - 2.6 : state.tempExt) + (p.y / 3.4 - 0.5) * 0.35;
+                p.vy += (p.temp - refTempY) * (roomActive ? 0.00004 : 0.00003);
+
+                if (p.x < -2.0 && p.y > 0.8 && p.y < 2.3 && Math.abs(p.z + 0.35) < 0.9) {
+                    p.temp += ((state.tempExt + 1.2) - p.temp) * 0.015;
+                }
+
+                // Ar-Condicionado Split Inverter
+                if (state.ar) {
+                    if (Math.random() < 0.012) {
+                        p.x = -2.18;
+                        p.y = 2.56 + (Math.random() - 0.5) * 0.06;
+                        p.z = -0.35 + (Math.random() - 0.5) * 0.90;
+                        p.vx = 0.016 + Math.random() * 0.008;
+                        p.vy = -(0.0035 + Math.random() * 0.0025);
+                        p.vz = (Math.random() - 0.5) * 0.003;
+                        p.temp = acColdTemp;
+                    }
+                    const jetCenterY = 2.56 - Math.max(0, p.x + 2.20) * 0.30;
+                    if (p.x > -2.30 && p.x < 1.8 && Math.abs(p.y - jetCenterY) < 0.65 && Math.abs(p.z + 0.35) < 1.15) {
+                        const distJet = Math.max(0.2, p.x + 2.30);
+                        const force = 0.0052 / (0.65 + distJet * 0.65);
+                        p.vx += force;
+                        p.vy -= force * 0.22;
+                        p.vz += Math.sin(p.x * 1.3 + simTime) * 0.0006;
+                        p.temp += (acColdTemp - p.temp) * 0.12;
+                    }
+                    p.vx += (p.y > 1.65 ? 0.00045 : -0.00035);
+                    if (p.y < 0.65) p.vy += 0.00038;
+                    const rx = -2.30 - p.x;
+                    const ry = 2.95 - p.y;
+                    const rz = -0.35 - p.z;
+                    const dRet = Math.hypot(rx, ry, rz) + 0.3;
+                    if (dRet < 2.6 && p.y > 2.2) {
+                        const pull = 0.0032 / (0.6 + dRet);
+                        p.vx += (rx / dRet) * pull;
+                        p.vy += (ry / dRet) * pull;
+                        p.vz += (rz / dRet) * pull;
+                    }
+                }
+
+                // Sucção no topo da estufa: puxa o ar do quarto PARA DENTRO da estufa!
+                if (state.exaust) {
+                    const sx = topExX - p.x;
+                    const sy = topExY - p.y;
+                    const sz = topExZ - p.z;
+                    const dTop = Math.hypot(sx, sy, sz) + 0.12;
+                    if (dTop < 1.95 && p.y > 1.85) {
+                        const pull = 0.0058 / (0.35 + dTop);
+                        p.vx += (sx / dTop) * pull;
+                        p.vy += (sy / dTop) * pull;
+                        p.vz += (sz / dTop) * pull;
+                    }
+                    // Entra fisicamente pela boca do exaustor no topo levando sua temperatura real do quarto!
+                    if (dTop < 0.34) {
+                        p.inTent = true;
+                        p.mist = false;
+                        p.x = GX + 0.05 + (Math.random() - 0.5) * 0.18;
+                        p.y = H - 0.10;
+                        p.z = GZ - 0.20 + (Math.random() - 0.5) * 0.18;
+                        p.vx = (Math.random() - 0.5) * 0.008;
+                        p.vy = -(0.020 + Math.random() * 0.008);
+                        p.vz = (Math.random() - 0.5) * 0.008;
+                        assignTentHome(p);
+                    }
+                }
+
+                if (!p.inTent) {
+                    const acCoolSpread = state.ar ? (2.6 + Math.max(0, 1.0 - (p.x + 2.4) * 0.14) * 2.2) : 0.0;
+                    const goalRoom = (state.tempExt - acCoolSpread) + (p.y / 3.4 - 0.5) * 0.5;
+                    p.temp += (goalRoom - p.temp) * 0.032;
+
+                    p.vx *= roomDamp; p.vy *= roomDamp; p.vz *= roomDamp;
+                    p.x += p.vx; p.y += p.vy; p.z += p.vz;
+
+                    if (p.x < -2.52) { p.x = -2.52; p.vx *= -0.55; }
+                    if (p.x > 3.40) { p.x = 3.40; p.vx *= -0.55; }
+                    if (p.y < 0.08) { p.y = 0.08; p.vy *= -0.45; }
+                    if (p.y > 3.35) { p.y = 3.35; p.vy *= -0.45; }
+                    if (p.z < -2.02) { p.z = -2.02; p.vz *= -0.55; }
+                    if (p.z > 2.20) { p.z = 2.20; p.vz *= -0.55; }
+
+                    // Deflexão ao redor do volume sólido da Estufa
+                    if (p.x > minTX && p.x < maxTX && p.z > minTZ && p.z < maxTZ && p.y < H + 0.04) {
+                        const dxL = Math.abs(p.x - minTX), dxR = Math.abs(maxTX - p.x);
+                        const dzB = Math.abs(p.z - minTZ), dzF = Math.abs(maxTZ - p.z);
+                        const dyT = Math.abs(H + 0.04 - p.y);
+                        const m = Math.min(dxL, dxR, dzB, dzF, dyT);
+                        if (m === dxL) { p.x = minTX; p.vx = -Math.abs(p.vx) * 0.6; }
+                        else if (m === dxR) { p.x = maxTX; p.vx = Math.abs(p.vx) * 0.6; }
+                        else if (m === dzB) { p.z = minTZ; p.vz = -Math.abs(p.vz) * 0.6; }
+                        else if (m === dzF) { p.z = maxTZ; p.vz = Math.abs(p.vz) * 0.6; }
+                        else { p.y = H + 0.04; p.vy = Math.abs(p.vy) * 0.5; }
+                    }
+                }
             }
 
-            // 4. Ar-Condicionado Split Inverter (acima da janela: x=-2.26, y=2.60, z=-0.35)
-            if (state.ar) {
-                // Emissão contínua e suave de ar gelado azul-ciano pela aleta frontal do Split (igual ao umidificador)
-                if (Math.random() < 0.012) {
-                    p.x = -2.18;
-                    p.y = 2.56 + (Math.random() - 0.5) * 0.06;
-                    p.z = -0.35 + (Math.random() - 0.5) * 0.90;
-                    p.vx = 0.016 + Math.random() * 0.008;
-                    p.vy = -(0.0035 + Math.random() * 0.0025);
-                    p.vz = (Math.random() - 0.5) * 0.003;
-                    p.temp = acColdTemp;
-                }
-                // Jato frio saindo da aleta inferior do Split e preenchendo o quarto suavemente
-                const jetCenterY = 2.56 - Math.max(0, p.x + 2.20) * 0.30;
-                if (p.x > -2.30 && p.x < 1.8 && Math.abs(p.y - jetCenterY) < 0.65 && Math.abs(p.z + 0.35) < 1.15) {
-                    const distJet = Math.max(0.2, p.x + 2.30);
-                    const force = 0.0052 / (0.65 + distJet * 0.65);
-                    p.vx += force;
-                    p.vy -= force * 0.22;
-                    p.vz += Math.sin(p.x * 1.3 + simTime) * 0.0006;
-                    p.temp += (acColdTemp - p.temp) * 0.12;
-                }
-                // Circulação 3D suave pelo quarto inteiro (sobe ao retornar para manter o ambiente preenchido)
-                p.vx += (p.y > 1.65 ? 0.00045 : -0.00035);
-                if (p.y < 0.65) p.vy += 0.00038;
-                // Sucção de retorno no topo do Split (fecha a célula de convecção do quarto!)
-                const rx = -2.30 - p.x;
-                const ry = 2.95 - p.y;
-                const rz = -0.35 - p.z;
-                const dRet = Math.hypot(rx, ry, rz) + 0.3;
-                if (dRet < 2.6 && p.y > 2.2) {
-                    const pull = 0.0032 / (0.6 + dRet);
-                    p.vx += (rx / dRet) * pull;
-                    p.vy += (ry / dRet) * pull;
-                    p.vz += (rz / dRet) * pull;
-                }
-            }
+            airPos[i * 3] = p.x; airPos[i * 3 + 1] = p.y; airPos[i * 3 + 2] = p.z;
+            const [r, g, b] = tempToRGB(p.temp, showVapor);
+            airCol[i * 3] = r; airCol[i * 3 + 1] = g; airCol[i * 3 + 2] = b;
 
-            // 5. Troca de ar com a Estufa quando Exaustor está LIGADO
-            if (state.exaust) {
-                // Sucção do ar do quarto no TOPO da estufa
-                const sx = topExX - p.x;
-                const sy = topExY - p.y;
-                const sz = topExZ - p.z;
-                const dTop = Math.hypot(sx, sy, sz) + 0.2;
-                if (dTop < 1.9 && p.y > 1.9) {
-                    const pull = 0.0065 / (0.35 + dTop);
-                    p.vx += (sx / dTop) * pull;
-                    p.vy += (sy / dTop) * pull;
-                    p.vz += (sz / dTop) * pull;
-                }
-                // Se entrou na boca do exaustor no topo -> atravessa a estufa e sai pelo duto inferior esquerdo!
-                if (dTop < 0.38) {
-                    p.x = ductOutX;
-                    p.y = ductOutY + (Math.random() - 0.5) * 0.08;
-                    p.z = ductOutZ + (Math.random() - 0.5) * 0.10;
-                    p.vx = -(0.032 + Math.random() * 0.012);
-                    p.vy = 0.004;
-                    p.vz = (Math.random() - 0.5) * 0.008;
-                    p.temp = state.tempInt;
-                }
-            }
-
-            // Difusão térmica em tempo real: acompanha tempExt do quarto e gela progressivamente quando AC liga!
-            const acCoolSpread = state.ar ? (2.6 + Math.max(0, 1.0 - (p.x + 2.4) * 0.14) * 2.2) : 0.0;
-            const goalRoom = (state.tempExt - acCoolSpread) + (p.y / 3.4 - 0.5) * 0.5;
-            p.temp += (goalRoom - p.temp) * 0.04;
-
-            p.vx *= roomDamp; p.vy *= roomDamp; p.vz *= roomDamp;
-            p.x += p.vx; p.y += p.vy; p.z += p.vz;
-
-            // Colisão com paredes, piso e teto do quarto
-            if (p.x < -2.52) { p.x = -2.52; p.vx *= -0.55; }
-            if (p.x > 3.40) { p.x = 3.40; p.vx *= -0.55; }
-            if (p.y < 0.08) { p.y = 0.08; p.vy *= -0.45; }
-            if (p.y > 3.35) { p.y = 3.35; p.vy *= -0.45; }
-            if (p.z < -2.02) { p.z = -2.02; p.vz *= -0.55; }
-            if (p.z > 2.20) { p.z = 2.20; p.vz *= -0.55; }
-
-            // Deflexão ao redor do volume sólido da Estufa (ar do quarto contorna a tenda!)
-            const minTX = GX - halfW - 0.06, maxTX = GX + halfW + 0.06;
-            const minTZ = GZ - halfD - 0.06, maxTZ = GZ + halfD + 0.06;
-            if (p.x > minTX && p.x < maxTX && p.z > minTZ && p.z < maxTZ && p.y < H + 0.04) {
-                const dxL = Math.abs(p.x - minTX), dxR = Math.abs(maxTX - p.x);
-                const dzB = Math.abs(p.z - minTZ), dzF = Math.abs(maxTZ - p.z);
-                const dyT = Math.abs(H + 0.04 - p.y);
-                const m = Math.min(dxL, dxR, dzB, dzF, dyT);
-                if (m === dxL) { p.x = minTX; p.vx = -Math.abs(p.vx) * 0.6; }
-                else if (m === dxR) { p.x = maxTX; p.vx = Math.abs(p.vx) * 0.6; }
-                else if (m === dzB) { p.z = minTZ; p.vz = -Math.abs(p.vz) * 0.6; }
-                else if (m === dzF) { p.z = maxTZ; p.vz = Math.abs(p.vz) * 0.6; }
-                else { p.y = H + 0.04; p.vy = Math.abs(p.vy) * 0.5; }
-            }
-
-            roomPos[i * 3] = p.x; roomPos[i * 3 + 1] = p.y; roomPos[i * 3 + 2] = p.z;
-            const [r, g, b] = tempToRGB(p.temp, false);
-            roomCol[i * 3] = r; roomCol[i * 3 + 1] = g; roomCol[i * 3 + 2] = b;
-
-            // Vetor de linha de fluxo (cauda proporcional à velocidade real)
-            const tail = roomTail;
-            roomLinePos[i * 6] = p.x;
-            roomLinePos[i * 6 + 1] = p.y;
-            roomLinePos[i * 6 + 2] = p.z;
-            roomLinePos[i * 6 + 3] = p.x - p.vx * tail;
-            roomLinePos[i * 6 + 4] = p.y - p.vy * tail;
-            roomLinePos[i * 6 + 5] = p.z - p.vz * tail;
-            roomLineCol[i * 6] = r; roomLineCol[i * 6 + 1] = g; roomLineCol[i * 6 + 2] = b;
-            roomLineCol[i * 6 + 3] = r * 0.5; roomLineCol[i * 6 + 4] = g * 0.5; roomLineCol[i * 6 + 5] = b * 0.5;
+            const speed = Math.hypot(p.vx, p.vy, p.vz);
+            const tail = speed > 0.0035 ? 5.2 : 0.0;
+            airLinePos[i * 6] = p.x;
+            airLinePos[i * 6 + 1] = p.y;
+            airLinePos[i * 6 + 2] = p.z;
+            airLinePos[i * 6 + 3] = p.x - p.vx * tail;
+            airLinePos[i * 6 + 4] = p.y - p.vy * tail;
+            airLinePos[i * 6 + 5] = p.z - p.vz * tail;
+            airLineCol[i * 6] = r; airLineCol[i * 6 + 1] = g; airLineCol[i * 6 + 2] = b;
+            airLineCol[i * 6 + 3] = r * 0.5; airLineCol[i * 6 + 4] = g * 0.5; airLineCol[i * 6 + 5] = b * 0.5;
         }
-        roomPoints.geometry.attributes.position.needsUpdate = true;
-        roomPoints.geometry.attributes.color.needsUpdate = true;
-        roomLines.geometry.attributes.position.needsUpdate = true;
-        roomLines.geometry.attributes.color.needsUpdate = true;
+        airPoints.geometry.attributes.position.needsUpdate = true;
+        airPoints.geometry.attributes.color.needsUpdate = true;
+        airLines.geometry.attributes.position.needsUpdate = true;
+        airLines.geometry.attributes.color.needsUpdate = true;
     }
 
     function bindControls(el) {
