@@ -19,7 +19,6 @@
     let espHeartbeatMat, relayLedMats = {};
     let frontWallGroup; // Parede frontal + porta (visível apenas no modo FPS)
     const mushrooms = []; // Cogumelos animados (pin -> crescimento -> flush -> reinício)
-    const mushrooms = []; // Cogumelos animados (pin -> crescimento -> flush -> reinício)
 
     // Partículas persistentes DENTRO da estufa (homogêneas em todas as prateleiras)
     const GROW_COUNT = 320;
