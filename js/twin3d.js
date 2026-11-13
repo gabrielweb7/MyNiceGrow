@@ -18,12 +18,12 @@
     let acVaneMat, acLedMat;
 
     // Partículas persistentes DENTRO da estufa (conservação de massa, nunca somem)
-    const GROW_COUNT = 320;
+    const GROW_COUNT = 280;
     let growPoints, growPos, growCol;
     const growParticles = [];
 
-    // Partículas persistentes NO QUARTO (AC Split + saída do duto inferior esquerdo)
-    const ROOM_COUNT = 180;
+    // Partículas persistentes NO QUARTO INTEIRO (física real de convecção, AC Split, janela e troca de ar)
+    const ROOM_COUNT = 520;
     let roomPoints, roomPos, roomCol;
     const roomParticles = [];
 
@@ -410,19 +410,24 @@
         }));
         scene.add(growPoints);
 
-        // 2. Fluido no Quarto (ar do AC Split acima da janela + ar saindo pelo duto inferior esquerdo)
+        // 2. Fluido no Quarto INTEIRO (convecção térmica real, jato/retorno do AC Split, janela e duto)
         const rGeo = new THREE.BufferGeometry();
         roomPos = new Float32Array(ROOM_COUNT * 3);
         roomCol = new Float32Array(ROOM_COUNT * 3);
         for (let i = 0; i < ROOM_COUNT; i++) {
-            const isAcStream = i < 110;
+            let rx = -2.45 + Math.random() * 5.6;
+            let ry = 0.12 + Math.random() * 3.1;
+            let rz = -1.95 + Math.random() * 3.8;
+            // Evita nascer dentro da estufa
+            if (rx > GX - halfW - 0.08 && rx < GX + halfW + 0.08 && rz > GZ - halfD - 0.08 && rz < GZ + halfD + 0.08 && ry < H + 0.05) {
+                rx = 0.75 + Math.random() * 2.2;
+            }
             const p = {
-                isAcStream,
-                x: isAcStream ? (-2.2 + Math.random() * 2.8) : (GX - halfW - 0.3 - Math.random() * 1.1),
-                y: isAcStream ? (2.5 - Math.random() * 1.6) : (0.12 + Math.random() * 0.35),
-                z: isAcStream ? (-0.35 + (Math.random() - 0.5) * 0.9) : (GZ + 0.35 + (Math.random() - 0.5) * 0.35),
-                vx: 0, vy: 0, vz: 0,
-                temp: state.tempExt
+                x: rx, y: ry, z: rz,
+                vx: (Math.random() - 0.5) * 0.008,
+                vy: (Math.random() - 0.5) * 0.006,
+                vz: (Math.random() - 0.5) * 0.008,
+                temp: state.tempExt + (ry / 3.2 - 0.5) * 1.2
             };
             roomParticles.push(p);
             roomPos[i * 3] = p.x; roomPos[i * 3 + 1] = p.y; roomPos[i * 3 + 2] = p.z;
@@ -432,11 +437,11 @@
         rGeo.setAttribute('position', new THREE.BufferAttribute(roomPos, 3));
         rGeo.setAttribute('color', new THREE.BufferAttribute(roomCol, 3));
         roomPoints = new THREE.Points(rGeo, new THREE.PointsMaterial({
-            size: 0.17,
+            size: 0.16,
             map: tex,
             vertexColors: true,
             transparent: true,
-            opacity: 0.62,
+            opacity: 0.58,
             depthWrite: false
         }));
         scene.add(roomPoints);
@@ -458,8 +463,8 @@
             p.vy += Math.sin(lx * 2.4 + simTime * 0.8) * 0.0010;
             p.vz += Math.cos(p.y * 2.3 - simTime) * Math.sin(lx * 2.5 + simTime * 0.6) * 0.0014;
 
-            // Empuxo térmico
-            p.vy += (p.temp - (state.tempInt - 0.2)) * 0.00075;
+            // Empuxo térmico suave (evita acumular tudo no teto quando vento está desligado)
+            p.vy += (p.temp - state.tempInt) * 0.00035;
 
             // Ventilador Interno (vórtice interno)
             if (state.vento) {
@@ -527,34 +532,117 @@
         growPoints.geometry.attributes.position.needsUpdate = true;
         growPoints.geometry.attributes.color.needsUpdate = true;
 
-        // Fluido no Quarto (AC Split + Saída do Duto Inferior Esquerdo)
+        // ============================================================
+        // FÍSICA REAL DO AR DENTRO DO QUARTO INTEIRO
+        // ============================================================
+        // Campo de convecção, jato + retorno do AC Split, calor da janela,
+        // sucção no topo da estufa e descarga pelo duto inferior esquerdo.
+        const acColdTemp = Math.min(20.5, state.tempExt - 4.0);
+        const topExX = GX + 0.05, topExY = H + 0.15, topExZ = GZ - 0.20;
+        const ductOutX = GX - halfW - 0.36, ductOutY = 0.16, ductOutZ = GZ + 0.35;
+
         for (let i = 0; i < ROOM_COUNT; i++) {
             const p = roomParticles[i];
-            if (p.isAcStream) {
-                const speed = state.ar ? 1.0 : 0.18;
-                p.x += (0.022 + Math.sin(simTime + i) * 0.003) * speed;
-                p.y += (-0.010 + Math.cos(simTime + i) * 0.002) * speed;
-                p.z += Math.sin(simTime * 0.8 + i) * 0.003 * speed;
-                const goalT = state.ar ? Math.min(21.5, state.tempExt - 3.5) : state.tempExt;
-                p.temp += (goalT - p.temp) * 0.04;
-                if (p.x > 1.2 || p.y < 0.15) {
-                    p.x = -2.25;
-                    p.y = 2.58 + (Math.random() - 0.5) * 0.14;
-                    p.z = -0.35 + (Math.random() - 0.5) * 0.85;
+
+            // 1. Turbulência curl 3D no volume do quarto
+            p.vx += Math.sin(p.y * 1.4 + simTime * 0.9) * Math.cos(p.z * 1.2 + simTime * 0.6) * 0.0011;
+            p.vy += Math.sin(p.x * 1.1 + simTime * 0.7) * 0.0007;
+            p.vz += Math.cos(p.y * 1.3 - simTime * 0.8) * Math.sin(p.x * 1.2 + simTime * 0.5) * 0.0011;
+
+            // 2. Empuxo térmico real (ar frio afunda, ar quente sobe para o teto)
+            p.vy += (p.temp - state.tempExt) * 0.00065;
+
+            // 3. Fonte térmica da janela (condução leve na parede esquerda)
+            if (p.x < -2.0 && p.y > 0.8 && p.y < 2.3 && Math.abs(p.z + 0.35) < 0.9) {
+                p.temp += ((state.tempExt + 1.2) - p.temp) * 0.015;
+            }
+
+            // 4. Ar-Condicionado Split Inverter (acima da janela: x=-2.26, y=2.60, z=-0.35)
+            if (state.ar) {
+                // Jato frio saindo da aleta inferior do Split para o quarto
+                if (p.x > -2.35 && p.x < -0.4 && p.y > 1.75 && p.y < 2.75 && Math.abs(p.z + 0.35) < 0.75) {
+                    const distJet = Math.max(0.2, p.x + 2.35);
+                    const force = 0.0085 / (0.4 + distJet);
+                    p.vx += force;
+                    p.vy -= force * 0.42;
+                    p.temp += (acColdTemp - p.temp) * 0.14;
                 }
-            } else {
-                // Fluxo saindo do duto inferior esquerdo para o quarto quando exaustor está ON
-                const exSpeed = state.exaust ? 1.0 : 0.12;
-                p.x -= (0.024 + Math.random() * 0.008) * exSpeed;
-                p.y += (0.003 + Math.sin(simTime + i) * 0.003) * exSpeed;
-                p.z += Math.cos(simTime + i) * 0.004 * exSpeed;
-                p.temp += ((state.exaust ? state.tempInt : state.tempExt) - p.temp) * 0.04;
-                if (p.x < -2.45) {
-                    p.x = GX - halfW - 0.34;
-                    p.y = 0.16 + (Math.random() - 0.5) * 0.12;
-                    p.z = GZ + 0.35 + (Math.random() - 0.5) * 0.14;
+                // Sucção de retorno no topo do Split (fecha a célula de convecção do quarto!)
+                const rx = -2.30 - p.x;
+                const ry = 2.95 - p.y;
+                const rz = -0.35 - p.z;
+                const dRet = Math.hypot(rx, ry, rz) + 0.3;
+                if (dRet < 2.6 && p.y > 2.2) {
+                    const pull = 0.0045 / (0.5 + dRet);
+                    p.vx += (rx / dRet) * pull;
+                    p.vy += (ry / dRet) * pull;
+                    p.vz += (rz / dRet) * pull;
+                }
+                // Ar que passa muito perto do retorno do AC é resfriado e soprado pela aleta
+                if (p.x < -2.12 && p.y > 2.72 && Math.abs(p.z + 0.35) < 0.6) {
+                    p.y = 2.58;
+                    p.x = -2.22;
+                    p.vx = 0.038;
+                    p.vy = -0.016;
+                    p.temp = acColdTemp;
                 }
             }
+
+            // 5. Troca de ar com a Estufa quando Exaustor está LIGADO
+            if (state.exaust) {
+                // Sucção do ar do quarto no TOPO da estufa
+                const sx = topExX - p.x;
+                const sy = topExY - p.y;
+                const sz = topExZ - p.z;
+                const dTop = Math.hypot(sx, sy, sz) + 0.2;
+                if (dTop < 1.9 && p.y > 1.9) {
+                    const pull = 0.0065 / (0.35 + dTop);
+                    p.vx += (sx / dTop) * pull;
+                    p.vy += (sy / dTop) * pull;
+                    p.vz += (sz / dTop) * pull;
+                }
+                // Se entrou na boca do exaustor no topo -> atravessa a estufa e sai pelo duto inferior esquerdo!
+                if (dTop < 0.38) {
+                    p.x = ductOutX;
+                    p.y = ductOutY + (Math.random() - 0.5) * 0.08;
+                    p.z = ductOutZ + (Math.random() - 0.5) * 0.10;
+                    p.vx = -(0.032 + Math.random() * 0.012);
+                    p.vy = 0.004;
+                    p.vz = (Math.random() - 0.5) * 0.008;
+                    p.temp = state.tempInt;
+                }
+            }
+
+            // Difusão térmica natural com o ambiente do quarto
+            const goalRoom = state.ar ? (state.tempExt - 1.5 + (p.y / 3.4) * 1.4) : (state.tempExt + (p.y / 3.4 - 0.5) * 0.8);
+            p.temp += (goalRoom - p.temp) * 0.008;
+
+            p.vx *= 0.96; p.vy *= 0.96; p.vz *= 0.96;
+            p.x += p.vx; p.y += p.vy; p.z += p.vz;
+
+            // Colisão com paredes, piso e teto do quarto
+            if (p.x < -2.52) { p.x = -2.52; p.vx *= -0.55; }
+            if (p.x > 3.40) { p.x = 3.40; p.vx *= -0.55; }
+            if (p.y < 0.08) { p.y = 0.08; p.vy *= -0.45; }
+            if (p.y > 3.35) { p.y = 3.35; p.vy *= -0.45; }
+            if (p.z < -2.02) { p.z = -2.02; p.vz *= -0.55; }
+            if (p.z > 2.20) { p.z = 2.20; p.vz *= -0.55; }
+
+            // Deflexão ao redor do volume sólido da Estufa (ar do quarto contorna a tenda!)
+            const minTX = GX - halfW - 0.06, maxTX = GX + halfW + 0.06;
+            const minTZ = GZ - halfD - 0.06, maxTZ = GZ + halfD + 0.06;
+            if (p.x > minTX && p.x < maxTX && p.z > minTZ && p.z < maxTZ && p.y < H + 0.04) {
+                const dxL = Math.abs(p.x - minTX), dxR = Math.abs(maxTX - p.x);
+                const dzB = Math.abs(p.z - minTZ), dzF = Math.abs(maxTZ - p.z);
+                const dyT = Math.abs(H + 0.04 - p.y);
+                const m = Math.min(dxL, dxR, dzB, dzF, dyT);
+                if (m === dxL) { p.x = minTX; p.vx = -Math.abs(p.vx) * 0.6; }
+                else if (m === dxR) { p.x = maxTX; p.vx = Math.abs(p.vx) * 0.6; }
+                else if (m === dzB) { p.z = minTZ; p.vz = -Math.abs(p.vz) * 0.6; }
+                else if (m === dzF) { p.z = maxTZ; p.vz = Math.abs(p.vz) * 0.6; }
+                else { p.y = H + 0.04; p.vy = Math.abs(p.vy) * 0.5; }
+            }
+
             roomPos[i * 3] = p.x; roomPos[i * 3 + 1] = p.y; roomPos[i * 3 + 2] = p.z;
             const [r, g, b] = tempToRGB(p.temp, false);
             roomCol[i * 3] = r; roomCol[i * 3 + 1] = g; roomCol[i * 3 + 2] = b;
