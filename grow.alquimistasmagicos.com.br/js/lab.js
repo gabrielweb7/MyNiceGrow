@@ -444,8 +444,19 @@ function toggleTwinFpsUI() {
     if (pad) pad.classList.toggle('hidden', !twinFpsAtivo);
     if (hud) hud.classList.toggle('hidden', !twinFpsAtivo);
     if (cross) cross.classList.toggle('hidden', !twinFpsAtivo);
-    if (hint && !twinFpsAtivo) hint.textContent = 'Clique na cena p/ ocultar mouse • WASD • F sair';
+    if (!twinFpsAtivo) {
+        const dp = document.getElementById('twinDoorPrompt');
+        if (dp) dp.classList.add('hidden');
+    }
+    if (hint && !twinFpsAtivo) hint.textContent = 'Clique na cena p/ ocultar mouse • WASD • Shift correr • F sair';
 }
+
+window.onTwinDoorHint = function (near, isOpen) {
+    const dp = document.getElementById('twinDoorPrompt');
+    if (!dp) return;
+    dp.classList.toggle('hidden', !near);
+    if (near) dp.textContent = isOpen ? '🚪 Fechar Porta (E)' : '🚪 Abrir Porta (E)';
+};
 
 window.onTwinPointerLockChange = function (locked) {
     const hint = document.getElementById('twinFpsHint');
