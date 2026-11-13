@@ -1792,6 +1792,7 @@
 
         el.addEventListener('pointerdown', (e) => {
             if (e.isPrimary === false) return;
+            if (cam.mode === 'fps' && e.pointerType === 'touch') return;
             if (cam.mode === 'fps' && e.pointerType === 'mouse' && document.pointerLockElement !== el && el.requestPointerLock) {
                 try { el.requestPointerLock(); } catch (err) {}
             }

@@ -39,9 +39,8 @@ function iniciarJoystickMinecraft() {
     const joy = document.getElementById('twinJoystick');
     const knob = document.getElementById('twinJoystickKnob');
     if (!joy || !knob) return;
-    let joyTouchId = null;
-    let mouseDown = false;
-    const maxR = 40;
+    let activePointerId = null;
+    const maxR = 46;
 
     function updateJoy(clientX, clientY) {
         const rect = joy.getBoundingClientRect();
@@ -61,46 +60,32 @@ function iniciarJoystickMinecraft() {
     }
 
     function resetJoy() {
-        joyTouchId = null;
-        mouseDown = false;
+        activePointerId = null;
         knob.style.transform = 'translate(0px, 0px)';
         if (window.setTwinJoystick) window.setTwinJoystick(0, 0);
     }
 
-    joy.addEventListener('touchstart', (e) => {
-        e.stopPropagation();
-        if (joyTouchId === null && e.changedTouches.length) {
-            joyTouchId = e.changedTouches[0].identifier;
-            updateJoy(e.changedTouches[0].clientX, e.changedTouches[0].clientY);
-        }
-    }, { passive: true });
-    joy.addEventListener('touchmove', (e) => {
-        e.stopPropagation();
-        for (let i = 0; i < e.changedTouches.length; i++) {
-            const t = e.changedTouches[i];
-            if (t.identifier === joyTouchId) updateJoy(t.clientX, t.clientY);
-        }
-    }, { passive: true });
-    joy.addEventListener('touchend', (e) => {
-        e.stopPropagation();
-        for (let i = 0; i < e.changedTouches.length; i++) {
-            if (e.changedTouches[i].identifier === joyTouchId) resetJoy();
-        }
-    }, { passive: true });
-    joy.addEventListener('touchcancel', resetJoy, { passive: true });
-
     joy.addEventListener('pointerdown', (e) => {
-        if (e.pointerType === 'mouse') {
-            e.stopPropagation();
-            mouseDown = true;
-            updateJoy(e.clientX, e.clientY);
-        }
+        e.preventDefault();
+        e.stopPropagation();
+        if (activePointerId !== null) return;
+        activePointerId = e.pointerId;
+        try { joy.setPointerCapture(e.pointerId); } catch (err) {}
+        updateJoy(e.clientX, e.clientY);
     });
-    window.addEventListener('pointermove', (e) => {
-        if (mouseDown && e.pointerType === 'mouse') updateJoy(e.clientX, e.clientY);
+    joy.addEventListener('pointermove', (e) => {
+        if (e.pointerId !== activePointerId) return;
+        e.preventDefault();
+        e.stopPropagation();
+        updateJoy(e.clientX, e.clientY);
     });
-    window.addEventListener('pointerup', (e) => {
-        if (mouseDown && e.pointerType === 'mouse') resetJoy();
+    joy.addEventListener('pointerup', (e) => {
+        if (e.pointerId !== activePointerId) return;
+        e.stopPropagation();
+        resetJoy();
+    });
+    joy.addEventListener('pointercancel', (e) => {
+        if (e.pointerId === activePointerId) resetJoy();
     });
 }
 
