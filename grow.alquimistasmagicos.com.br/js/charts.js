@@ -198,7 +198,11 @@ function toggleDatasetReles(index, elId) {
     }
 }
 
+let syncZoomRaf = null;
+let isSyncingZoom = false;
+
 function syncZoom(sourceChart) {
+    if (isSyncingZoom) return;
     const min = sourceChart.scales.x.min;
     const max = sourceChart.scales.x.max;
     zoomManualUsuario = true;
@@ -207,17 +211,22 @@ function syncZoom(sourceChart) {
     atualizarTextoBtnZoom();
     if (syncZoomRaf) cancelAnimationFrame(syncZoomRaf);
     syncZoomRaf = requestAnimationFrame(() => {
-        [chartUmid, chartTemp, chartReles].forEach(c => {
-            if (c && c !== sourceChart) {
-                if (typeof c.zoomScale === 'function') {
-                    c.zoomScale('x', { min, max }, 'none');
-                } else {
-                    c.options.scales.x.min = min;
-                    c.options.scales.x.max = max;
-                    c.update('none');
+        isSyncingZoom = true;
+        try {
+            [chartUmid, chartTemp, chartReles].forEach(c => {
+                if (c && c !== sourceChart) {
+                    if (typeof c.zoomScale === 'function') {
+                        c.zoomScale('x', { min, max }, 'none');
+                    } else {
+                        c.options.scales.x.min = min;
+                        c.options.scales.x.max = max;
+                        c.update('none');
+                    }
                 }
-            }
-        });
+            });
+        } finally {
+            isSyncingZoom = false;
+        }
     });
 }
 
