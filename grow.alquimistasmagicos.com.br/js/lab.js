@@ -6,6 +6,7 @@ let labData = null;
 let fwDataLab = null;
 let chartDiario = null;
 let chartScatter = null;
+let chartHorario = null;
 let diasAtivos = 30;
 
 // Estado do Gêmeo 3D & Time-Lapse
@@ -69,7 +70,7 @@ async function carregarLab(dias) {
         renderAnomalias();
         renderDiario();
         renderScatter();
-        renderHeatmap();
+        renderPerfilHorario();
         prepararTwin();
         renderSeguranca360();
     } catch (e) {
@@ -153,6 +154,17 @@ function renderAnomalias() {
     }).join('');
 }
 
+const zoomOptsLab = (mode = 'x') => ({
+    pan: { enabled: true, mode },
+    zoom: { wheel: { enabled: true }, pinch: { enabled: true }, mode }
+});
+
+function resetZoomLab(qual) {
+    if (qual === 'diario' && chartDiario && chartDiario.resetZoom) chartDiario.resetZoom();
+    if (qual === 'scatter' && chartScatter && chartScatter.resetZoom) chartScatter.resetZoom();
+    if (qual === 'horario' && chartHorario && chartHorario.resetZoom) chartHorario.resetZoom();
+}
+
 function renderDiario() {
     const rows = labData.diario || [];
     const labels = rows.map(d => d.dia.slice(5).split('-').reverse().join('/'));
@@ -177,7 +189,7 @@ function renderDiario() {
             responsive: true,
             maintainAspectRatio: false,
             interaction: { mode: 'index', intersect: false },
-            plugins: { legend: { labels: { color: '#cbd5e1', font: { size: 11 } } } },
+            plugins: { legend: { labels: { color: '#cbd5e1', font: { size: 11 } } }, zoom: zoomOptsLab('x') },
             scales: {
                 x: { ticks: { color: '#94a3b8', font: { size: 10 } }, grid: { color: 'rgba(148,163,184,0.08)' } },
                 y: { position: 'left', ticks: { color: '#34d399', font: { size: 10 } }, grid: { color: 'rgba(148,163,184,0.08)' } },
@@ -211,7 +223,7 @@ function renderScatter() {
         options: {
             responsive: true,
             maintainAspectRatio: false,
-            plugins: { legend: { labels: { color: '#cbd5e1', font: { size: 11 } } } },
+            plugins: { legend: { labels: { color: '#cbd5e1', font: { size: 11 } } }, zoom: zoomOptsLab('xy') },
             scales: {
                 x: { title: { display: true, text: 'Quarto (°C)', color: '#94a3b8', font: { size: 11 } }, ticks: { color: '#94a3b8', font: { size: 10 } }, grid: { color: 'rgba(148,163,184,0.08)' } },
                 y: { title: { display: true, text: 'Estufa (°C)', color: '#94a3b8', font: { size: 11 } }, ticks: { color: '#94a3b8', font: { size: 10 } }, grid: { color: 'rgba(148,163,184,0.08)' } }
@@ -220,41 +232,52 @@ function renderScatter() {
     });
 }
 
-function renderHeatmap() {
-    const cont = document.getElementById('labHeatmapContainer');
-    if (!cont) return;
-    const diasNome = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'];
-    const mapa = new Map();
-    (labData.heatmap || []).forEach(h => {
-        mapa.set(`${h.dow}_${h.hora}`, h);
+function renderPerfilHorario() {
+    const hm = labData.heatmap || [];
+    const soma = Array.from({ length: 24 }, () => ({ tInt: 0, tExt: 0, ar: 0, n: 0, nExt: 0 }));
+    hm.forEach(c => {
+        const h = parseInt(c.hora, 10);
+        if (h >= 0 && h < 24) {
+            soma[h].tInt += parseFloat(c.temp_int_med || 0);
+            if (c.temp_ext_med !== null) {
+                soma[h].tExt += parseFloat(c.temp_ext_med);
+                soma[h].nExt++;
+            }
+            soma[h].ar += parseFloat(c.pct_ar || 0);
+            soma[h].n++;
+        }
     });
 
-    let html = '<div class="min-w-[680px] space-y-1">';
-    html += '<div class="grid grid-cols-[44px_repeat(24,minmax(0,1fr))] gap-1 text-[10px] text-slate-500 font-mono text-center"><div></div>';
-    for (let h = 0; h < 24; h++) html += `<div>${String(h).padStart(2, '0')}</div>`;
-    html += '</div>';
+    const labels = soma.map((_, h) => `${String(h).padStart(2, '0')}h`);
+    const medInt = soma.map(s => s.n ? Number((s.tInt / s.n).toFixed(2)) : null);
+    const medExt = soma.map(s => s.nExt ? Number((s.tExt / s.nExt).toFixed(2)) : null);
+    const medAr = soma.map(s => s.n ? Number((s.ar / s.n).toFixed(1)) : 0);
 
-    for (let d = 1; d <= 7; d++) {
-        html += `<div class="grid grid-cols-[44px_repeat(24,minmax(0,1fr))] gap-1 items-center"><div class="text-[11px] font-bold text-slate-400">${diasNome[d - 1]}</div>`;
-        for (let h = 0; h < 24; h++) {
-            const cell = mapa.get(`${d}_${h}`);
-            if (!cell) {
-                html += '<div class="h-6 rounded bg-slate-900/70 border border-slate-800/50"></div>';
-                continue;
+    const ctx = document.getElementById('chartLabHorario');
+    if (!ctx) return;
+    if (chartHorario) chartHorario.destroy();
+    chartHorario = new Chart(ctx, {
+        type: 'bar',
+        data: {
+            labels,
+            datasets: [
+                { type: 'line', label: 'Estufa (°C)', data: medInt, borderColor: '#34d399', backgroundColor: 'rgba(52,211,153,0.12)', tension: 0.35, yAxisID: 'y', pointRadius: 2.5 },
+                { type: 'line', label: 'Quarto (°C)', data: medExt, borderColor: '#fbbf24', borderDash: [4, 4], tension: 0.35, yAxisID: 'y', pointRadius: 2 },
+                { type: 'bar', label: 'AC Ligado (%)', data: medAr, backgroundColor: 'rgba(56,189,248,0.28)', borderColor: 'rgba(56,189,248,0.65)', borderWidth: 1, yAxisID: 'y1' }
+            ]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            interaction: { mode: 'index', intersect: false },
+            plugins: { legend: { labels: { color: '#cbd5e1', font: { size: 11 } } }, zoom: zoomOptsLab('x') },
+            scales: {
+                x: { ticks: { color: '#94a3b8', font: { size: 10 } }, grid: { color: 'rgba(148,163,184,0.08)' } },
+                y: { position: 'left', ticks: { color: '#34d399', font: { size: 10 } }, grid: { color: 'rgba(148,163,184,0.08)' } },
+                y1: { position: 'right', beginAtZero: true, max: 100, ticks: { color: '#38bdf8', font: { size: 10 }, callback: v => `${v}%` }, grid: { drawOnChartArea: false } }
             }
-            const t = parseFloat(cell.temp_int_med);
-            const ar = parseFloat(cell.pct_ar || 0);
-            let cls = 'bg-emerald-500/25 border-emerald-500/35 text-emerald-200';
-            if (t <= 25.0) cls = 'bg-cyan-500/25 border-cyan-500/35 text-cyan-200';
-            else if (t > 28.5) cls = 'bg-rose-500/35 border-rose-500/50 text-rose-100';
-            else if (t > 27.5) cls = 'bg-amber-500/30 border-amber-500/45 text-amber-100';
-            const title = `${diasNome[d - 1]} ${String(h).padStart(2, '0')}h • Estufa: ${t.toFixed(1)}°C | Quarto: ${cell.temp_ext_med ?? '--'}°C | AC: ${ar.toFixed(0)}%`;
-            html += `<div title="${title}" onclick="document.getElementById('labHeatmapInfo').textContent='${title}'" class="h-6 rounded border text-[9px] font-mono flex items-center justify-center cursor-pointer ${cls}">${t.toFixed(0)}</div>`;
         }
-        html += '</div>';
-    }
-    html += '</div>';
-    cont.innerHTML = html;
+    });
 }
 
 // ========================================================

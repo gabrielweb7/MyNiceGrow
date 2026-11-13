@@ -241,41 +241,41 @@
                 </div>
             </div>
 
-            <!-- Gráficos Diário & Dispersão -->
+            <!-- Gráficos Diário & Dispersão (com Zoom & Pan) -->
             <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
                 <div class="bg-slate-900/70 border border-slate-800 rounded-2xl p-4 sm:p-5 space-y-3">
-                    <div>
-                        <h2 class="text-sm font-bold text-white">📈 Evolução Diária: Temperatura &amp; Horas de AC</h2>
-                        <p class="text-[11px] text-slate-400">Média diária da estufa vs quarto e carga do ar-condicionado</p>
+                    <div class="flex items-center justify-between gap-2">
+                        <div>
+                            <h2 class="text-sm font-bold text-white">📈 Evolução Diária: Temperatura &amp; Horas de AC</h2>
+                            <p class="text-[11px] text-slate-400">Arraste para mover • Scroll/pinça para dar zoom</p>
+                        </div>
+                        <button onclick="resetZoomLab('diario')" class="px-2 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 text-[10px] font-bold text-slate-300 border border-slate-700 shrink-0">Reset Zoom</button>
                     </div>
                     <div class="h-64 sm:h-72 relative"><canvas id="chartLabDiario"></canvas></div>
                 </div>
 
                 <div class="bg-slate-900/70 border border-slate-800 rounded-2xl p-4 sm:p-5 space-y-3">
-                    <div>
-                        <h2 class="text-sm font-bold text-white">🔬 Assinatura Térmica: Quarto × Estufa</h2>
-                        <p class="text-[11px] text-slate-400">Cada ponto = 1 hora. Mostra quanto a iluminação aquece a estufa acima do quarto</p>
+                    <div class="flex items-center justify-between gap-2">
+                        <div>
+                            <h2 class="text-sm font-bold text-white">🔬 Assinatura Térmica: Quarto × Estufa</h2>
+                            <p class="text-[11px] text-slate-400">Cada ponto = 1 hora • Arraste e dê zoom para explorar</p>
+                        </div>
+                        <button onclick="resetZoomLab('scatter')" class="px-2 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 text-[10px] font-bold text-slate-300 border border-slate-700 shrink-0">Reset Zoom</button>
                     </div>
                     <div class="h-64 sm:h-72 relative"><canvas id="chartLabScatter"></canvas></div>
                 </div>
             </div>
 
-            <!-- Heatmap 24h x 7 dias -->
+            <!-- Perfil Horário 24h Interativo (substitui o antigo grid estático) -->
             <div class="bg-slate-900/70 border border-slate-800 rounded-2xl p-4 sm:p-5 space-y-3">
-                <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                <div class="flex items-center justify-between gap-2">
                     <div>
-                        <h2 class="text-sm font-bold text-white">🔥 Mapa de Calor (24h × Dia da Semana)</h2>
-                        <p class="text-[11px] text-slate-400">Passe o mouse ou toque em cada hora para ver temperatura média e % de tempo com AC ligado</p>
+                        <h2 class="text-sm font-bold text-white">⏱️ Perfil Horário (00h–23h): Estufa × Quarto × Carga AC (%)</h2>
+                        <p class="text-[11px] text-slate-400">Mostra em quais horas do dia o quarto esquenta e o AC mais trabalha • Arraste e dê zoom</p>
                     </div>
-                    <div class="flex items-center gap-2 text-[10px] text-slate-400">
-                        <span class="px-2 py-0.5 rounded bg-cyan-500/20 text-cyan-300 border border-cyan-500/30">≤ 25°C Frio</span>
-                        <span class="px-2 py-0.5 rounded bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">25–27.5°C Ideal</span>
-                        <span class="px-2 py-0.5 rounded bg-amber-500/20 text-amber-300 border border-amber-500/30">27.5–28.5°C Alerta</span>
-                        <span class="px-2 py-0.5 rounded bg-rose-500/25 text-rose-300 border border-rose-500/40">&gt; 28.5°C Pico</span>
-                    </div>
+                    <button onclick="resetZoomLab('horario')" class="px-2 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 text-[10px] font-bold text-slate-300 border border-slate-700 shrink-0">Reset Zoom</button>
                 </div>
-                <div id="labHeatmapContainer" class="overflow-x-auto pb-1"></div>
-                <div id="labHeatmapInfo" class="text-[11px] text-cyan-300 bg-slate-950/70 border border-slate-800 rounded-xl px-3 py-2 min-h-[34px] flex items-center">Toque ou passe o mouse em qualquer hora do mapa acima para ver os detalhes.</div>
+                <div class="h-64 sm:h-72 relative"><canvas id="chartLabHorario"></canvas></div>
             </div>
         </section>
     </main>
