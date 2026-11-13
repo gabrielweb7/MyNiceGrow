@@ -225,14 +225,14 @@
         room.add(ceiling);
 
         // Batente + Porta articulada com dobradiça em x = 2.70
-        const frameMat = new THREE.MeshStandardMaterial({ color: 0x334155, roughness: 0.5 });
-        const frameL = new THREE.Mesh(new THREE.BoxGeometry(0.06, 2.20, 0.12), frameMat);
+        const doorFrameMat = new THREE.MeshStandardMaterial({ color: 0x334155, roughness: 0.5 });
+        const frameL = new THREE.Mesh(new THREE.BoxGeometry(0.06, 2.20, 0.12), doorFrameMat);
         frameL.position.set(1.78, 1.10, 2.45);
         frontWallGroup.add(frameL);
-        const frameR = new THREE.Mesh(new THREE.BoxGeometry(0.06, 2.20, 0.12), frameMat);
+        const frameR = new THREE.Mesh(new THREE.BoxGeometry(0.06, 2.20, 0.12), doorFrameMat);
         frameR.position.set(2.72, 1.10, 2.45);
         frontWallGroup.add(frameR);
-        const frameT = new THREE.Mesh(new THREE.BoxGeometry(1.00, 0.08, 0.12), frameMat);
+        const frameT = new THREE.Mesh(new THREE.BoxGeometry(1.00, 0.08, 0.12), doorFrameMat);
         frameT.position.set(2.25, 2.18, 2.45);
         frontWallGroup.add(frameT);
 
