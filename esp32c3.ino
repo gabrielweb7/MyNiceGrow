@@ -1306,7 +1306,11 @@ void executarMotor(unsigned long agora) {
   // tenta resfriamento evaporativo em ondas antes de ligar o compressor do Ar Condicionado.
   bool corteCongelaAtivo = (sensorIntOk && tempInt <= tempMinCongelamento);
   bool emJanelaPosAcAgora = (janelaSifaoPosAcAte > 0 && (long)(janelaSifaoPosAcAte - agora) > 0);
-  bool acPermitidoAuto = (modoAr == AR_AUTO) && !corteCongelaAtivo && (agora >= descansoPreventivoAte);
+  if (descansoPreventivoAte > 0 && (long)(agora - descansoPreventivoAte) >= 0) {
+    descansoPreventivoAte = 0;
+  }
+  bool emDescansoPreventivoAr = (descansoPreventivoAte > 0 && (long)(descansoPreventivoAte - agora) > 0);
+  bool acPermitidoAuto = (modoAr == AR_AUTO) && !corteCongelaAtivo && !emDescansoPreventivoAr;
   bool cooldownEvapLivre = (evapCooldownAte == 0 || (long)(agora - evapCooldownAte) >= 0);
   float tDisparoEvap = pf.tempMax - tempEvapAntecipa;
   float tMetaSucessoEvap = max(tempMinCongelamento + 0.5f, pf.tempMax - max(0.5f, tempHistereseAr * 0.55f));
@@ -1370,7 +1374,7 @@ void executarMotor(unsigned long agora) {
     tempoMetaPreBootMs = 0;
     evapAtivo = false;
     evapPreAcAtivo = false;
-  } else if (agora < descansoPreventivoAte) {
+  } else if (emDescansoPreventivoAr) {
     modoRefrigeracaoAtivo = false;
     tempoAlvoAtingido = 0;
     tempoMetaPreBootMs = 0;
