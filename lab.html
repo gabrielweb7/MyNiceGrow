@@ -193,6 +193,10 @@
                             <span class="absolute right-2 text-[9px] text-white/50 pointer-events-none">►</span>
                             <div id="twinJoystickKnob" class="bg-white/85 border-2 border-cyan-300 shadow-md"></div>
                         </div>
+                        <div id="twinHoldRotateBtns" style="display: none; position: absolute; bottom: calc(140px + env(safe-area-inset-bottom, 0px)); right: calc(20px + env(safe-area-inset-right, 0px)); z-index: 30; gap: 8px;">
+                            <button onpointerdown="event.stopPropagation(); window.rotateTwinHeldItem && window.rotateTwinHeldItem(1)" class="w-11 h-11 rounded-full bg-slate-950/75 active:bg-cyan-500/40 border-2 border-cyan-400/40 backdrop-blur-sm text-base font-bold text-cyan-200 shadow-lg select-none" title="Girar Esquerda">⟲</button>
+                            <button onpointerdown="event.stopPropagation(); window.rotateTwinHeldItem && window.rotateTwinHeldItem(-1)" class="w-11 h-11 rounded-full bg-slate-950/75 active:bg-cyan-500/40 border-2 border-cyan-400/40 backdrop-blur-sm text-base font-bold text-cyan-200 shadow-lg select-none" title="Girar Direita">⟳</button>
+                        </div>
                         <button id="btnTwinJump" onpointerdown="window.triggerTwinJump && window.triggerTwinJump()" class="pointer-events-auto bg-slate-950/65 active:bg-cyan-500/40 border-2 border-white/25 backdrop-blur-sm text-lg font-bold text-white shadow-lg" title="Pular (Espaço)">⬆️</button>
                         <div class="absolute bottom-3 left-3 right-3 flex items-end justify-between gap-2 pointer-events-none">
                             <div class="flex items-center gap-1.5 pointer-events-auto flex-nowrap sm:flex-wrap overflow-x-auto no-scrollbar max-w-full pb-0.5">
@@ -399,7 +403,7 @@
 
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js" defer></script>
     <script src="js/vendor/charts-bundle.min.js?v=1.8.0" defer></script>
-    <script src="js/twin3d.js?v=1.9.46" defer></script>
-    <script src="js/lab.js?v=1.9.25" defer></script>
+    <script src="js/twin3d.js?v=1.9.47" defer></script>
+    <script src="js/lab.js?v=1.9.26" defer></script>
 </body>
 </html>

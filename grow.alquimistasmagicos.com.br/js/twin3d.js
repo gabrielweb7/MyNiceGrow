@@ -24,7 +24,7 @@
     let tentGroup = null;
     let roomDoorPivot, roomDoorOpen = false, roomDoorAngle = 0;
     let fpsHandsGroup, fpsHandL, fpsHandR;
-    let heldRock = null, grabAnim = 0;
+    let heldRock = null, grabAnim = 0, heldYawOffset = 0;
     const fallingRocks = [];
     const pickableRocks = [];
     const pickableItems = [];
@@ -2098,9 +2098,6 @@
                         heldRock.userData.velY = 0;
                         if (typeof lastSnapTarget.wallRotY === 'number') {
                             heldRock.rotation.y = lastSnapTarget.wallRotY;
-                        } else if (heldRock.userData.isShelf) {
-                            // Alinha estante em ângulos suaves de 45° para encaixar certinho na parede
-                            heldRock.rotation.y = Math.round(cam.fpsYaw / (Math.PI / 4)) * (Math.PI / 4);
                         }
                         if (typeof heldRock.userData.itemIndex === 'number') {
                             pendingDroppedItems.push({
@@ -2119,6 +2116,7 @@
                     heldRock = null;
                     lastSnapTarget = null;
                     if (snapPreviewMesh) snapPreviewMesh.visible = false;
+                    if (typeof window.onTwinHeldChange === 'function') window.onTwinHeldChange(false);
                     return;
                 }
                 if (interactiveMeshes.length) {
@@ -2137,12 +2135,14 @@
                         const pickTarget = hit.object.userData.pickRoot || (hit.object.userData.isPickable ? hit.object : null);
                         if (cam.mode === 'fps' && pickTarget && hit.distance < 7.5) {
                             heldRock = pickTarget;
+                            heldYawOffset = heldRock.rotation.y - cam.fpsYaw;
                             heldRock.userData.supportedBy = null;
                             const fi = fallingRocks.indexOf(heldRock);
                             if (fi !== -1) fallingRocks.splice(fi, 1);
                             if (heldRock.userData.isShelf) {
                                 dropUnsupportedItems(heldRock);
                             }
+                            if (typeof window.onTwinHeldChange === 'function') window.onTwinHeldChange(true);
                             return;
                         }
                         if (cam.mode !== 'fps' && eqId) {
@@ -2188,6 +2188,10 @@
 
         el.addEventListener('wheel', (e) => {
             e.preventDefault();
+            if (cam.mode === 'fps' && heldRock) {
+                heldYawOffset += (e.deltaY > 0 ? -1 : 1) * (Math.PI / 12);
+                return;
+            }
             cam.targetRadius = Math.max(1.1, Math.min(48.0, cam.targetRadius + e.deltaY * 0.008));
         }, { passive: false });
 
@@ -2389,11 +2393,11 @@
                 if (heldRock.userData.isPickableRock) {
                     heldRock.rotation.y += 0.018;
                 } else {
-                    const targetYaw = cam.fpsYaw;
+                    const targetYaw = cam.fpsYaw + heldYawOffset;
                     let dy = targetYaw - heldRock.rotation.y;
                     while (dy > Math.PI) dy -= Math.PI * 2;
                     while (dy < -Math.PI) dy += Math.PI * 2;
-                    heldRock.rotation.y += dy * 0.18;
+                    heldRock.rotation.y += dy * 0.22;
                 }
 
                 lastSnapTarget = findPlacementTarget(heldRock);
@@ -2981,6 +2985,7 @@
                 heldRock.userData.velY = 0;
                 fallingRocks.push(heldRock);
                 heldRock = null;
+                if (typeof window.onTwinHeldChange === 'function') window.onTwinHeldChange(false);
             }
             if (document.pointerLockElement && document.exitPointerLock) {
                 try { document.exitPointerLock(); } catch (e) {}
@@ -3019,6 +3024,12 @@
         fpsHandsGroup.add(fpsHandR);
         camera.add(fpsHandsGroup);
     }
+
+    window.rotateTwinHeldItem = function (dir) {
+        if (heldRock) {
+            heldYawOffset += (dir || 1) * (Math.PI / 12);
+        }
+    };
 
     window.triggerTwinJump = function () {
         if (cam.mode === 'fps' && cam.fpsGrounded) {

@@ -661,6 +661,8 @@ function toggleTwinFpsUI() {
     }
     if (joy) joy.style.display = (twinFpsAtivo && mobile) ? 'flex' : 'none';
     if (jumpBtn) jumpBtn.style.display = (twinFpsAtivo && mobile) ? 'flex' : 'none';
+    const rotBtns = document.getElementById('twinHoldRotateBtns');
+    if (rotBtns && !twinFpsAtivo) rotBtns.style.display = 'none';
     if (cross) cross.classList.toggle('hidden', !twinFpsAtivo);
     if (!twinFpsAtivo) {
         const dp = document.getElementById('twinDoorPrompt');
@@ -679,6 +681,12 @@ window.onTwinDoorHint = function (near, isOpen) {
             ? (isOpen ? '🚪 Toque na porta p/ Fechar' : '🚪 Toque na porta p/ Abrir')
             : (isOpen ? '🚪 Fechar Porta (E)' : '🚪 Abrir Porta (E)');
     }
+};
+
+window.onTwinHeldChange = function (holding) {
+    const rotBtns = document.getElementById('twinHoldRotateBtns');
+    if (!rotBtns) return;
+    rotBtns.style.display = (isMobileTouch() && twinFpsAtivo && holding) ? 'flex' : 'none';
 };
 
 window.onTwinPointerLockChange = function (locked) {
