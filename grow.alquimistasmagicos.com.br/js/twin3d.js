@@ -1,8 +1,12 @@
 /**
- * twin3d.js — Gêmeo Digital 3D Interativo (Three.js) com Física de Fluidos Térmica
- * - Órbita 360° com mouse/touch + zoom + presets
- * - Solver 3D de partículas fluidas com empuxo térmico, turbulência curl, vórtice do ventilador,
- *   sucção do exaustor + entrada de ar novo (troca de ar) e cor dinâmica pela temperatura local.
+ * twin3d.js — Gêmeo Digital 3D Realista do Quarto de Cultivo (Three.js)
+ * Fiel ao setup real:
+ * - Quarto iluminado com piso cerâmico, paredes claras, janela com persiana e Ar-Condicionado Split Inverter acima da janela
+ * - Estufa Master Tents com 2 estantes internas de blocos de cogumelos
+ * - Exaustor no TOPO empurrando ar para dentro da estufa e saindo pelo duto sanfonado inferior esquerdo
+ * - Estante lateral direita com Umidificador + mangueira amarela entrando no topo da estufa, potes e frascos
+ * - Estante aramada de spawns com sacos de grãos dourados e placas de Petri
+ * - Física de fluidos contínua (partículas não somem) colorida pela temperatura local
  */
 (function () {
     let scene, camera, renderer, container;
@@ -11,17 +15,17 @@
 
     let ledBarMat, ledLight, ambientLight;
     let ventoHelice, exaustHelice;
-    let thermalRingMat, acGlowMat;
+    let acVaneMat, acLedMat;
 
-    // Sistema unificado de fluido interno (ar + névoa) com cor por temperatura (vertexColors)
-    const AIR_COUNT = 340;
-    let airPoints, airPos, airCol;
-    const airParticles = [];
+    // Partículas persistentes DENTRO da estufa (conservação de massa, nunca somem)
+    const GROW_COUNT = 320;
+    let growPoints, growPos, growCol;
+    const growParticles = [];
 
-    // Sistema de jato frio do AC no quarto
-    const AC_COUNT = 110;
-    let acPoints, acPos, acCol;
-    const acParticles = [];
+    // Partículas persistentes NO QUARTO (AC Split + saída do duto inferior esquerdo)
+    const ROOM_COUNT = 180;
+    let roomPoints, roomPos, roomCol;
+    const roomParticles = [];
 
     const state = {
         tempInt: 26.5,
@@ -35,12 +39,12 @@
     };
 
     const cam = {
-        theta: 0.42,
-        phi: 1.18,
-        radius: 5.4,
-        targetTheta: 0.42,
-        targetPhi: 1.18,
-        targetRadius: 5.4,
+        theta: 0.35,
+        phi: 1.15,
+        radius: 6.4,
+        targetTheta: 0.35,
+        targetPhi: 1.15,
+        targetRadius: 6.4,
         dragging: false,
         lastX: 0,
         lastY: 0,
@@ -48,61 +52,201 @@
         autoRotate: false
     };
 
-    const W = 1.55, H = 2.45, D = 1.35;
+    // Dimensões da estufa (centrada em x = -0.35, z = -0.25)
+    const GX = -0.35, GZ = -0.25;
+    const W = 1.45, H = 2.35, D = 1.25;
     const halfW = W / 2, halfD = D / 2;
 
-    // Mapeia temperatura (°C) -> cor RGB (Azul gelado -> Ciano -> Verde ideal -> Amarelo -> Vermelho)
     function tempToRGB(t, isMist) {
         const clamped = Math.max(19.0, Math.min(31.0, t));
         let r, g, b;
         if (clamped <= 23.0) {
             const u = (clamped - 19.0) / 4.0;
-            r = 0.15 + 0.05 * u;
-            g = 0.55 + 0.30 * u;
-            b = 1.0;
+            r = 0.12 + 0.08 * u; g = 0.55 + 0.32 * u; b = 1.0;
         } else if (clamped <= 26.0) {
             const u = (clamped - 23.0) / 3.0;
-            r = 0.20 * (1 - u) + 0.20 * u;
-            g = 0.85 * (1 - u) + 0.88 * u;
-            b = 1.0 * (1 - u) + 0.55 * u;
+            r = 0.20 * (1 - u) + 0.16 * u; g = 0.87; b = 1.0 * (1 - u) + 0.48 * u;
         } else if (clamped <= 28.0) {
             const u = (clamped - 26.0) / 2.0;
-            r = 0.20 + 0.78 * u;
-            g = 0.88 - 0.10 * u;
-            b = 0.55 * (1 - u) + 0.15 * u;
+            r = 0.16 + 0.82 * u; g = 0.87 - 0.12 * u; b = 0.48 * (1 - u) + 0.12 * u;
         } else {
             const u = (clamped - 28.0) / 3.0;
-            r = 0.98;
-            g = 0.78 - 0.52 * u;
-            b = 0.15 + 0.15 * u;
+            r = 0.98; g = 0.75 - 0.50 * u; b = 0.12 + 0.14 * u;
         }
         if (isMist) {
-            r = r * 0.65 + 0.35;
-            g = g * 0.65 + 0.35;
-            b = b * 0.65 + 0.35;
+            r = r * 0.55 + 0.45; g = g * 0.55 + 0.45; b = b * 0.55 + 0.45;
         }
         return [r, g, b];
     }
 
     function createFluidTexture() {
         const c = document.createElement('canvas');
-        c.width = 64;
-        c.height = 64;
+        c.width = 64; c.height = 64;
         const g = c.getContext('2d');
         const grad = g.createRadialGradient(32, 32, 2, 32, 32, 30);
         grad.addColorStop(0, 'rgba(255, 255, 255, 0.95)');
-        grad.addColorStop(0.45, 'rgba(255, 255, 255, 0.45)');
+        grad.addColorStop(0.5, 'rgba(255, 255, 255, 0.42)');
         grad.addColorStop(1, 'rgba(255, 255, 255, 0)');
         g.fillStyle = grad;
         g.fillRect(0, 0, 64, 64);
         return new THREE.CanvasTexture(c);
     }
 
+    function createTileTexture() {
+        const c = document.createElement('canvas');
+        c.width = 256; c.height = 256;
+        const g = c.getContext('2d');
+        g.fillStyle = '#cbd5e1';
+        g.fillRect(0, 0, 256, 256);
+        g.strokeStyle = '#94a3b8';
+        g.lineWidth = 3;
+        for (let i = 0; i <= 256; i += 64) {
+            g.beginPath(); g.moveTo(i, 0); g.lineTo(i, 256); g.stroke();
+            g.beginPath(); g.moveTo(0, i); g.lineTo(256, i); g.stroke();
+        }
+        const tex = new THREE.CanvasTexture(c);
+        tex.wrapS = THREE.RepeatWrapping;
+        tex.wrapT = THREE.RepeatWrapping;
+        tex.repeat.set(5, 5);
+        return tex;
+    }
+
+    function buildRoom() {
+        const room = new THREE.Group();
+        const wallMat = new THREE.MeshStandardMaterial({ color: 0xdbe2ea, roughness: 0.85, metalness: 0.05 });
+        const floorMat = new THREE.MeshStandardMaterial({ map: createTileTexture(), roughness: 0.55, metalness: 0.1 });
+
+        // Piso cerâmico
+        const floor = new THREE.Mesh(new THREE.PlaneGeometry(7.2, 5.8), floorMat);
+        floor.rotation.x = -Math.PI / 2;
+        floor.position.set(0.3, 0, 0.3);
+        room.add(floor);
+
+        // Parede do fundo
+        const backWall = new THREE.Mesh(new THREE.PlaneGeometry(7.2, 3.6), wallMat);
+        backWall.position.set(0.3, 1.8, -2.1);
+        room.add(backWall);
+
+        // Parede esquerda (com janela e Split Inverter)
+        const leftWall = new THREE.Mesh(new THREE.PlaneGeometry(5.8, 3.6), wallMat);
+        leftWall.rotation.y = Math.PI / 2;
+        leftWall.position.set(-2.6, 1.8, 0.3);
+        room.add(leftWall);
+
+        // Janela com persiana na parede esquerda
+        const frameMat = new THREE.MeshStandardMaterial({ color: 0x334155, roughness: 0.4, metalness: 0.5 });
+        const winFrame = new THREE.Mesh(new THREE.BoxGeometry(0.06, 1.35, 1.65), frameMat);
+        winFrame.position.set(-2.57, 1.55, -0.35);
+        room.add(winFrame);
+
+        const glassMat = new THREE.MeshStandardMaterial({ color: 0xbae6fd, emissive: 0x38bdf8, emissiveIntensity: 0.25, roughness: 0.2 });
+        const winGlass = new THREE.Mesh(new THREE.BoxGeometry(0.07, 1.22, 1.52), glassMat);
+        winGlass.position.set(-2.56, 1.55, -0.35);
+        room.add(winGlass);
+
+        // Lâminas da persiana
+        const blindMat = new THREE.MeshStandardMaterial({ color: 0xf1f5f9, roughness: 0.5 });
+        for (let b = 0; b < 9; b++) {
+            const slat = new THREE.Mesh(new THREE.BoxGeometry(0.08, 0.03, 1.48), blindMat);
+            slat.position.set(-2.54, 1.02 + b * 0.13, -0.35);
+            room.add(slat);
+        }
+
+        // Ar-Condicionado Split Inverter ACIMA DA JANELA
+        const acBody = new THREE.Mesh(
+            new THREE.BoxGeometry(0.34, 0.34, 1.18),
+            new THREE.MeshStandardMaterial({ color: 0xf8fafc, roughness: 0.28, metalness: 0.15 })
+        );
+        acBody.position.set(-2.42, 2.75, -0.35);
+        room.add(acBody);
+
+        acVaneMat = new THREE.MeshStandardMaterial({ color: 0x94a3b8, emissive: 0x38bdf8, emissiveIntensity: 0.05 });
+        const acVane = new THREE.Mesh(new THREE.BoxGeometry(0.08, 0.06, 1.06), acVaneMat);
+        acVane.position.set(-2.26, 2.60, -0.35);
+        room.add(acVane);
+
+        acLedMat = new THREE.MeshBasicMaterial({ color: 0x38bdf8 });
+        const acLed = new THREE.Mesh(new THREE.BoxGeometry(0.02, 0.03, 0.08), acLedMat);
+        acLed.position.set(-2.24, 2.74, 0.12);
+        room.add(acLed);
+
+        // Estante preta de apoio à DIREITA da estufa (com Umidificador + mangueira amarela + frascos)
+        const shelfMat = new THREE.MeshStandardMaterial({ color: 0x1e293b, roughness: 0.6 });
+        const rx = 1.05, rz = -0.55;
+        [0.12, 0.72, 1.32].forEach(sy => {
+            const p = new THREE.Mesh(new THREE.BoxGeometry(0.95, 0.04, 0.55), shelfMat);
+            p.position.set(rx, sy, rz);
+            room.add(p);
+        });
+        [[-0.44, -0.24], [0.44, -0.24], [-0.44, 0.24], [0.44, 0.24]].forEach(([ox, oz]) => {
+            const leg = new THREE.Mesh(new THREE.CylinderGeometry(0.02, 0.02, 1.45, 8), shelfMat);
+            leg.position.set(rx + ox, 0.73, rz + oz);
+            room.add(leg);
+        });
+
+        // Umidificador azul no topo da estante preta
+        const umidBase = new THREE.Mesh(
+            new THREE.CylinderGeometry(0.16, 0.19, 0.36, 16),
+            new THREE.MeshStandardMaterial({ color: 0x38bdf8, roughness: 0.3, transparent: true, opacity: 0.88 })
+        );
+        umidBase.position.set(rx - 0.18, 1.52, rz);
+        room.add(umidBase);
+
+        // Mangueira amarela do umidificador entrando no topo da estufa
+        const hoseMat = new THREE.MeshStandardMaterial({ color: 0xfacc15, roughness: 0.5 });
+        const hoseCurve = new THREE.CatmullRomCurve3([
+            new THREE.Vector3(rx - 0.18, 1.72, rz),
+            new THREE.Vector3(rx - 0.15, 2.25, rz + 0.05),
+            new THREE.Vector3(GX + halfW + 0.05, 2.28, GZ + 0.15),
+            new THREE.Vector3(GX + halfW - 0.12, 2.15, GZ + 0.15)
+        ]);
+        const hose = new THREE.Mesh(new THREE.TubeGeometry(hoseCurve, 18, 0.04, 10, false), hoseMat);
+        room.add(hose);
+
+        // Potes de vidro / frascos na estante
+        const jarMat = new THREE.MeshStandardMaterial({ color: 0xe2e8f0, roughness: 0.15, transparent: true, opacity: 0.65 });
+        [0.12, 0.30].forEach(ox => {
+            const jar = new THREE.Mesh(new THREE.CylinderGeometry(0.07, 0.07, 0.18, 12), jarMat);
+            jar.position.set(rx + ox, 1.43, rz + 0.05);
+            room.add(jar);
+            const bottle = new THREE.Mesh(new THREE.CylinderGeometry(0.06, 0.06, 0.22, 12), new THREE.MeshStandardMaterial({ color: 0x1d4ed8, roughness: 0.3 }));
+            bottle.position.set(rx + ox - 0.15, 0.85, rz);
+            room.add(bottle);
+        });
+
+        // Estante aramada de SPAWNS mais à direita (como na 3ª foto!)
+        const sx = 2.35, sz = -0.85;
+        const chromeMat = new THREE.MeshStandardMaterial({ color: 0xcbd5e1, metalness: 0.85, roughness: 0.25 });
+        const grainMat = new THREE.MeshStandardMaterial({ color: 0xf59e0b, roughness: 0.75 });
+        const subBagMat = new THREE.MeshStandardMaterial({ color: 0xa8a29e, roughness: 0.85 });
+        [0.2, 0.75, 1.3, 1.85].forEach((sy, idx) => {
+            const p = new THREE.Mesh(new THREE.BoxGeometry(1.15, 0.025, 0.52), chromeMat);
+            p.position.set(sx, sy, sz);
+            room.add(p);
+            // Sacos de spawn dourados em cima
+            const matSaco = idx >= 2 ? grainMat : subBagMat;
+            for (let k = -2; k <= 2; k++) {
+                const bag = new THREE.Mesh(new THREE.BoxGeometry(0.18, 0.26, 0.24), matSaco);
+                bag.position.set(sx + k * 0.21, sy + 0.145, sz);
+                room.add(bag);
+            }
+        });
+        [[-0.55, -0.24], [0.55, -0.24], [-0.55, 0.24], [0.55, 0.24]].forEach(([ox, oz]) => {
+            const leg = new THREE.Mesh(new THREE.CylinderGeometry(0.018, 0.018, 2.0, 8), chromeMat);
+            leg.position.set(sx + ox, 1.0, sz + oz);
+            room.add(leg);
+        });
+
+        return room;
+    }
+
     function buildTent() {
         const group = new THREE.Group();
-        const blackMat = new THREE.MeshStandardMaterial({ color: 0x0b0f17, roughness: 0.85, metalness: 0.1 });
-        const mylarMat = new THREE.MeshStandardMaterial({ color: 0xdbeafe, roughness: 0.26, metalness: 0.8, side: THREE.FrontSide });
-        const greenMat = new THREE.MeshStandardMaterial({ color: 0x22c55e, roughness: 0.35, metalness: 0.3, emissive: 0x052e16, emissiveIntensity: 0.35 });
+        group.position.set(GX, 0, GZ);
+
+        const blackMat = new THREE.MeshStandardMaterial({ color: 0x111827, roughness: 0.82, metalness: 0.1 });
+        const mylarMat = new THREE.MeshStandardMaterial({ color: 0xe2e8f0, roughness: 0.28, metalness: 0.78, side: THREE.FrontSide });
+        const greenMat = new THREE.MeshStandardMaterial({ color: 0x22c55e, roughness: 0.35, metalness: 0.3, emissive: 0x052e16, emissiveIntensity: 0.25 });
 
         function addWall(w, h, x, y, z, rx, ry) {
             const inner = new THREE.Mesh(new THREE.PlaneGeometry(w, h), mylarMat);
@@ -129,12 +273,11 @@
         addWall(W, D, 0, H, 0, Math.PI / 2, 0);
         addWall(W, D, 0, 0.01, 0, -Math.PI / 2, 0);
 
-        const poleR = 0.032;
+        const poleR = 0.028;
         function addPole(x1, y1, z1, x2, y2, z2) {
             const p1 = new THREE.Vector3(x1, y1, z1);
             const p2 = new THREE.Vector3(x2, y2, z2);
-            const len = p1.distanceTo(p2);
-            const cyl = new THREE.Mesh(new THREE.CylinderGeometry(poleR, poleR, len, 10), greenMat);
+            const cyl = new THREE.Mesh(new THREE.CylinderGeometry(poleR, poleR, p1.distanceTo(p2), 10), greenMat);
             cyl.position.copy(p1).add(p2).multiplyScalar(0.5);
             cyl.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), p2.clone().sub(p1).normalize());
             group.add(cyl);
@@ -150,384 +293,305 @@
             addPole(...corners[i], ...corners[i + 4]);
         }
 
-        // Aba enrolada no topo da porta frontal
+        // Aba enrolada no topo da porta
         const roll = new THREE.Mesh(
-            new THREE.CylinderGeometry(0.11, 0.11, W * 0.92, 16),
+            new THREE.CylinderGeometry(0.10, 0.10, W * 0.92, 16),
             new THREE.MeshStandardMaterial({ color: 0xcbd5e1, roughness: 0.45, metalness: 0.5 })
         );
         roll.rotation.z = Math.PI / 2;
-        roll.position.set(0, H - 0.11, halfD + 0.05);
+        roll.position.set(0, H - 0.10, halfD + 0.05);
         group.add(roll);
-        [-0.38, 0.38].forEach(ox => {
-            const strap = new THREE.Mesh(new THREE.CylinderGeometry(0.115, 0.115, 0.06, 14), blackMat);
-            strap.rotation.z = Math.PI / 2;
-            strap.position.set(ox, H - 0.11, halfD + 0.05);
-            group.add(strap);
-        });
 
-        // Duto inferior esquerdo (entrada da névoa do umidificador)
+        // Duto sanfonado prateado INFERIOR ESQUERDO (por onde o ar SAI para o quarto!)
         const ductMat = new THREE.MeshStandardMaterial({ color: 0x94a3b8, roughness: 0.35, metalness: 0.7 });
-        const ductIn = new THREE.Mesh(new THREE.CylinderGeometry(0.13, 0.13, 0.22, 18), ductMat);
-        ductIn.rotation.z = Math.PI / 2;
-        ductIn.position.set(-halfW + 0.04, 0.34, 0.32);
-        group.add(ductIn);
+        const ductOut = new THREE.Mesh(new THREE.CylinderGeometry(0.11, 0.11, 0.42, 16), ductMat);
+        ductOut.rotation.z = Math.PI / 2;
+        ductOut.position.set(-halfW - 0.15, 0.16, 0.35);
+        group.add(ductOut);
 
-        // Tela de entrada passiva inferior direita
-        const meshVent = new THREE.Mesh(
-            new THREE.PlaneGeometry(0.32, 0.24),
-            new THREE.MeshStandardMaterial({ color: 0x1e293b, roughness: 0.9, side: THREE.DoubleSide })
-        );
-        meshVent.rotation.y = -Math.PI / 2;
-        meshVent.position.set(halfW - 0.015, 0.28, -0.35);
-        group.add(meshVent);
-
-        // Prateleiras internas + Blocos de Cogumelos
-        const shelfMat = new THREE.MeshStandardMaterial({ color: 0x475569, metalness: 0.8, roughness: 0.3 });
+        // 2 estantes pretas internas com blocos de cogumelos (como na foto real!)
+        const rackMat = new THREE.MeshStandardMaterial({ color: 0x1e293b, roughness: 0.7 });
         const subMat = new THREE.MeshStandardMaterial({ color: 0xf1f5f9, roughness: 0.85 });
         const capMat = new THREE.MeshStandardMaterial({ color: 0xd97706, roughness: 0.6 });
         const stemMat = new THREE.MeshStandardMaterial({ color: 0xfef3c7, roughness: 0.7 });
 
-        [0.55, 1.35].forEach((sy) => {
-            const shelf = new THREE.Mesh(new THREE.BoxGeometry(W * 0.76, 0.03, D * 0.68), shelfMat);
-            shelf.position.set(0, sy, -0.08);
-            group.add(shelf);
-
-            [-0.36, 0.36].forEach((bx) => {
-                const block = new THREE.Mesh(new THREE.BoxGeometry(0.46, 0.22, 0.38), subMat);
-                block.position.set(bx, sy + 0.125, -0.08);
+        [-0.34, 0.34].forEach(rx => {
+            [0.35, 0.92, 1.48].forEach(sy => {
+                const shelf = new THREE.Mesh(new THREE.BoxGeometry(0.56, 0.025, 0.78), rackMat);
+                shelf.position.set(rx, sy, -0.08);
+                group.add(shelf);
+                const block = new THREE.Mesh(new THREE.BoxGeometry(0.42, 0.16, 0.56), subMat);
+                block.position.set(rx, sy + 0.09, -0.08);
                 group.add(block);
                 for (let m = 0; m < 4; m++) {
-                    const mx = bx + (m - 1.5) * 0.095;
-                    const mz = -0.08 + ((m % 2 === 0) ? 0.07 : -0.07);
-                    const stem = new THREE.Mesh(new THREE.CylinderGeometry(0.012, 0.016, 0.09, 8), stemMat);
-                    stem.position.set(mx, sy + 0.27, mz);
+                    const mz = -0.26 + m * 0.13;
+                    const stem = new THREE.Mesh(new THREE.CylinderGeometry(0.011, 0.015, 0.08, 8), stemMat);
+                    stem.position.set(rx + (m % 2 === 0 ? 0.06 : -0.06), sy + 0.21, mz);
                     group.add(stem);
-                    const cap = new THREE.Mesh(new THREE.SphereGeometry(0.036, 10, 8, 0, Math.PI * 2, 0, Math.PI * 0.55), capMat);
-                    cap.position.set(mx, sy + 0.31, mz);
+                    const cap = new THREE.Mesh(new THREE.SphereGeometry(0.032, 10, 8, 0, Math.PI * 2, 0, Math.PI * 0.55), capMat);
+                    cap.position.set(rx + (m % 2 === 0 ? 0.06 : -0.06), sy + 0.245, mz);
                     group.add(cap);
                 }
             });
         });
 
-        // Barra LED
-        ledBarMat = new THREE.MeshStandardMaterial({ color: 0x334155, emissive: 0xfef08a, emissiveIntensity: 0.05, roughness: 0.3 });
-        const ledBar = new THREE.Mesh(new THREE.BoxGeometry(W * 0.68, 0.05, 0.18), ledBarMat);
-        ledBar.position.set(0, H - 0.1, -0.05);
+        // Barra LED no teto
+        ledBarMat = new THREE.MeshStandardMaterial({ color: 0x334155, emissive: 0xfef08a, emissiveIntensity: 0.05 });
+        const ledBar = new THREE.Mesh(new THREE.BoxGeometry(W * 0.62, 0.04, 0.14), ledBarMat);
+        ledBar.position.set(-0.15, H - 0.12, -0.1);
         group.add(ledBar);
 
-        ledLight = new THREE.PointLight(0xfef9c3, 0, 4.8, 1.5);
-        ledLight.position.set(0, H - 0.2, -0.05);
+        ledLight = new THREE.PointLight(0xfef9c3, 0, 4.5, 1.5);
+        ledLight.position.set(-0.15, H - 0.22, -0.1);
         group.add(ledLight);
 
-        // Ventilador Interno
-        const fanHousing = new THREE.Mesh(
-            new THREE.CylinderGeometry(0.16, 0.16, 0.08, 16),
-            new THREE.MeshStandardMaterial({ color: 0x1e293b, metalness: 0.5, roughness: 0.4 })
-        );
+        // Ventilador Interno (canto superior direito)
+        const fanHousing = new THREE.Mesh(new THREE.CylinderGeometry(0.13, 0.13, 0.07, 16), rackMat);
         fanHousing.rotation.z = Math.PI / 2;
-        fanHousing.rotation.y = 0.4;
-        fanHousing.position.set(halfW - 0.16, 1.88, 0.15);
+        fanHousing.position.set(halfW - 0.15, 1.92, 0.1);
         group.add(fanHousing);
 
         ventoHelice = new THREE.Group();
-        ventoHelice.position.set(halfW - 0.2, 1.88, 0.15);
-        ventoHelice.rotation.y = 0.4;
-        const bladeMat = new THREE.MeshStandardMaterial({ color: 0x34d399, roughness: 0.3, metalness: 0.4 });
+        ventoHelice.position.set(halfW - 0.19, 1.92, 0.1);
+        const bladeMat = new THREE.MeshStandardMaterial({ color: 0x34d399, roughness: 0.3 });
         for (let b = 0; b < 3; b++) {
-            const blade = new THREE.Mesh(new THREE.BoxGeometry(0.015, 0.24, 0.055), bladeMat);
+            const blade = new THREE.Mesh(new THREE.BoxGeometry(0.015, 0.20, 0.045), bladeMat);
             blade.rotation.x = (b * Math.PI) / 3;
             ventoHelice.add(blade);
         }
         group.add(ventoHelice);
 
-        // Exaustor Externo no teto
-        const exaustTube = new THREE.Mesh(new THREE.CylinderGeometry(0.18, 0.18, 0.24, 18), ductMat);
-        exaustTube.position.set(-0.35, H + 0.06, -0.15);
+        // Exaustor no TOPO (empurra ar do quarto PARA DENTRO da estufa de cima pra baixo!)
+        const exaustTube = new THREE.Mesh(new THREE.CylinderGeometry(0.16, 0.16, 0.28, 18), ductMat);
+        exaustTube.position.set(0.05, H + 0.02, -0.2);
         group.add(exaustTube);
 
         exaustHelice = new THREE.Group();
-        exaustHelice.position.set(-0.35, H + 0.1, -0.15);
-        const exBladeMat = new THREE.MeshStandardMaterial({ color: 0xfb923c, roughness: 0.35, metalness: 0.4 });
+        exaustHelice.position.set(0.05, H - 0.06, -0.2);
+        const exBladeMat = new THREE.MeshStandardMaterial({ color: 0x38bdf8, roughness: 0.35 });
         for (let b = 0; b < 4; b++) {
-            const blade = new THREE.Mesh(new THREE.BoxGeometry(0.28, 0.015, 0.06), exBladeMat);
+            const blade = new THREE.Mesh(new THREE.BoxGeometry(0.24, 0.015, 0.05), exBladeMat);
             blade.rotation.y = (b * Math.PI) / 4;
             exaustHelice.add(blade);
         }
         group.add(exaustHelice);
 
-        // Anel térmico no piso
-        thermalRingMat = new THREE.MeshBasicMaterial({ color: 0x10b981, transparent: true, opacity: 0.35, side: THREE.DoubleSide });
-        const thermalRing = new THREE.Mesh(new THREE.RingGeometry(1.18, 1.32, 48), thermalRingMat);
-        thermalRing.rotation.x = -Math.PI / 2;
-        thermalRing.position.set(0, 0.005, 0);
-        group.add(thermalRing);
-
-        // Unidade AC lateral
-        acGlowMat = new THREE.MeshStandardMaterial({ color: 0x0f172a, emissive: 0x38bdf8, emissiveIntensity: 0.08, roughness: 0.3, metalness: 0.6 });
-        const acUnit = new THREE.Mesh(new THREE.BoxGeometry(0.22, 0.42, 0.72), acGlowMat);
-        acUnit.position.set(halfW + 0.38, 1.95, -0.15);
-        group.add(acUnit);
-
         return group;
     }
 
-    function spawnAirParticle(p, mode) {
-        if (mode === 'mist') {
-            p.x = -halfW + 0.08;
-            p.y = 0.30 + Math.random() * 0.14;
-            p.z = 0.26 + (Math.random() - 0.5) * 0.16;
-            p.vx = 0.018 + Math.random() * 0.014;
-            p.vy = 0.008 + Math.random() * 0.010;
-            p.vz = (Math.random() - 0.5) * 0.010;
-            p.temp = state.tempInt - 0.8;
-            p.mist = true;
-            p.life = 1.0;
-        } else if (mode === 'intake') {
-            // Ar novo do quarto entrando pela tela inferior direita (troca de ar)
-            p.x = halfW - 0.04;
-            p.y = 0.20 + Math.random() * 0.22;
-            p.z = -0.35 + (Math.random() - 0.5) * 0.22;
-            p.vx = -(0.016 + Math.random() * 0.014);
-            p.vy = 0.006 + Math.random() * 0.008;
-            p.vz = (Math.random() - 0.5) * 0.010;
-            p.temp = state.tempExt;
-            p.mist = false;
-            p.life = 1.0;
-        } else {
-            p.x = (Math.random() - 0.5) * (W * 0.86);
-            p.y = 0.15 + Math.random() * (H - 0.3);
-            p.z = (Math.random() - 0.5) * (D * 0.84);
-            p.vx = (Math.random() - 0.5) * 0.004;
-            p.vy = (Math.random() - 0.5) * 0.004;
-            p.vz = (Math.random() - 0.5) * 0.004;
-            p.temp = state.tempInt + (p.y / H - 0.5) * 0.8;
-            p.mist = false;
-            p.life = 0.6 + Math.random() * 0.4;
-        }
-    }
-
     function buildFluids(tex) {
-        const geo = new THREE.BufferGeometry();
-        airPos = new Float32Array(AIR_COUNT * 3);
-        airCol = new Float32Array(AIR_COUNT * 3);
-        for (let i = 0; i < AIR_COUNT; i++) {
-            const p = { x: 0, y: 0, z: 0, vx: 0, vy: 0, vz: 0, temp: 26, mist: false, life: 1 };
-            spawnAirParticle(p, 'ambient');
-            airParticles.push(p);
-            airPos[i * 3] = p.x; airPos[i * 3 + 1] = p.y; airPos[i * 3 + 2] = p.z;
-            const [r, g, b] = tempToRGB(p.temp, p.mist);
-            airCol[i * 3] = r; airCol[i * 3 + 1] = g; airCol[i * 3 + 2] = b;
+        // 1. Fluido interno da estufa (partículas contínuas que nunca desaparecem)
+        const gGeo = new THREE.BufferGeometry();
+        growPos = new Float32Array(GROW_COUNT * 3);
+        growCol = new Float32Array(GROW_COUNT * 3);
+        for (let i = 0; i < GROW_COUNT; i++) {
+            const p = {
+                x: GX + (Math.random() - 0.5) * (W * 0.85),
+                y: 0.15 + Math.random() * (H - 0.3),
+                z: GZ + (Math.random() - 0.5) * (D * 0.82),
+                vx: 0, vy: 0, vz: 0,
+                temp: state.tempInt,
+                mist: false
+            };
+            growParticles.push(p);
+            growPos[i * 3] = p.x; growPos[i * 3 + 1] = p.y; growPos[i * 3 + 2] = p.z;
+            const [r, g, b] = tempToRGB(p.temp, false);
+            growCol[i * 3] = r; growCol[i * 3 + 1] = g; growCol[i * 3 + 2] = b;
         }
-        geo.setAttribute('position', new THREE.BufferAttribute(airPos, 3));
-        geo.setAttribute('color', new THREE.BufferAttribute(airCol, 3));
-        airPoints = new THREE.Points(geo, new THREE.PointsMaterial({
-            size: 0.22,
+        gGeo.setAttribute('position', new THREE.BufferAttribute(growPos, 3));
+        gGeo.setAttribute('color', new THREE.BufferAttribute(growCol, 3));
+        growPoints = new THREE.Points(gGeo, new THREE.PointsMaterial({
+            size: 0.18,
             map: tex,
             vertexColors: true,
             transparent: true,
             opacity: 0.72,
-            depthWrite: false,
-            blending: THREE.AdditiveBlending
+            depthWrite: false
         }));
-        scene.add(airPoints);
+        scene.add(growPoints);
 
-        // Jato do Ar-Condicionado
-        const acGeo = new THREE.BufferGeometry();
-        acPos = new Float32Array(AC_COUNT * 3);
-        acCol = new Float32Array(AC_COUNT * 3);
-        for (let i = 0; i < AC_COUNT; i++) {
+        // 2. Fluido no Quarto (ar do AC Split acima da janela + ar saindo pelo duto inferior esquerdo)
+        const rGeo = new THREE.BufferGeometry();
+        roomPos = new Float32Array(ROOM_COUNT * 3);
+        roomCol = new Float32Array(ROOM_COUNT * 3);
+        for (let i = 0; i < ROOM_COUNT; i++) {
+            const isAcStream = i < 110;
             const p = {
-                x: halfW + 0.28 - Math.random() * 1.1,
-                y: 1.92 - Math.random() * 1.4,
-                z: -0.15 + (Math.random() - 0.5) * 0.65,
-                vx: -(0.022 + Math.random() * 0.015),
-                vy: -(0.012 + Math.random() * 0.010),
-                vz: (Math.random() - 0.5) * 0.008,
-                temp: 20.5
+                isAcStream,
+                x: isAcStream ? (-2.2 + Math.random() * 2.8) : (GX - halfW - 0.3 - Math.random() * 1.1),
+                y: isAcStream ? (2.5 - Math.random() * 1.6) : (0.12 + Math.random() * 0.35),
+                z: isAcStream ? (-0.35 + (Math.random() - 0.5) * 0.9) : (GZ + 0.35 + (Math.random() - 0.5) * 0.35),
+                vx: 0, vy: 0, vz: 0,
+                temp: state.tempExt
             };
-            acParticles.push(p);
-            acPos[i * 3] = p.x; acPos[i * 3 + 1] = p.y; acPos[i * 3 + 2] = p.z;
-            const [r, g, b] = tempToRGB(20.5, false);
-            acCol[i * 3] = r; acCol[i * 3 + 1] = g; acCol[i * 3 + 2] = b;
+            roomParticles.push(p);
+            roomPos[i * 3] = p.x; roomPos[i * 3 + 1] = p.y; roomPos[i * 3 + 2] = p.z;
+            const [r, g, b] = tempToRGB(p.temp, false);
+            roomCol[i * 3] = r; roomCol[i * 3 + 1] = g; roomCol[i * 3 + 2] = b;
         }
-        acGeo.setAttribute('position', new THREE.BufferAttribute(acPos, 3));
-        acGeo.setAttribute('color', new THREE.BufferAttribute(acCol, 3));
-        acPoints = new THREE.Points(acGeo, new THREE.PointsMaterial({
-            size: 0.16,
+        rGeo.setAttribute('position', new THREE.BufferAttribute(roomPos, 3));
+        rGeo.setAttribute('color', new THREE.BufferAttribute(roomCol, 3));
+        roomPoints = new THREE.Points(rGeo, new THREE.PointsMaterial({
+            size: 0.17,
             map: tex,
             vertexColors: true,
             transparent: true,
-            opacity: 0,
-            depthWrite: false,
-            blending: THREE.AdditiveBlending
+            opacity: 0.62,
+            depthWrite: false
         }));
-        scene.add(acPoints);
+        scene.add(roomPoints);
     }
 
     function stepFluidPhysics() {
         simTime += 0.025;
-        const targetAmbientTemp = state.tempInt;
         const topHeatBonus = state.luz ? 1.1 : 0.0;
 
-        // Ajusta tamanho visual das partículas conforme névoa ativa
-        airPoints.material.size += ((state.umid ? 0.28 : 0.16) - airPoints.material.size) * 0.08;
-        airPoints.material.opacity += (((state.umid || state.vento || state.exaust) ? 0.78 : 0.42) - airPoints.material.opacity) * 0.08;
+        growPoints.material.size += ((state.umid ? 0.25 : 0.16) - growPoints.material.size) * 0.08;
 
-        for (let i = 0; i < AIR_COUNT; i++) {
-            const p = airParticles[i];
+        for (let i = 0; i < GROW_COUNT; i++) {
+            const p = growParticles[i];
+            const lx = p.x - GX;
+            const lz = p.z - GZ;
 
-            // 1. Turbulência Curl 3D suave
-            const curlX = Math.sin(p.y * 2.6 + simTime) * Math.cos(p.z * 2.4 + simTime * 0.7) * 0.0016;
-            const curlY = Math.sin(p.x * 2.5 + simTime * 0.8) * 0.0012;
-            const curlZ = Math.cos(p.y * 2.4 - simTime) * Math.sin(p.x * 2.6 + simTime * 0.6) * 0.0016;
-            p.vx += curlX;
-            p.vy += curlY;
-            p.vz += curlZ;
+            // Turbulência curl contínua
+            p.vx += Math.sin(p.y * 2.5 + simTime) * Math.cos(lz * 2.3 + simTime * 0.7) * 0.0014;
+            p.vy += Math.sin(lx * 2.4 + simTime * 0.8) * 0.0010;
+            p.vz += Math.cos(p.y * 2.3 - simTime) * Math.sin(lx * 2.5 + simTime * 0.6) * 0.0014;
 
-            // 2. Empuxo térmico (ar mais quente que a média sobe, ar mais frio desce)
-            const buoyancy = (p.temp - (targetAmbientTemp - 0.3)) * 0.00085;
-            p.vy += buoyancy;
+            // Empuxo térmico
+            p.vy += (p.temp - (state.tempInt - 0.2)) * 0.00075;
 
-            // 3. Vórtice do Ventilador Interno (circulação forçada)
+            // Ventilador Interno (vórtice interno)
             if (state.vento) {
-                const dx = p.x;
-                const dz = p.z;
-                const dist = Math.hypot(dx, dz) + 0.05;
-                // Torque tangencial + leve empuxo descendente das pás
-                p.vx += (-dz / dist) * 0.0048;
-                p.vz += (dx / dist) * 0.0048;
-                if (p.x > 0.25 && p.y > 1.4) {
-                    p.vx -= 0.0045;
-                    p.vy -= 0.0025;
-                }
+                const dist = Math.hypot(lx, lz) + 0.06;
+                p.vx += (-lz / dist) * 0.0042;
+                p.vz += (lx / dist) * 0.0042;
             }
 
-            // 4. Sucção do Exaustor Externo no teto (-0.35, H, -0.15)
+            // Exaustor no TOPO empurra ar de cima para baixo, e o ar sai pelo duto INFERIOR ESQUERDO!
             if (state.exaust) {
-                const ex = -0.35 - p.x;
-                const ey = (H + 0.35) - p.y;
-                const ez = -0.15 - p.z;
-                const d = Math.hypot(ex, ey, ez) + 0.2;
-                const pull = 0.0075 / (0.6 + d);
-                p.vx += (ex / d) * pull;
-                p.vy += (ey / d) * pull + 0.0018;
-                p.vz += (ez / d) * pull;
+                p.vy -= 0.0042; // Downwash de cima para baixo
+                // Atrai em direção ao duto inferior esquerdo (-halfW, 0.16, 0.35)
+                if (p.y < 0.75) {
+                    const dx = (-halfW - 0.15) - lx;
+                    const dy = 0.16 - p.y;
+                    const dz = 0.35 - lz;
+                    const d = Math.hypot(dx, dy, dz) + 0.15;
+                    p.vx += (dx / d) * 0.0065;
+                    p.vy += (dy / d) * 0.0055;
+                    p.vz += (dz / d) * 0.0065;
+                }
             }
 
-            // Amortecimento viscoso
-            p.vx *= 0.96;
-            p.vy *= 0.96;
-            p.vz *= 0.96;
+            p.vx *= 0.95; p.vy *= 0.95; p.vz *= 0.95;
+            p.x += p.vx; p.y += p.vy; p.z += p.vz;
 
-            p.x += p.vx;
-            p.y += p.vy;
-            p.z += p.vz;
+            const localGoal = state.tempInt + (p.y > 1.8 ? topHeatBonus : 0);
+            p.temp += (localGoal - p.temp) * 0.015;
 
-            // Troca térmica local: teto com LED aquece, resto tende a tempInt (ou tempExt se exaustor puxar)
-            const localGoal = targetAmbientTemp + (p.y > 1.85 ? topHeatBonus : 0) - (state.ar ? 0.5 : 0);
-            p.temp += (localGoal - p.temp) * 0.012;
-
-            // Saiu pelo duto de exaustão? Respawna na entrada de ar novo (troca de ar!) ou névoa
-            const saiuExaust = state.exaust && p.y > H + 0.55;
-            if (!state.exaust) {
+            // Se saiu pelo duto inferior esquerdo (durante exaustão), entra ar novo pelo TOPO (conservação de massa!)
+            if (state.exaust && (p.x - GX) < -halfW - 0.05 && p.y < 0.45) {
+                p.x = GX + 0.05 + (Math.random() - 0.5) * 0.22;
+                p.y = H - 0.15;
+                p.z = GZ - 0.2 + (Math.random() - 0.5) * 0.22;
+                p.vx = (Math.random() - 0.5) * 0.012;
+                p.vy = -(0.025 + Math.random() * 0.015);
+                p.vz = (Math.random() - 0.5) * 0.012;
+                p.temp = state.tempExt;
+                p.mist = false;
+            } else {
+                // Se umidificador ligado, parte das partículas reciclam na mangueira amarela (topo direito)
+                if (state.umid && Math.random() < 0.015) {
+                    p.x = GX + halfW - 0.12;
+                    p.y = 2.12;
+                    p.z = GZ + 0.15;
+                    p.vx = -(0.015 + Math.random() * 0.01);
+                    p.vy = -(0.012 + Math.random() * 0.01);
+                    p.vz = (Math.random() - 0.5) * 0.012;
+                    p.temp = state.tempInt - 0.7;
+                    p.mist = true;
+                }
+                // Colisão suave nas paredes internas (partícula NUNCA some!)
+                if (p.x < GX - halfW + 0.06) { p.x = GX - halfW + 0.06; p.vx *= -0.6; }
+                if (p.x > GX + halfW - 0.06) { p.x = GX + halfW - 0.06; p.vx *= -0.6; }
+                if (p.z < GZ - halfD + 0.06) { p.z = GZ - halfD + 0.06; p.vz *= -0.6; }
+                if (p.z > GZ + halfD - 0.06) { p.z = GZ + halfD - 0.06; p.vz *= -0.6; }
+                if (p.y < 0.08) { p.y = 0.08; p.vy *= -0.45; }
                 if (p.y > H - 0.08) { p.y = H - 0.08; p.vy *= -0.45; }
-            } else if (p.y > H - 0.05 && Math.hypot(p.x + 0.35, p.z + 0.15) > 0.24) {
-                p.y = H - 0.05;
-                p.vy *= -0.4;
             }
 
-            // Colisão suave com paredes da estufa
-            if (p.x < -halfW + 0.06) { p.x = -halfW + 0.06; p.vx *= -0.5; }
-            if (p.x > halfW - 0.06) { p.x = halfW - 0.06; p.vx *= -0.5; }
-            if (p.z < -halfD + 0.06) { p.z = -halfD + 0.06; p.vz *= -0.5; }
-            if (p.z > halfD - 0.06) { p.z = halfD - 0.06; p.vz *= -0.5; }
-            if (p.y < 0.08) { p.y = 0.08; p.vy *= -0.35; }
-
-            p.life -= state.exaust ? 0.008 : 0.0035;
-            if (saiuExaust || p.life <= 0) {
-                if (state.umid && (i % 2 === 0 || !state.exaust)) {
-                    spawnAirParticle(p, 'mist');
-                } else if (state.exaust) {
-                    spawnAirParticle(p, 'intake');
-                } else {
-                    spawnAirParticle(p, 'ambient');
-                }
-            }
-
-            airPos[i * 3] = p.x;
-            airPos[i * 3 + 1] = p.y;
-            airPos[i * 3 + 2] = p.z;
+            growPos[i * 3] = p.x; growPos[i * 3 + 1] = p.y; growPos[i * 3 + 2] = p.z;
             const [r, g, b] = tempToRGB(p.temp, p.mist && state.umid);
-            airCol[i * 3] = r;
-            airCol[i * 3 + 1] = g;
-            airCol[i * 3 + 2] = b;
+            growCol[i * 3] = r; growCol[i * 3 + 1] = g; growCol[i * 3 + 2] = b;
         }
-        airPoints.geometry.attributes.position.needsUpdate = true;
-        airPoints.geometry.attributes.color.needsUpdate = true;
+        growPoints.geometry.attributes.position.needsUpdate = true;
+        growPoints.geometry.attributes.color.needsUpdate = true;
 
-        // Jato frio do AC externo
-        acPoints.material.opacity += ((state.ar ? 0.85 : 0) - acPoints.material.opacity) * 0.1;
-        if (acPoints.material.opacity > 0.02) {
-            const acColdTemp = Math.min(22.0, state.tempExt - 3.5);
-            const [r, g, b] = tempToRGB(acColdTemp, false);
-            for (let i = 0; i < AC_COUNT; i++) {
-                const p = acParticles[i];
-                p.x += p.vx;
-                p.y += p.vy + Math.sin(simTime * 2 + i) * 0.002;
-                p.z += p.vz;
-                if (p.x < -0.65 || p.y < 0.12) {
-                    p.x = halfW + 0.28;
-                    p.y = 1.92 + (Math.random() - 0.5) * 0.22;
-                    p.z = -0.15 + (Math.random() - 0.5) * 0.55;
+        // Fluido no Quarto (AC Split + Saída do Duto Inferior Esquerdo)
+        for (let i = 0; i < ROOM_COUNT; i++) {
+            const p = roomParticles[i];
+            if (p.isAcStream) {
+                const speed = state.ar ? 1.0 : 0.18;
+                p.x += (0.022 + Math.sin(simTime + i) * 0.003) * speed;
+                p.y += (-0.010 + Math.cos(simTime + i) * 0.002) * speed;
+                p.z += Math.sin(simTime * 0.8 + i) * 0.003 * speed;
+                const goalT = state.ar ? Math.min(21.5, state.tempExt - 3.5) : state.tempExt;
+                p.temp += (goalT - p.temp) * 0.04;
+                if (p.x > 1.2 || p.y < 0.15) {
+                    p.x = -2.25;
+                    p.y = 2.58 + (Math.random() - 0.5) * 0.14;
+                    p.z = -0.35 + (Math.random() - 0.5) * 0.85;
                 }
-                acPos[i * 3] = p.x; acPos[i * 3 + 1] = p.y; acPos[i * 3 + 2] = p.z;
-                acCol[i * 3] = r; acCol[i * 3 + 1] = g; acCol[i * 3 + 2] = b;
+            } else {
+                // Fluxo saindo do duto inferior esquerdo para o quarto quando exaustor está ON
+                const exSpeed = state.exaust ? 1.0 : 0.12;
+                p.x -= (0.024 + Math.random() * 0.008) * exSpeed;
+                p.y += (0.003 + Math.sin(simTime + i) * 0.003) * exSpeed;
+                p.z += Math.cos(simTime + i) * 0.004 * exSpeed;
+                p.temp += ((state.exaust ? state.tempInt : state.tempExt) - p.temp) * 0.04;
+                if (p.x < -2.45) {
+                    p.x = GX - halfW - 0.34;
+                    p.y = 0.16 + (Math.random() - 0.5) * 0.12;
+                    p.z = GZ + 0.35 + (Math.random() - 0.5) * 0.14;
+                }
             }
-            acPoints.geometry.attributes.position.needsUpdate = true;
-            acPoints.geometry.attributes.color.needsUpdate = true;
+            roomPos[i * 3] = p.x; roomPos[i * 3 + 1] = p.y; roomPos[i * 3 + 2] = p.z;
+            const [r, g, b] = tempToRGB(p.temp, false);
+            roomCol[i * 3] = r; roomCol[i * 3 + 1] = g; roomCol[i * 3 + 2] = b;
         }
+        roomPoints.geometry.attributes.position.needsUpdate = true;
+        roomPoints.geometry.attributes.color.needsUpdate = true;
     }
 
     function bindControls(el) {
         el.addEventListener('pointerdown', (e) => {
-            cam.dragging = true;
-            cam.lastX = e.clientX;
-            cam.lastY = e.clientY;
+            cam.dragging = true; cam.lastX = e.clientX; cam.lastY = e.clientY;
         });
         window.addEventListener('pointermove', (e) => {
             if (!cam.dragging) return;
-            const dx = e.clientX - cam.lastX;
-            const dy = e.clientY - cam.lastY;
-            cam.lastX = e.clientX;
-            cam.lastY = e.clientY;
-            cam.targetTheta -= dx * 0.008;
-            cam.targetPhi = Math.max(0.35, Math.min(1.52, cam.targetPhi - dy * 0.006));
+            cam.targetTheta -= (e.clientX - cam.lastX) * 0.008;
+            cam.targetPhi = Math.max(0.35, Math.min(1.50, cam.targetPhi - (e.clientY - cam.lastY) * 0.006));
+            cam.lastX = e.clientX; cam.lastY = e.clientY;
         });
         window.addEventListener('pointerup', () => { cam.dragging = false; });
 
         el.addEventListener('wheel', (e) => {
             e.preventDefault();
-            cam.targetRadius = Math.max(3.2, Math.min(8.5, cam.targetRadius + e.deltaY * 0.004));
+            cam.targetRadius = Math.max(3.0, Math.min(9.5, cam.targetRadius + e.deltaY * 0.004));
         }, { passive: false });
 
         el.addEventListener('touchstart', (e) => {
             if (e.touches.length === 2) {
-                const dx = e.touches[0].clientX - e.touches[1].clientX;
-                const dy = e.touches[0].clientY - e.touches[1].clientY;
-                cam.pinchDist = Math.hypot(dx, dy);
+                cam.pinchDist = Math.hypot(e.touches[0].clientX - e.touches[1].clientX, e.touches[0].clientY - e.touches[1].clientY);
             }
         }, { passive: true });
-
         el.addEventListener('touchmove', (e) => {
             if (e.touches.length === 2 && cam.pinchDist > 0) {
-                const dx = e.touches[0].clientX - e.touches[1].clientX;
-                const dy = e.touches[0].clientY - e.touches[1].clientY;
-                const dist = Math.hypot(dx, dy);
-                cam.targetRadius = Math.max(3.2, Math.min(8.5, cam.targetRadius - (dist - cam.pinchDist) * 0.01));
+                const dist = Math.hypot(e.touches[0].clientX - e.touches[1].clientX, e.touches[0].clientY - e.touches[1].clientY);
+                cam.targetRadius = Math.max(3.0, Math.min(9.5, cam.targetRadius - (dist - cam.pinchDist) * 0.01));
                 cam.pinchDist = dist;
             }
         }, { passive: true });
-
         el.addEventListener('dblclick', () => window.resetTwinCamera());
     }
 
@@ -535,8 +599,7 @@
         requestAnimationFrame(animate);
         if (!renderer || !scene || !camera) return;
 
-        const w = container.clientWidth;
-        const h = container.clientHeight;
+        const w = container.clientWidth, h = container.clientHeight;
         if (w > 0 && h > 0) {
             const dpr = Math.min(window.devicePixelRatio || 1, 2);
             if (renderer.domElement.width !== Math.floor(w * dpr) || renderer.domElement.height !== Math.floor(h * dpr)) {
@@ -551,22 +614,19 @@
         cam.phi += (cam.targetPhi - cam.phi) * 0.12;
         cam.radius += (cam.targetRadius - cam.radius) * 0.12;
 
-        const lookY = 1.2;
+        const lookX = 0.15, lookY = 1.22, lookZ = -0.35;
         camera.position.set(
-            cam.radius * Math.sin(cam.phi) * Math.sin(cam.theta),
+            lookX + cam.radius * Math.sin(cam.phi) * Math.sin(cam.theta),
             lookY + cam.radius * Math.cos(cam.phi),
-            cam.radius * Math.sin(cam.phi) * Math.cos(cam.theta)
+            lookZ + cam.radius * Math.sin(cam.phi) * Math.cos(cam.theta)
         );
-        camera.lookAt(0, lookY, 0);
+        camera.lookAt(lookX, lookY, lookZ);
 
-        const targetLed = state.luz ? 1.85 : 0.0;
-        ledLight.intensity += (targetLed - ledLight.intensity) * 0.12;
+        ledLight.intensity += ((state.luz ? 1.85 : 0.0) - ledLight.intensity) * 0.12;
         ledBarMat.emissiveIntensity = state.luz ? 1.4 : 0.05;
-        ambientLight.intensity = state.luz ? 0.95 : 0.55;
-
-        const [tr, tg, tb] = tempToRGB(state.tempInt, false);
-        thermalRingMat.color.setRGB(tr, tg, tb);
-        acGlowMat.emissiveIntensity = state.ar ? 0.95 : 0.08;
+        ambientLight.intensity = state.luz ? 0.95 : 0.72;
+        acVaneMat.emissiveIntensity = state.ar ? 0.85 : 0.05;
+        acLedMat.color.setHex(state.ar ? 0x38bdf8 : 0x475569);
 
         if (state.vento && ventoHelice) ventoHelice.rotation.x += 0.42;
         if (state.exaust && exaustHelice) exaustHelice.rotation.y += 0.46;
@@ -579,17 +639,16 @@
         if (initialized || !containerEl) return;
         container = containerEl;
         if (typeof THREE === 'undefined') {
-            container.innerHTML = '<div class="h-full flex items-center justify-center text-xs text-rose-300 p-6 text-center">Three.js não carregou. Verifique sua conexão com a internet.</div>';
+            container.innerHTML = '<div class="h-full flex items-center justify-center text-xs text-rose-300 p-6 text-center">Three.js não carregou.</div>';
             return;
         }
         initialized = true;
 
         scene = new THREE.Scene();
-        scene.background = new THREE.Color(0x050811);
-        scene.fog = new THREE.FogExp2(0x050811, 0.06);
+        scene.background = new THREE.Color(0x162032);
+        scene.fog = new THREE.FogExp2(0x162032, 0.035);
 
-        const w = container.clientWidth || 640;
-        const h = container.clientHeight || 420;
+        const w = container.clientWidth || 640, h = container.clientHeight || 420;
         camera = new THREE.PerspectiveCamera(44, w / h, 0.1, 50);
 
         renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: 'high-performance' });
@@ -601,16 +660,16 @@
         container.innerHTML = '';
         container.appendChild(renderer.domElement);
 
-        ambientLight = new THREE.AmbientLight(0xffffff, 0.65);
+        ambientLight = new THREE.AmbientLight(0xffffff, 0.75);
         scene.add(ambientLight);
-        const keyLight = new THREE.DirectionalLight(0xe0f2fe, 0.9);
-        keyLight.position.set(3.5, 5.5, 4.5);
+        const keyLight = new THREE.DirectionalLight(0xfffbeb, 0.95);
+        keyLight.position.set(3.0, 5.5, 4.5);
         scene.add(keyLight);
-        const rimLight = new THREE.DirectionalLight(0x34d399, 0.35);
-        rimLight.position.set(-4, 3, -3);
-        scene.add(rimLight);
+        const winLight = new THREE.DirectionalLight(0xbae6fd, 0.45);
+        winLight.position.set(-4, 2.5, 1);
+        scene.add(winLight);
 
-        scene.add(new THREE.GridHelper(8, 16, 0x1e293b, 0x0f172a));
+        scene.add(buildRoom());
         scene.add(buildTent());
         buildFluids(createFluidTexture());
         bindControls(renderer.domElement);
@@ -630,10 +689,10 @@
     };
 
     window.setTwinCameraPreset = function (preset) {
-        if (preset === 'frente') { cam.targetTheta = 0.08; cam.targetPhi = 1.24; cam.targetRadius = 5.0; }
-        else if (preset === 'topo') { cam.targetTheta = 0.45; cam.targetPhi = 0.52; cam.targetRadius = 5.6; }
-        else if (preset === 'interior') { cam.targetTheta = 0.05; cam.targetPhi = 1.32; cam.targetRadius = 3.35; }
-        else { cam.targetTheta = 0.42; cam.targetPhi = 1.18; cam.targetRadius = 5.4; }
+        if (preset === 'frente') { cam.targetTheta = 0.05; cam.targetPhi = 1.22; cam.targetRadius = 5.4; }
+        else if (preset === 'topo') { cam.targetTheta = 0.35; cam.targetPhi = 0.55; cam.targetRadius = 6.2; }
+        else if (preset === 'interior') { cam.targetTheta = -0.05; cam.targetPhi = 1.30; cam.targetRadius = 3.2; }
+        else { cam.targetTheta = 0.35; cam.targetPhi = 1.15; cam.targetRadius = 6.4; }
     };
 
     window.toggleTwinAutoRotate = function () {
