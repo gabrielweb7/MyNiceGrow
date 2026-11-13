@@ -54,7 +54,7 @@ function calcularProjecaoTermica({
     const uAlvoSim = (cfgProj && (cfgProj.uA !== undefined || cfgProj.uN !== undefined)) ? parseFloat(cfgProj.uA !== undefined ? cfgProj.uA : cfgProj.uN) : 95.0;
     const uRetornoAlvoSim = (hvac.uRetornoAlvo === undefined || parseInt(hvac.uRetornoAlvo, 10) !== 0);
     const uGuardaRetornoSim = Math.max(uGuardaCorteSim, uRetornoAlvoSim ? uAlvoSim : parseFloat(hvac.uGuardaRetorno !== undefined ? hvac.uGuardaRetorno : 99.0));
-    const tEvapPreMin = (hvac.tEvapPre !== undefined) ? Math.max(0, Math.min(15, parseInt(hvac.tEvapPre, 10))) : 4;
+    const tEvapPreMin = 0; // Pré-resfriamento evaporativo desativado definitivamente
     const tEvapAntecipaSim = (hvac.tEvapAnt !== undefined) ? Math.max(0, Math.min(1.5, parseFloat(hvac.tEvapAnt))) : 0.3;
     const tEvapCooldownMin = (hvac.tEvapCool !== undefined) ? Math.max(10, Math.min(180, parseInt(hvac.tEvapCool, 10))) : 45;
 

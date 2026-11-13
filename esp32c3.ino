@@ -2,10 +2,10 @@
 //  GROW IA - Firmware Inteligente + Nuvem IoT
 //  Placa: ESP32-C3 SuperMini (Produção) / ESP32-S3 Dual-Core
 //  Autor: Gabriel + Antigravity AI
-//  Versão Atual: v451 (Sifão Exclusivo Pós-AC, FAE Protegido & Pré-AC Evap Sem Exaustão)
+//  Versão Atual: v457 (Sifão Pós-AC, FAE Protegido & Pré-AC Evaporativo Desativado)
 // ============================================================
 
-#define FW_VERSION 456
+#define FW_VERSION 457
 
 #include <Arduino.h>
 #include <ArduinoJson.h>
@@ -56,7 +56,7 @@ float tempSifaoMin = 22.0f;           // Piso mínimo de temperatura (°C) para 
 float umidGuardaCorte = 90.0f;        // Abaixo deste valor (%), pausa injeção fria e aciona reidratação
 bool umidRetornoSeguirAlvo = true;    // Se true, só retoma exaustor quando umidade recuperar até a Umidade Alvo da fase
 float umidGuardaRetorno = 99.0f;      // Valor fixo de retorno (%) quando umidRetornoSeguirAlvo estiver desativado
-unsigned long tempoEvapPreAcMs = 4UL * 60UL * 1000UL; // Tentativa evaporativa antes do AC (0 = desativado)
+unsigned long tempoEvapPreAcMs = 0UL; // Desativado definitivamente (pré-resfriamento evaporativo removido)
 float tempEvapAntecipa = 0.3f;        // Antecipa evaporação abaixo de pf.tempMax (°C)
 unsigned long evapCooldownMs = 45UL * 60UL * 1000UL;  // Intervalo mínimo após falha antes de tentar evaporação de novo
 
@@ -711,8 +711,7 @@ void enviarNuvem(unsigned long agora) {
               if (abs(umidGuardaRetorno - ugr) > 0.05f) { umidGuardaRetorno = ugr; configAlterada = true; }
             }
             if (h.containsKey("tEvapPre")) {
-              unsigned long tep = clampMin(h["tEvapPre"].as<long>(), 15UL, 4UL) * 60000UL;
-              if (tempoEvapPreAcMs != tep) { tempoEvapPreAcMs = tep; configAlterada = true; }
+              if (tempoEvapPreAcMs != 0UL) { tempoEvapPreAcMs = 0UL; configAlterada = true; }
             }
             if (h.containsKey("tEvapAnt")) {
               float tea = clampF(h["tEvapAnt"].as<float>(), 0.0f, 1.5f, 0.3f);
@@ -1787,7 +1786,7 @@ void setup() {
   umidRetornoSeguirAlvo = prefs.getBool("uRetAlvo", true);
   umidGuardaRetorno = prefs.getFloat("uGuardaRet", 99.0f);
   if (umidGuardaRetorno < umidGuardaCorte) umidGuardaRetorno = umidGuardaCorte;
-  tempoEvapPreAcMs = (unsigned long)min((uint32_t)15, prefs.getUInt("tEvapPre", 4)) * 60000UL;
+  tempoEvapPreAcMs = 0UL; // Pré-resfriamento evaporativo desativado definitivamente
   tempEvapAntecipa = constrain(prefs.getFloat("tEvapAnt", 0.3f), 0.0f, 1.5f);
   evapCooldownMs = (unsigned long)max((uint32_t)10, min((uint32_t)180, prefs.getUInt("tEvapCool", 45))) * 60000UL;
   prefs.end();
