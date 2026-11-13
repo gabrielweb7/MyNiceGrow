@@ -98,6 +98,16 @@
                     <div id="twinCanvasCard" class="relative rounded-2xl overflow-hidden border border-slate-800 bg-slate-950">
                         <div id="twin3dContainer" class="w-full h-[360px] sm:h-[460px] cursor-grab active:cursor-grabbing touch-none"></div>
                         <div id="twinHudHora" class="absolute top-3 left-3 px-3 py-1.5 rounded-xl bg-slate-950/85 border border-slate-700/80 text-xs font-mono font-bold text-cyan-300 pointer-events-none">--:--</div>
+                        <!-- Mini-card flutuante ao clicar em um equipamento no 3D -->
+                        <div id="twinEquipCard" class="hidden absolute top-12 left-3 z-20 w-60 rounded-xl bg-slate-950/92 backdrop-blur border border-emerald-500/40 p-3 shadow-xl text-xs space-y-2">
+                            <div class="flex items-start justify-between gap-2">
+                                <div id="twinEquipTitulo" class="font-bold text-white leading-tight">--</div>
+                                <button onclick="fecharTwinEquipCard()" class="text-slate-400 hover:text-white text-xs leading-none px-1">✕</button>
+                            </div>
+                            <div id="twinEquipStatus" class="text-[11px] font-bold"></div>
+                            <p id="twinEquipDesc" class="text-[11px] text-slate-400 leading-snug"></p>
+                            <button id="twinEquipBtn" onclick="toggleEquipFromCard()" class="hidden w-full py-1.5 rounded-lg bg-purple-500/20 hover:bg-purple-500/30 border border-purple-500/40 text-purple-200 font-bold text-[11px] transition"></button>
+                        </div>
                         <div class="hidden sm:flex items-center gap-1.5 absolute top-3 right-3 px-2.5 py-1 rounded-xl bg-slate-950/85 border border-slate-700/80 text-[10px] font-bold pointer-events-none">
                             <span class="text-sky-400">❄️ ≤23°C</span>
                             <span class="text-cyan-300">25°C</span>
@@ -110,6 +120,10 @@
                                 <button onclick="desativarFpsSetPreset('frente')" class="px-2 py-1 rounded-lg bg-slate-950/85 hover:bg-slate-800 border border-slate-700 text-[10px] font-bold text-slate-300">Frente</button>
                                 <button onclick="desativarFpsSetPreset('interior')" class="px-2 py-1 rounded-lg bg-slate-950/85 hover:bg-slate-800 border border-slate-700 text-[10px] font-bold text-slate-300">Interior</button>
                                 <button onclick="desativarFpsSetPreset('topo')" class="px-2 py-1 rounded-lg bg-slate-950/85 hover:bg-slate-800 border border-slate-700 text-[10px] font-bold text-slate-300">Topo</button>
+                                <button onclick="desativarFpsSetPreset('esp32')" class="px-2 py-1 rounded-lg bg-slate-950/85 hover:bg-slate-800 border border-slate-700 text-[10px] font-bold text-cyan-300">ESP32</button>
+                                <button onclick="desativarFpsSetPreset('cogumelos')" class="px-2 py-1 rounded-lg bg-slate-950/85 hover:bg-slate-800 border border-slate-700 text-[10px] font-bold text-amber-300">Cogumelos</button>
+                                <button onclick="desativarFpsSetPreset('ar')" class="px-2 py-1 rounded-lg bg-slate-950/85 hover:bg-slate-800 border border-slate-700 text-[10px] font-bold text-sky-300">AC</button>
+                                <button id="btnTwinFluxo" onclick="toggleTwinStreamlinesUI()" class="px-2 py-1 rounded-lg bg-slate-950/85 hover:bg-slate-800 border border-slate-700 text-[10px] font-bold text-slate-300" title="Setas de fluxo de ar 3D">💨 Fluxo</button>
                                 <button id="btnTwinAutoRot" onclick="toggleAutoRotUI()" class="px-2 py-1 rounded-lg bg-slate-950/85 hover:bg-slate-800 border border-slate-700 text-[10px] font-bold text-slate-300">🔄 360°</button>
                                 <button id="btnTwinFps" onclick="toggleTwinFpsUI()" class="px-2.5 py-1 rounded-lg bg-slate-950/85 hover:bg-slate-800 border border-cyan-500/40 text-[10px] font-bold text-cyan-300">🚶 Modo FPS</button>
                                 <button id="btnTwinFullscreen" onclick="toggleTwinFullscreen()" class="px-2.5 py-1 rounded-lg bg-slate-950/85 hover:bg-slate-800 border border-slate-700 text-[10px] font-bold text-slate-200" title="Tela Cheia">⛶ Tela Cheia</button>
@@ -320,7 +334,7 @@
 
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js" defer></script>
     <script src="js/vendor/charts-bundle.min.js?v=1.8.0" defer></script>
-    <script src="js/twin3d.js?v=1.9.18" defer></script>
-    <script src="js/lab.js?v=1.9.5" defer></script>
+    <script src="js/twin3d.js?v=1.9.19" defer></script>
+    <script src="js/lab.js?v=1.9.6" defer></script>
 </body>
 </html>

@@ -522,6 +522,115 @@ document.addEventListener('keydown', (e) => {
     }
 });
 
+let twinEquipSelecionado = null;
+let lastTwinFrameState = { ti: 26.5, te: 25.5, hi: 95, vpd: 0.15, luz: false, umid: false, vento: false, exaust: false, ar: false };
+
+function toggleTwinStreamlinesUI() {
+    if (!window.toggleTwinStreamlines) return;
+    const on = window.toggleTwinStreamlines();
+    const btn = document.getElementById('btnTwinFluxo');
+    if (btn) {
+        btn.className = on
+            ? 'px-2 py-1 rounded-lg bg-cyan-500/25 border border-cyan-400/60 text-[10px] font-bold text-cyan-200'
+            : 'px-2 py-1 rounded-lg bg-slate-950/85 hover:bg-slate-800 border border-slate-700 text-[10px] font-bold text-slate-300';
+    }
+}
+
+const TWIN_EQUIP_INFO = {
+    ar: {
+        titulo: '❄️ Ar-Condicionado Split',
+        rele: 'ar',
+        desc: 'Puxa o ar do quarto pela grade superior, resfria na serpentina e sopra pela aleta.'
+    },
+    esp32: {
+        titulo: '🧠 ESP32-C3 + Relés',
+        rele: null,
+        desc: 'Controlador central com heartbeat azul e 5 LEDs em tempo real para cada relé.'
+    },
+    umid: {
+        titulo: '💧 Umidificador Ultrassônico',
+        rele: 'umid',
+        desc: 'Injeta névoa fria pela mangueira amarela no topo da estufa.'
+    },
+    exaust: {
+        titulo: '🌪️ Exaustor Superior',
+        rele: 'exaust',
+        desc: 'Empurra ar do quarto para dentro da estufa (Sifão Pós-AC e FAE), saindo pelo duto inferior.'
+    },
+    vento: {
+        titulo: '🌀 Ventilador Interno',
+        rele: 'vento',
+        desc: 'Homogeneíza temperatura, CO₂ e umidade entre as duas estantes.'
+    },
+    luz: {
+        titulo: '💡 Barra LED Grow',
+        rele: 'luz',
+        desc: 'Fotoperíodo para pinagem e orientação dos cogumelos.'
+    },
+    cogumelos: {
+        titulo: '🍄 Bandejas & Cogumelos',
+        rele: null,
+        desc: 'Bolos de substrato em flushes contínuos reagindo ao microclima da estufa.'
+    }
+};
+
+function renderTwinEquipCard() {
+    const card = document.getElementById('twinEquipCard');
+    if (!card || !twinEquipSelecionado) return;
+    const info = TWIN_EQUIP_INFO[twinEquipSelecionado];
+    if (!info) return;
+
+    document.getElementById('twinEquipTitulo').textContent = info.titulo;
+    document.getElementById('twinEquipDesc').textContent = info.desc;
+
+    const stEl = document.getElementById('twinEquipStatus');
+    const btnEl = document.getElementById('twinEquipBtn');
+    const s = lastTwinFrameState;
+
+    if (info.rele) {
+        const ligado = !!s[info.rele];
+        stEl.textContent = ligado ? '● LIGADO AGORA' : '○ DESLIGADO';
+        stEl.className = ligado ? 'text-[11px] font-bold text-emerald-400' : 'text-[11px] font-bold text-slate-400';
+        btnEl.classList.remove('hidden');
+        btnEl.textContent = ligado ? '🧪 Desligar no Teste 3D' : '🧪 Ligar no Teste 3D';
+    } else if (twinEquipSelecionado === 'esp32') {
+        const ativos = [s.luz && 'Luz', s.umid && 'Umid', s.vento && 'Vento', s.exaust && 'Exaust', s.ar && 'AC'].filter(Boolean);
+        stEl.textContent = ativos.length ? `Relés ativos: ${ativos.join(', ')}` : 'Todos os relés em espera';
+        stEl.className = 'text-[11px] font-bold text-cyan-300';
+        btnEl.classList.add('hidden');
+    } else {
+        stEl.textContent = `Estufa ${s.ti.toFixed(1)}°C • UR ${s.hi.toFixed(0)}% • VPD ${s.vpd.toFixed(2)} kPa`;
+        stEl.className = 'text-[11px] font-bold text-amber-300';
+        btnEl.classList.add('hidden');
+    }
+    card.classList.remove('hidden');
+}
+
+window.onTwinEquipSelect = function (equipId) {
+    twinEquipSelecionado = equipId;
+    renderTwinEquipCard();
+};
+
+function fecharTwinEquipCard() {
+    twinEquipSelecionado = null;
+    const card = document.getElementById('twinEquipCard');
+    if (card) card.classList.add('hidden');
+}
+
+function toggleEquipFromCard() {
+    const info = TWIN_EQUIP_INFO[twinEquipSelecionado];
+    if (!info || !info.rele) return;
+    if (twinModo !== 'simular') {
+        simReles.luz = lastTwinFrameState.luz;
+        simReles.umid = lastTwinFrameState.umid;
+        simReles.vento = lastTwinFrameState.vento;
+        simReles.exaust = lastTwinFrameState.exaust;
+        simReles.ar = lastTwinFrameState.ar;
+    }
+    toggleSimRele(info.rele);
+    renderTwinEquipCard();
+}
+
 function prepararTwin() {
     twinFrames = labData.timelapse || [];
     twinIdx = Math.max(0, twinFrames.length - 1);
@@ -609,6 +718,9 @@ function atualizarHudTwin() {
     const rVento = parseInt(f.rele_vento || 0, 10) === 1;
     const rExaust = parseInt(f.rele_exaust || 0, 10) === 1;
     const rAr = parseInt(f.rele_ar || 0, 10) === 1;
+
+    lastTwinFrameState = { ti, te: isNaN(te) ? 26 : te, hi, vpd, luz: rLuz, umid: rUmid, vento: rVento, exaust: rExaust, ar: rAr };
+    if (twinEquipSelecionado) renderTwinEquipCard();
 
     if (window.updateTwin3DState) {
         window.updateTwin3DState({

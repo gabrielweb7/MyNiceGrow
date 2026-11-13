@@ -14,11 +14,15 @@
     let simTime = 0;
 
     let ledBarMat, ledLight, ledConeMat, ambientLight;
+    let mylarMatRef, trayMatRef;
     let ventoHelice, exaustHelice;
     let acVaneMat, acLedMat, acVanePivot;
     let espHeartbeatMat, relayLedMats = {};
     let roomThermDisplay, tentThermDisplay;
     let frontWallGroup; // Parede frontal + porta (visível apenas no modo FPS)
+    let streamlinesGroup, showStreamlines = false;
+    const flowArrows = [];
+    const interactiveMeshes = [];
     const mushrooms = []; // Cogumelos animados (pin -> crescimento -> flush -> reinício)
 
     // Sistema UNIFICADO de fluido (o mesmo ar circula entre o quarto, exaustor superior, estufa e duto inferior)
@@ -52,6 +56,12 @@
         targetTheta: 0.35,
         targetPhi: 1.15,
         targetRadius: 6.4,
+        lookX: 0.15,
+        lookY: 1.22,
+        lookZ: -0.35,
+        targetLookX: 0.15,
+        targetLookY: 1.22,
+        targetLookZ: -0.35,
         // Estado FPS (primeira pessoa dentro do quarto)
         fpsX: 0.45,
         fpsY: 1.65,
@@ -60,11 +70,22 @@
         fpsPitch: -0.06,
         keys: { w: false, s: false, a: false, d: false },
         dragging: false,
+        downX: 0,
+        downY: 0,
         lastX: 0,
         lastY: 0,
         pinchDist: 0,
         autoRotate: false
     };
+
+    function tagInteractive(obj, equipId) {
+        obj.traverse(child => {
+            if (child.isMesh) {
+                child.userData.equipId = equipId;
+                interactiveMeshes.push(child);
+            }
+        });
+    }
 
     // Dimensões da estufa (centrada em x = -0.35, z = -0.25)
     const GX = -0.35, GZ = -0.25;
@@ -245,6 +266,8 @@
         const acLed = new THREE.Mesh(new THREE.BoxGeometry(0.02, 0.03, 0.08), acLedMat);
         acLed.position.set(-2.24, 2.74, 0.12);
         room.add(acLed);
+        tagInteractive(acBody, 'ar');
+        tagInteractive(acVanePivot, 'ar');
 
         // Estante preta de apoio à DIREITA da estufa (com Umidificador + mangueira amarela + frascos)
         const shelfMat = new THREE.MeshStandardMaterial({ color: 0x1e293b, roughness: 0.6 });
@@ -278,6 +301,8 @@
         ]);
         const hose = new THREE.Mesh(new THREE.TubeGeometry(hoseCurve, 18, 0.04, 10, false), hoseMat);
         room.add(hose);
+        tagInteractive(umidBase, 'umid');
+        tagInteractive(hose, 'umid');
 
         // Potes de vidro / frascos na estante
         const jarMat = new THREE.MeshStandardMaterial({ color: 0xe2e8f0, roughness: 0.15, transparent: true, opacity: 0.65 });
@@ -324,6 +349,7 @@
             ctrlGroup.add(led);
         });
         room.add(ctrlGroup);
+        tagInteractive(ctrlGroup, 'esp32');
 
         // Termômetro digital de parede no quarto (entre a janela/AC e a estufa)
         roomThermDisplay = createThermometerDisplay(0.48, 0.24);
@@ -496,8 +522,11 @@
             bumpScale: 0.015,
             roughness: 0.22,
             metalness: 0.88,
+            emissive: 0xfef3c7,
+            emissiveIntensity: 0.0,
             side: THREE.FrontSide
         });
+        mylarMatRef = mylarMat;
         const greenMat = new THREE.MeshStandardMaterial({ color: 0x22c55e, roughness: 0.35, metalness: 0.3, emissive: 0x052e16, emissiveIntensity: 0.25 });
 
         function addWall(w, h, x, y, z, rx, ry) {
@@ -577,6 +606,7 @@
         // 2 estantes pretas internas com bolos marrons em bandejas e cogumelos crescendo em flush!
         const rackMat = new THREE.MeshStandardMaterial({ color: 0x1e293b, roughness: 0.7 });
         const trayMat = new THREE.MeshStandardMaterial({ color: 0x94a3b8, metalness: 0.75, roughness: 0.3 });
+        trayMatRef = trayMat;
         const subMat = new THREE.MeshStandardMaterial({ color: 0x6b4f3a, roughness: 0.9 });
         const capMat = new THREE.MeshStandardMaterial({ color: 0xd97706, roughness: 0.55 });
         const stemMat = new THREE.MeshStandardMaterial({ color: 0xfef3c7, roughness: 0.7 });
@@ -592,6 +622,8 @@
                 const block = new THREE.Mesh(new THREE.BoxGeometry(0.42, 0.14, 0.56), subMat);
                 block.position.set(rx, sy + 0.095, -0.08);
                 group.add(block);
+                tagInteractive(tray, 'cogumelos');
+                tagInteractive(block, 'cogumelos');
 
                 // 9 cogumelos por bolo nascendo e crescendo em tempos variados
                 for (let m = 0; m < 9; m++) {
@@ -628,6 +660,7 @@
         const ledBar = new THREE.Mesh(new THREE.BoxGeometry(W * 0.62, 0.04, 0.14), ledBarMat);
         ledBar.position.set(-0.15, H - 0.12, -0.1);
         group.add(ledBar);
+        tagInteractive(ledBar, 'luz');
 
         ledLight = new THREE.PointLight(0xfef9c3, 0, 4.5, 1.5);
         ledLight.position.set(-0.15, H - 0.22, -0.1);
@@ -665,6 +698,8 @@
             ventoHelice.add(blade);
         }
         group.add(ventoHelice);
+        tagInteractive(fanHousing, 'vento');
+        tagInteractive(ventoHelice, 'vento');
 
         // Exaustor no TOPO (empurra ar do quarto PARA DENTRO da estufa de cima pra baixo!)
         const exaustTube = new THREE.Mesh(new THREE.CylinderGeometry(0.16, 0.16, 0.28, 18), ductMat);
@@ -680,6 +715,8 @@
             exaustHelice.add(blade);
         }
         group.add(exaustHelice);
+        tagInteractive(exaustTube, 'exaust');
+        tagInteractive(exaustHelice, 'exaust');
 
         return group;
     }
@@ -925,7 +962,7 @@
                     p.temp += ((state.tempExt + 1.2) - p.temp) * 0.015;
                 }
 
-                // Ar-Condicionado Split Inverter (zero teleporte: só recicla quem entra de fato na grade superior!)
+                // Ar-Condicionado Split Inverter (suga a partícula do quarto pela grade superior, resfria na serpentina e sopra pela aleta)
                 if (state.ar) {
                     const jetCenterY = 2.56 - Math.max(0, p.x + 2.20) * 0.30;
                     if (p.x > -2.30 && p.x < 1.8 && Math.abs(p.y - jetCenterY) < 0.65 && Math.abs(p.z + 0.35) < 1.15) {
@@ -934,28 +971,30 @@
                         p.vx += force;
                         p.vy -= force * 0.22;
                         p.vz += Math.sin(p.x * 1.3 + simTime) * 0.0006;
-                        p.temp += (acColdTemp - p.temp) * 0.12;
+                        if (p.x < -1.8) p.temp += (acColdTemp - p.temp) * 0.14;
                     }
                     p.vx += (p.y > 1.65 ? 0.00045 : -0.00035);
                     if (p.y < 0.65) p.vy += 0.00038;
-                    const rx = -2.30 - p.x;
-                    const ry = 2.95 - p.y;
+                    const rx = -2.36 - p.x;
+                    const ry = 2.94 - p.y;
                     const rz = -0.35 - p.z;
                     const dRet = Math.hypot(rx, ry, rz) + 0.2;
                     if (dRet < 2.8 && p.y > 2.0) {
-                        const pull = 0.0042 / (0.5 + dRet);
+                        const pull = 0.0044 / (0.5 + dRet);
                         p.vx += (rx / dRet) * pull;
                         p.vy += (ry / dRet) * pull;
                         p.vz += (rz / dRet) * pull;
                     }
-                    if (dRet < 0.52) {
-                        p.x = -2.18;
-                        p.y = 2.56 + (Math.random() - 0.5) * 0.05;
-                        p.z = -0.35 + (Math.random() - 0.5) * 0.85;
-                        p.vx = 0.022 + Math.random() * 0.008;
-                        p.vy = -(0.004 + Math.random() * 0.002);
-                        p.vz = (Math.random() - 0.5) * 0.003;
-                        p.temp = acColdTemp;
+                    // Passando dentro do corpo do split: resfria continuamente e desce para sair pela aleta inferior
+                    if (p.x < -2.14 && p.y >= 2.52 && p.y <= 3.05 && Math.abs(p.z + 0.35) < 0.62) {
+                        p.temp += (acColdTemp - p.temp) * 0.38;
+                        if (p.y > 2.60) {
+                            p.vx += 0.003;
+                            p.vy -= 0.012;
+                        } else {
+                            p.vx = Math.max(p.vx, 0.022 + Math.random() * 0.006);
+                            p.vy = -(0.004 + Math.random() * 0.002);
+                        }
                     }
                 }
 
@@ -986,9 +1025,8 @@
                 }
 
                 if (!p.inTent) {
-                    const acCoolSpread = state.ar ? (2.6 + Math.max(0, 1.0 - (p.x + 2.4) * 0.14) * 2.2) : 0.0;
-                    const goalRoom = (state.tempExt - acCoolSpread) + (p.y / 3.4 - 0.5) * 0.5;
-                    p.temp += (goalRoom - p.temp) * 0.032;
+                    const goalRoom = state.tempExt + (p.y / 3.4 - 0.5) * 0.5;
+                    p.temp += (goalRoom - p.temp) * (state.ar ? 0.006 : 0.024);
 
                     p.vx *= roomDamp; p.vy *= roomDamp; p.vz *= roomDamp;
                     p.x += p.vx; p.y += p.vy; p.z += p.vz;
@@ -1060,24 +1098,143 @@
         }
     }
 
-    function bindControls(el) {
-        el.addEventListener('pointerdown', (e) => {
-            cam.dragging = true; cam.lastX = e.clientX; cam.lastY = e.clientY;
-        });
-        window.addEventListener('pointermove', (e) => {
-            if (!cam.dragging) return;
-            const dx = e.clientX - cam.lastX;
-            const dy = e.clientY - cam.lastY;
-            if (cam.mode === 'fps') {
-                cam.fpsYaw -= dx * 0.0055;
-                cam.fpsPitch = Math.max(-1.1, Math.min(1.1, cam.fpsPitch - dy * 0.005));
-            } else {
-                cam.targetTheta -= dx * 0.008;
-                cam.targetPhi = Math.max(0.35, Math.min(1.50, cam.targetPhi - dy * 0.006));
+    function buildStreamlines() {
+        const group = new THREE.Group();
+        group.visible = showStreamlines;
+
+        const paths = [
+            {
+                key: 'ar',
+                color: 0x38bdf8,
+                pts: [
+                    new THREE.Vector3(-2.18, 2.55, -0.35),
+                    new THREE.Vector3(-1.40, 2.25, -0.15),
+                    new THREE.Vector3(-0.70, 2.38, -0.25),
+                    new THREE.Vector3(GX + 0.05, H + 0.35, GZ - 0.20)
+                ],
+                arrows: 4,
+                speed: 0.28
+            },
+            {
+                key: 'exaust',
+                color: 0x22d3ee,
+                pts: [
+                    new THREE.Vector3(GX + 0.05, H + 0.35, GZ - 0.20),
+                    new THREE.Vector3(GX + 0.05, H - 0.15, GZ - 0.20),
+                    new THREE.Vector3(GX - 0.12, 1.35, GZ - 0.05),
+                    new THREE.Vector3(GX - 0.22, 0.35, GZ + 0.22)
+                ],
+                arrows: 4,
+                speed: 0.34
+            },
+            {
+                key: 'duct',
+                color: 0x34d399,
+                pts: [
+                    new THREE.Vector3(GX - 0.22, 0.35, GZ + 0.22),
+                    new THREE.Vector3(GX - halfW + 0.04, 0.19, GZ + 0.35),
+                    new THREE.Vector3(GX - halfW - 0.38, 0.11, GZ + 0.48),
+                    new THREE.Vector3(GX - halfW - 0.95, 0.20, GZ + 0.68)
+                ],
+                arrows: 4,
+                speed: 0.32
+            },
+            {
+                key: 'umid',
+                color: 0x7dd3fc,
+                pts: [
+                    new THREE.Vector3(1.05 - 0.18, 1.72, -0.55),
+                    new THREE.Vector3(1.05 - 0.15, 2.25, -0.50),
+                    new THREE.Vector3(GX + halfW - 0.12, 2.15, GZ + 0.15),
+                    new THREE.Vector3(GX + 0.10, 1.45, GZ + 0.05)
+                ],
+                arrows: 3,
+                speed: 0.26
             }
+        ];
+
+        const coneGeo = new THREE.ConeGeometry(0.042, 0.11, 10);
+        paths.forEach(cfg => {
+            const curve = new THREE.CatmullRomCurve3(cfg.pts);
+            const tubeMat = new THREE.MeshBasicMaterial({
+                color: cfg.color,
+                transparent: true,
+                opacity: 0.28,
+                depthWrite: false
+            });
+            const tube = new THREE.Mesh(new THREE.TubeGeometry(curve, 28, 0.012, 6, false), tubeMat);
+            group.add(tube);
+
+            const arrowMat = new THREE.MeshBasicMaterial({ color: cfg.color });
+            for (let i = 0; i < cfg.arrows; i++) {
+                const cone = new THREE.Mesh(coneGeo, arrowMat);
+                group.add(cone);
+                flowArrows.push({
+                    mesh: cone,
+                    curve,
+                    key: cfg.key,
+                    offset: i / cfg.arrows,
+                    speed: cfg.speed
+                });
+            }
+        });
+
+        streamlinesGroup = group;
+        return group;
+    }
+
+    function bindControls(el) {
+        const raycaster = new THREE.Raycaster();
+        const pointerNdc = new THREE.Vector2();
+
+        el.addEventListener('pointerdown', (e) => {
+            cam.dragging = true;
+            cam.downX = e.clientX; cam.downY = e.clientY;
             cam.lastX = e.clientX; cam.lastY = e.clientY;
         });
-        window.addEventListener('pointerup', () => { cam.dragging = false; });
+        window.addEventListener('pointermove', (e) => {
+            if (cam.dragging) {
+                const dx = e.clientX - cam.lastX;
+                const dy = e.clientY - cam.lastY;
+                if (cam.mode === 'fps') {
+                    cam.fpsYaw -= dx * 0.0055;
+                    cam.fpsPitch = Math.max(-1.1, Math.min(1.1, cam.fpsPitch - dy * 0.005));
+                } else {
+                    cam.targetTheta -= dx * 0.008;
+                    cam.targetPhi = Math.max(0.35, Math.min(1.50, cam.targetPhi - dy * 0.006));
+                }
+                cam.lastX = e.clientX; cam.lastY = e.clientY;
+                return;
+            }
+            if (e.target === el && cam.mode !== 'fps' && interactiveMeshes.length) {
+                const rect = el.getBoundingClientRect();
+                pointerNdc.x = ((e.clientX - rect.left) / rect.width) * 2 - 1;
+                pointerNdc.y = -((e.clientY - rect.top) / rect.height) * 2 + 1;
+                raycaster.setFromCamera(pointerNdc, camera);
+                const hits = raycaster.intersectObjects(interactiveMeshes, false);
+                el.style.cursor = hits.length ? 'pointer' : 'grab';
+            }
+        });
+        window.addEventListener('pointerup', (e) => {
+            const wasDragging = cam.dragging;
+            cam.dragging = false;
+            if (!wasDragging || e.target !== el || cam.mode === 'fps') return;
+            const moved = Math.hypot(e.clientX - cam.downX, e.clientY - cam.downY);
+            if (moved < 6 && interactiveMeshes.length) {
+                const rect = el.getBoundingClientRect();
+                pointerNdc.x = ((e.clientX - rect.left) / rect.width) * 2 - 1;
+                pointerNdc.y = -((e.clientY - rect.top) / rect.height) * 2 + 1;
+                raycaster.setFromCamera(pointerNdc, camera);
+                const hits = raycaster.intersectObjects(interactiveMeshes, false);
+                if (hits.length && hits[0].object.userData.equipId) {
+                    const eqId = hits[0].object.userData.equipId;
+                    window.focusTwinEquipment(eqId);
+                    if (typeof window.onTwinEquipSelect === 'function') {
+                        window.onTwinEquipSelect(eqId);
+                    }
+                }
+            }
+        });
 
         window.addEventListener('keydown', (e) => {
             if (cam.mode !== 'fps') return;
@@ -1097,7 +1254,7 @@
 
         el.addEventListener('wheel', (e) => {
             e.preventDefault();
-            cam.targetRadius = Math.max(3.0, Math.min(9.5, cam.targetRadius + e.deltaY * 0.004));
+            cam.targetRadius = Math.max(1.1, Math.min(9.5, cam.targetRadius + e.deltaY * 0.004));
         }, { passive: false });
 
         el.addEventListener('touchstart', (e) => {
@@ -1167,20 +1324,36 @@
             cam.theta += (cam.targetTheta - cam.theta) * 0.12;
             cam.phi += (cam.targetPhi - cam.phi) * 0.12;
             cam.radius += (cam.targetRadius - cam.radius) * 0.12;
+            cam.lookX += (cam.targetLookX - cam.lookX) * 0.12;
+            cam.lookY += (cam.targetLookY - cam.lookY) * 0.12;
+            cam.lookZ += (cam.targetLookZ - cam.lookZ) * 0.12;
 
-            const lookX = 0.15, lookY = 1.22, lookZ = -0.35;
             camera.position.set(
-                lookX + cam.radius * Math.sin(cam.phi) * Math.sin(cam.theta),
-                lookY + cam.radius * Math.cos(cam.phi),
-                lookZ + cam.radius * Math.sin(cam.phi) * Math.cos(cam.theta)
+                cam.lookX + cam.radius * Math.sin(cam.phi) * Math.sin(cam.theta),
+                cam.lookY + cam.radius * Math.cos(cam.phi),
+                cam.lookZ + cam.radius * Math.sin(cam.phi) * Math.cos(cam.theta)
             );
-            camera.lookAt(lookX, lookY, lookZ);
+            camera.lookAt(cam.lookX, cam.lookY, cam.lookZ);
         }
 
-        ledLight.intensity += ((state.luz ? 0.75 : 0.0) - ledLight.intensity) * 0.12;
-        ledBarMat.emissiveIntensity = state.luz ? 0.85 : 0.05;
-        if (ledConeMat) ledConeMat.opacity += ((state.luz ? 0.045 : 0.0) - ledConeMat.opacity) * 0.12;
-        ambientLight.intensity = state.luz ? 0.80 : 0.72;
+        const wetness = Math.max(0, Math.min(1, (state.humInt - 75) / 22));
+        if (mylarMatRef) {
+            mylarMatRef.roughness = 0.26 - wetness * 0.18;
+            mylarMatRef.metalness = 0.84 + wetness * 0.12;
+            const targetEmissive = state.luz ? (0.06 + wetness * 0.05) : 0.0;
+            mylarMatRef.emissiveIntensity += (targetEmissive - mylarMatRef.emissiveIntensity) * 0.10;
+        }
+        if (trayMatRef) {
+            trayMatRef.roughness = 0.34 - wetness * 0.22;
+        }
+
+        ledLight.intensity += ((state.luz ? 1.15 : 0.0) - ledLight.intensity) * 0.12;
+        ledBarMat.emissiveIntensity = state.luz ? 0.95 : 0.05;
+        if (ledConeMat) {
+            const targetConeOp = state.luz ? (0.075 + wetness * 0.035 + Math.sin(simTime * 2.1) * 0.006) : 0.0;
+            ledConeMat.opacity += (targetConeOp - ledConeMat.opacity) * 0.12;
+        }
+        ambientLight.intensity += ((state.luz ? 0.62 : 0.74) - ambientLight.intensity) * 0.08;
         acVaneMat.emissiveIntensity = state.ar ? 0.85 : 0.05;
         acLedMat.color.setHex(state.ar ? 0x38bdf8 : 0x475569);
         if (acVanePivot) {
@@ -1222,6 +1395,25 @@
             }
             m.mesh.visible = sc > 0.02;
             m.mesh.scale.set(sc, sc * 1.12, sc);
+        }
+
+        if (streamlinesGroup && streamlinesGroup.visible) {
+            const up = new THREE.Vector3(0, 1, 0);
+            for (let i = 0; i < flowArrows.length; i++) {
+                const fa = flowArrows[i];
+                const ativo = (fa.key === 'ar' && state.ar)
+                    || (fa.key === 'exaust' && (state.exaust || state.vento))
+                    || (fa.key === 'duct' && (state.exaust || state.vento || state.umid))
+                    || (fa.key === 'umid' && state.umid);
+                const mult = ativo ? 1.0 : 0.22;
+                const t = (fa.offset + simTime * fa.speed * mult) % 1.0;
+                const pt = fa.curve.getPointAt(t);
+                const tan = fa.curve.getTangentAt(t).normalize();
+                fa.mesh.position.copy(pt);
+                fa.mesh.quaternion.setFromUnitVectors(up, tan);
+                const sc = ativo ? 1.15 : 0.75;
+                fa.mesh.scale.set(sc, sc, sc);
+            }
         }
 
         stepFluidPhysics();
@@ -1277,6 +1469,7 @@
 
         scene.add(buildRoom());
         scene.add(buildTent());
+        scene.add(buildStreamlines());
         buildFluids(createFluidTexture());
         bindControls(renderer.domElement);
         animate();
@@ -1297,10 +1490,52 @@
     window.setTwinCameraPreset = function (preset) {
         cam.mode = 'orbit';
         if (frontWallGroup) frontWallGroup.visible = false;
+        cam.targetLookX = 0.15; cam.targetLookY = 1.22; cam.targetLookZ = -0.35;
         if (preset === 'frente') { cam.targetTheta = 0.05; cam.targetPhi = 1.22; cam.targetRadius = 5.4; }
         else if (preset === 'topo') { cam.targetTheta = 0.35; cam.targetPhi = 0.55; cam.targetRadius = 6.2; }
-        else if (preset === 'interior') { cam.targetTheta = -0.05; cam.targetPhi = 1.30; cam.targetRadius = 3.2; }
+        else if (preset === 'interior') {
+            cam.targetLookX = GX; cam.targetLookY = 1.08; cam.targetLookZ = GZ;
+            cam.targetTheta = -0.05; cam.targetPhi = 1.30; cam.targetRadius = 3.0;
+        }
+        else if (preset === 'esp32') {
+            cam.targetLookX = 0.58; cam.targetLookY = 1.04; cam.targetLookZ = -0.31;
+            cam.targetTheta = -0.95; cam.targetPhi = 1.35; cam.targetRadius = 1.35;
+        }
+        else if (preset === 'cogumelos') {
+            cam.targetLookX = GX; cam.targetLookY = 0.98; cam.targetLookZ = GZ - 0.08;
+            cam.targetTheta = 0.12; cam.targetPhi = 1.26; cam.targetRadius = 1.85;
+        }
+        else if (preset === 'ar') {
+            cam.targetLookX = -2.35; cam.targetLookY = 2.70; cam.targetLookZ = -0.35;
+            cam.targetTheta = 0.72; cam.targetPhi = 1.32; cam.targetRadius = 2.2;
+        }
+        else if (preset === 'umid') {
+            cam.targetLookX = 0.87; cam.targetLookY = 1.55; cam.targetLookZ = -0.55;
+            cam.targetTheta = -0.35; cam.targetPhi = 1.25; cam.targetRadius = 1.9;
+        }
+        else if (preset === 'exaust') {
+            cam.targetLookX = GX + 0.05; cam.targetLookY = H; cam.targetLookZ = GZ - 0.2;
+            cam.targetTheta = 0.25; cam.targetPhi = 0.95; cam.targetRadius = 2.1;
+        }
+        else if (preset === 'vento') {
+            cam.targetLookX = GX + halfW - 0.18; cam.targetLookY = 1.92; cam.targetLookZ = GZ + 0.1;
+            cam.targetTheta = -0.45; cam.targetPhi = 1.22; cam.targetRadius = 1.9;
+        }
+        else if (preset === 'luz') {
+            cam.targetLookX = GX - 0.15; cam.targetLookY = H - 0.15; cam.targetLookZ = GZ - 0.1;
+            cam.targetTheta = 0.15; cam.targetPhi = 1.35; cam.targetRadius = 2.1;
+        }
         else { cam.targetTheta = 0.35; cam.targetPhi = 1.15; cam.targetRadius = 6.4; }
+    };
+
+    window.focusTwinEquipment = function (equipId) {
+        window.setTwinCameraPreset(equipId || 'default');
+    };
+
+    window.toggleTwinStreamlines = function () {
+        showStreamlines = !showStreamlines;
+        if (streamlinesGroup) streamlinesGroup.visible = showStreamlines;
+        return showStreamlines;
     };
 
     window.setTwinFpsMode = function (ativo) {
