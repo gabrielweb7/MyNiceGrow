@@ -226,7 +226,7 @@ function sincronizarUiMetaAr() {
     const tHist = parseF(inpHist, 0.0, 5.0, 1.0);
     const metaDesliga = Math.max(tCong + 0.2, tX - tHist);
     const prefixo = info.temFaseClima ? info.nome : `Ex. ${info.nome}`;
-    badge.textContent = `${prefixo}: Liga ${tX.toFixed(1)}°C ➔ Desliga < ${metaDesliga.toFixed(1)}°C`;
+    badge.textContent = `${prefixo}: Liga estufa ${tX.toFixed(1)}°C ➔ Desliga quarto < ${metaDesliga.toFixed(1)}°C`;
 }
 
 function sincronizarUiSifaoDelta() {

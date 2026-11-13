@@ -26,10 +26,16 @@ function diagnosticarCicloAcRecente(ultimo, tempMax, hvac) {
         const tsIni = getTs(hist[idxIni]);
         const minLigado = tsIni > 0 ? Math.floor((tsAgora - tsIni) / 60000) : 0;
         const tIni = parseFloat(hist[idxIni].temp_int);
-        if (minLigado >= 15 && !isNaN(tI) && !isNaN(tIni) && tI > (tIni - 0.2)) {
+        const tIniExt = parseFloat(hist[idxIni].temp_ext);
+        const caiuInt = !isNaN(tI) && !isNaN(tIni) && tI <= (tIni - 0.2);
+        const caiuExt = !isNaN(tE) && !isNaN(tIniExt) && tE <= (tIniExt - 0.3);
+        if (minLigado >= 15 && !caiuInt && !caiuExt) {
+            const refTxt = !isNaN(tE) && !isNaN(tIniExt)
+                ? `Quarto ${tIniExt.toFixed(1)}°C ➔ ${tE.toFixed(1)}°C`
+                : `Estufa ${tIni.toFixed(1)}°C ➔ ${tI.toFixed(1)}°C`;
             return {
                 tipo: 'ac_sem_resfriar',
-                msg: `AC ligado há ${minLigado} min sem queda de temperatura (${tIni.toFixed(1)}°C ➔ ${tI.toFixed(1)}°C). Verifique o aparelho.`
+                msg: `AC ligado há ${minLigado} min sem queda de temperatura (${refTxt}). Verifique o aparelho.`
             };
         }
         return null;
@@ -52,12 +58,16 @@ function diagnosticarCicloAcRecente(ultimo, tempMax, hvac) {
     while (idxIni > 0 && parseInt(hist[idxIni - 1].rele_ar || 0, 10) === 1) idxIni--;
     const tIni = parseFloat(hist[idxIni].temp_int);
     const tFim = parseFloat(hist[idxFim].temp_int);
-    const naoEsfriou = !isNaN(tIni) && !isNaN(tFim) && (tFim >= tIni - 0.15) && (tFim > metaDesliga + 0.3);
+    const tIniExt = parseFloat(hist[idxIni].temp_ext);
+    const tFimExt = parseFloat(hist[idxFim].temp_ext);
+    const refFim = !isNaN(tFimExt) ? tFimExt : tFim;
+    const refIni = !isNaN(tFimExt) && !isNaN(tIniExt) ? tIniExt : tIni;
+    const naoEsfriou = !isNaN(refIni) && !isNaN(refFim) && (refFim >= refIni - 0.15) && (refFim > metaDesliga + 0.3);
 
     if (naoEsfriou) {
         return {
             tipo: 'ac_nao_atingiu',
-            msg: `AC desligou em ${tFim.toFixed(1)}°C sem atingir a meta (${metaDesliga.toFixed(1)}°C); Exaustor Pós-AC não foi ligado.`
+            msg: `AC desligou com quarto em ${refFim.toFixed(1)}°C sem atingir a meta (< ${metaDesliga.toFixed(1)}°C); Exaustor Pós-AC não foi ligado.`
         };
     }
     if (tSifaoPosAc > 0 && (tsAgora - tsFim) <= tSifaoPosAc * 60000) {
