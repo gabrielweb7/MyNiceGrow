@@ -119,12 +119,15 @@ function iniciarMultiplayerTwin() {
 
     let mpBusy = false;
     let lastSent = 0;
+    let mpOnlineCount = 1;
 
     async function syncMp(force) {
         if (mpBusy || !window.getTwinPlayerPose) return;
         const pose = window.getTwinPlayerPose();
         const now = Date.now();
-        const interval = pose.walking ? 250 : (pose.inFps ? 700 : 2200);
+        const interval = (mpOnlineCount > 1 || pose.inFps || pose.droppedRock)
+            ? (pose.walking ? 120 : 180)
+            : 1600;
         if (!force && (now - lastSent) < interval) return;
         lastSent = now;
         mpBusy = true;
@@ -143,19 +146,24 @@ function iniciarMultiplayerTwin() {
                     z: pose.z,
                     yaw: pose.yaw,
                     pitch: pose.pitch || 0,
+                    holdingRock: typeof pose.holdingRock === 'number' ? pose.holdingRock : -1,
+                    droppedRock: pose.droppedRock || null,
                     walking: pose.walking,
                     inFps: pose.inFps
                 })
             });
             const data = await res.json();
             if (data && data.ok) {
+                if (pose.droppedRock && window.consumeTwinDroppedRock) {
+                    window.consumeTwinDroppedRock();
+                }
+                mpOnlineCount = Math.max(1, data.online || 1);
                 if (window.updateMultiplayerPlayers) {
-                    window.updateMultiplayerPlayers(data.players || []);
+                    window.updateMultiplayerPlayers(data.players || [], data.rocks || null);
                 }
                 const badge = document.getElementById('twinOnlineBadge');
                 if (badge) {
-                    const tot = Math.max(1, data.online || 1);
-                    badge.textContent = `👥 ${tot} online`;
+                    badge.textContent = `👥 ${mpOnlineCount} online`;
                 }
             }
         } catch (e) { /* silencioso se offline */ }
@@ -163,7 +171,7 @@ function iniciarMultiplayerTwin() {
     }
 
     syncMp(true);
-    setInterval(() => syncMp(false), 260);
+    setInterval(() => syncMp(false), 120);
 
     function sairMp() {
         const payload = JSON.stringify({ action: 'leave', id: mpId });

@@ -6,9 +6,9 @@ $dataDir = __DIR__ . '/../data';
 if (!is_dir($dataDir)) {
     @mkdir($dataDir, 0775, true);
 }
-$storeFile = is_writable($dataDir)
-    ? ($dataDir . '/mp_players.json')
-    : (sys_get_temp_dir() . '/mynicegrow_mp_players.json');
+$storeDir = is_writable($dataDir) ? $dataDir : sys_get_temp_dir();
+$storeFile = $storeDir . '/mynicegrow_mp_players.json';
+$worldFile = $storeDir . '/mynicegrow_mp_world.json';
 
 $raw = file_get_contents('php://input');
 $input = json_decode($raw, true);
@@ -56,6 +56,7 @@ if ($action === 'leave' && $id !== '') {
         'z' => round((float)($input['z'] ?? 3.4), 3),
         'yaw' => round((float)($input['yaw'] ?? 0.42), 3),
         'pitch' => round((float)($input['pitch'] ?? 0.0), 3),
+        'holdingRock' => isset($input['holdingRock']) ? (int)$input['holdingRock'] : -1,
         'walking' => !empty($input['walking']),
         'inFps' => !empty($input['inFps']),
         'lastSeen' => $now
@@ -69,6 +70,34 @@ fflush($fp);
 flock($fp, LOCK_UN);
 fclose($fp);
 
+$worldRocks = [];
+$wfp = @fopen($worldFile, 'c+');
+if ($wfp) {
+    flock($wfp, LOCK_EX);
+    $wc = stream_get_contents($wfp);
+    $wdata = $wc ? json_decode($wc, true) : [];
+    if (!is_array($wdata)) $wdata = [];
+    if (!isset($wdata['rocks']) || !is_array($wdata['rocks'])) $wdata['rocks'] = [];
+    if (!empty($input['droppedRock']) && is_array($input['droppedRock'])) {
+        $dr = $input['droppedRock'];
+        $rid = (int)($dr['id'] ?? -1);
+        if ($rid >= 0 && $rid < 64 && isset($dr['x'], $dr['y'], $dr['z'])) {
+            $wdata['rocks'][(string)$rid] = [
+                round((float)$dr['x'], 3),
+                round((float)$dr['y'], 3),
+                round((float)$dr['z'], 3)
+            ];
+            ftruncate($wfp, 0);
+            rewind($wfp);
+            fwrite($wfp, json_encode($wdata));
+            fflush($wfp);
+        }
+    }
+    $worldRocks = $wdata['rocks'];
+    flock($wfp, LOCK_UN);
+    fclose($wfp);
+}
+
 $others = [];
 foreach ($players as $pid => $pdata) {
     if ($pid !== $id) {
@@ -79,6 +108,7 @@ foreach ($players as $pid => $pdata) {
 echo json_encode([
     'ok' => true,
     'online' => count($players),
-    'players' => $others
+    'players' => $others,
+    'rocks' => $worldRocks
 ]);
 
