@@ -141,10 +141,16 @@ $stmt->execute();
 $timelapse = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
 $stmt->close();
 
-// 6. Segurança: gaps de conexão (> 180s) nas últimas 72h + último registro + config_clima
+// 6. Segurança & Detecção de Anomalias (últimas 72h) + último registro + config_clima
+$configClima = null;
+$resCfg = $conn->query("SELECT valor FROM config_sistema WHERE chave = 'clima'");
+if ($resCfg && $rowCfg = $resCfg->fetch_assoc()) {
+    $configClima = json_decode($rowCfg['valor'], true);
+}
+
 $desde72h = date('Y-m-d H:i:s', time() - (3 * 86400));
 $sqlGaps = "
-    SELECT UNIX_TIMESTAMP(timestamp) AS ts, timestamp, temp_int, hum_int, temp_ext, rele_ar, rele_luz, fase
+    SELECT UNIX_TIMESTAMP(timestamp) AS ts, timestamp, temp_int, hum_int, temp_ext, rele_ar, rele_luz, rele_umid, rele_exaust, rele_vento, fase
     FROM telemetria
     WHERE timestamp >= ?
     ORDER BY timestamp ASC
@@ -156,15 +162,26 @@ $rows72h = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
 $stmt->close();
 
 $gaps = [];
+$anomalias = [];
 $maiorGapMin = 0;
 $ciclosAc72h = 0;
 $ciclosCurtosAc = 0;
 $prevTs = null;
+$prevHum = null;
 $prevAr = 0;
 $arInicioTs = null;
+$arInicioTemp = null;
+$picoAtivo = false;
+$humBaixaAtiva = false;
 
 foreach ($rows72h as $r) {
     $ts = (int)$r['ts'];
+    $tInt = (float)$r['temp_int'];
+    $hInt = (float)$r['hum_int'];
+    $faseStr = (string)$r['fase'];
+    $faseIdx = ($faseStr === 'Pinagem') ? '1' : (($faseStr === 'Frutificacao') ? '2' : '0');
+    $tMaxFase = ($configClima && isset($configClima[$faseIdx]['tX'])) ? (float)$configClima[$faseIdx]['tX'] : 28.0;
+
     if ($prevTs !== null) {
         $diff = $ts - $prevTs;
         if ($diff > 180) {
@@ -175,27 +192,99 @@ foreach ($rows72h as $r) {
                 'fim' => date('d/m H:i', $ts),
                 'minutos' => $minGap
             ];
+            $anomalias[] = [
+                'ts' => $ts,
+                'hora' => date('d/m H:i', $ts),
+                'tipo' => 'conexao',
+                'severidade' => ($minGap >= 15) ? 'critico' : 'atencao',
+                'titulo' => "Queda de telemetria ({$minGap} min)",
+                'detalhe' => "Sem sinal entre " . date('H:i', $prevTs) . " e " . date('H:i', $ts) . "."
+            ];
+        }
+        if ($prevHum !== null && $diff <= 360 && ($prevHum - $hInt) >= 8.0) {
+            $queda = round($prevHum - $hInt, 1);
+            $anomalias[] = [
+                'ts' => $ts,
+                'hora' => date('d/m H:i', $ts),
+                'tipo' => 'umidade',
+                'severidade' => 'atencao',
+                'titulo' => "Queda brusca de umidade (-{$queda}%)",
+                'detalhe' => "Caiu de " . round($prevHum, 1) . "% para " . round($hInt, 1) . "% rapidamente."
+            ];
         }
     }
+
+    if ($faseIdx !== '0' && $tInt >= ($tMaxFase + 0.5)) {
+        if (!$picoAtivo) {
+            $picoAtivo = true;
+            $anomalias[] = [
+                'ts' => $ts,
+                'hora' => date('d/m H:i', $ts),
+                'tipo' => 'termica',
+                'severidade' => ($tInt >= $tMaxFase + 1.2) ? 'critico' : 'atencao',
+                'titulo' => "Pico térmico acima da meta ({$tInt}°C)",
+                'detalhe' => "Superou o limite de {$tMaxFase}°C na fase {$faseStr}."
+            ];
+        }
+    } else if ($tInt < $tMaxFase) {
+        $picoAtivo = false;
+    }
+
+    if ($faseIdx !== '0' && $hInt > 0 && $hInt < 85.0) {
+        if (!$humBaixaAtiva) {
+            $humBaixaAtiva = true;
+            $anomalias[] = [
+                'ts' => $ts,
+                'hora' => date('d/m H:i', $ts),
+                'tipo' => 'umidade',
+                'severidade' => ($hInt < 80.0) ? 'critico' : 'atencao',
+                'titulo' => "Umidade crítica abaixo de 85% ({$hInt}%)",
+                'detalhe' => "Risco de ressecamento do micélio/cogumelos na fase {$faseStr}."
+            ];
+        }
+    } else if ($hInt >= 88.0) {
+        $humBaixaAtiva = false;
+    }
+
     $ar = (int)$r['rele_ar'];
     if ($ar === 1 && $prevAr === 0) {
         $ciclosAc72h++;
         $arInicioTs = $ts;
+        $arInicioTemp = $tInt;
     } elseif ($ar === 0 && $prevAr === 1 && $arInicioTs !== null) {
-        if (($ts - $arInicioTs) < 300) $ciclosCurtosAc++;
+        $durSec = $ts - $arInicioTs;
+        if ($durSec < 300) {
+            $ciclosCurtosAc++;
+            $durMin = round($durSec / 60, 1);
+            $anomalias[] = [
+                'ts' => $ts,
+                'hora' => date('d/m H:i', $ts),
+                'tipo' => 'ac',
+                'severidade' => 'atencao',
+                'titulo' => "Ciclo curto de AC ({$durMin} min)",
+                'detalhe' => "Compressor desligou rápido demais (risco de desgaste)."
+            ];
+        } elseif ($arInicioTemp !== null && ($arInicioTemp - $tInt) < 0.2) {
+            $durMin = round($durSec / 60, 1);
+            $anomalias[] = [
+                'ts' => $ts,
+                'hora' => date('d/m H:i', $ts),
+                'tipo' => 'ac',
+                'severidade' => 'critico',
+                'titulo' => "AC sem queda térmica ({$durMin} min)",
+                'detalhe' => "Ligou em {$arInicioTemp}°C e terminou em {$tInt}°C (porta aberta ou baixa eficiência)."
+            ];
+        }
         $arInicioTs = null;
+        $arInicioTemp = null;
     }
     $prevAr = $ar;
+    $prevHum = $hInt;
     $prevTs = $ts;
 }
 
 $ultimo = count($rows72h) > 0 ? $rows72h[count($rows72h) - 1] : null;
-
-$configClima = null;
-$resCfg = $conn->query("SELECT valor FROM config_sistema WHERE chave = 'clima'");
-if ($resCfg && $rowCfg = $resCfg->fetch_assoc()) {
-    $configClima = json_decode($rowCfg['valor'], true);
-}
+$anomaliasRecentes = array_slice(array_reverse($anomalias), 0, 30);
 
 $conn->close();
 
@@ -207,6 +296,11 @@ echo json_encode([
     'heatmap' => $heatmap,
     'scatter' => $scatter,
     'timelapse' => $timelapse,
+    'anomalias' => [
+        'total_72h' => count($anomalias),
+        'criticas_72h' => count(array_filter($anomalias, fn($a) => $a['severidade'] === 'critico')),
+        'itens' => $anomaliasRecentes
+    ],
     'seguranca' => [
         'total_gaps_72h' => count($gaps),
         'maior_gap_min' => $maiorGapMin,

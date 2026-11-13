@@ -1,5 +1,5 @@
 // ========================================================
-// LAB NERD 360° — ANALYTICS, GÊMEO 3D & SEGURANÇA
+// LAB NERD 360° — GÊMEO 3D (THREE.JS), SERIAL & ANOMALIAS
 // ========================================================
 
 let labData = null;
@@ -9,31 +9,29 @@ let chartScatter = null;
 let diasAtivos = 30;
 
 // Estado do Gêmeo 3D & Time-Lapse
+let twinModo = 'live'; // 'live' | 'timelapse' | 'simular'
 let twinFrames = [];
 let twinIdx = 0;
 let twinPlaying = true;
 let twinVelMs = 150;
 let twinTimer = null;
-let twinYaw = 0.62;
-let twinPitch = 0.42;
-let twinDrag = false;
-let twinLastX = 0;
-let twinLastY = 0;
-let twinParticulas = [];
+let liveTelemetryRow = null;
+const simReles = { luz: false, umid: false, vento: false, exaust: false, ar: false };
 
 document.addEventListener('DOMContentLoaded', () => {
-    inicializarCanvasTwin();
+    if (window.initTwin3D) {
+        window.initTwin3D(document.getElementById('twin3dContainer'));
+    }
     carregarLab(30);
-    animarTwinLoop();
     atualizarConsoleAoVivo();
     setInterval(atualizarConsoleAoVivo, 10000);
 });
 
 function trocarAbaLab(aba) {
     const mapa = {
-        analytics: ['secLabAnalytics', 'tabLabAnalytics'],
         twin: ['secLabTwin', 'tabLabTwin'],
-        seguranca: ['secLabSeguranca', 'tabLabSeguranca']
+        seguranca: ['secLabSeguranca', 'tabLabSeguranca'],
+        analytics: ['secLabAnalytics', 'tabLabAnalytics']
     };
     Object.keys(mapa).forEach(k => {
         const sec = document.getElementById(mapa[k][0]);
@@ -68,6 +66,7 @@ async function carregarLab(dias) {
         if (!labData || labData.status !== 'ok') return;
 
         renderResumo();
+        renderAnomalias();
         renderDiario();
         renderScatter();
         renderHeatmap();
@@ -116,6 +115,42 @@ function recalcularCusto() {
     const kwhTot = kwhAc + kwhOutros;
     const custo = kwhTot * tarifa;
     document.getElementById('kpiCusto').textContent = `R$ ${custo.toFixed(2)} (${kwhTot.toFixed(1)} kWh)`;
+}
+
+function renderAnomalias() {
+    const an = labData.anomalias || { total_72h: 0, criticas_72h: 0, itens: [] };
+    const badge = document.getElementById('anomBadgeTotal');
+    const lista = document.getElementById('labAnomaliasLista');
+    if (!badge || !lista) return;
+
+    const tot = parseInt(an.total_72h || 0, 10);
+    const crit = parseInt(an.criticas_72h || 0, 10);
+    if (tot === 0) {
+        badge.textContent = '✅ 0 anomalias';
+        badge.className = 'text-xs font-bold px-3 py-1 rounded-full bg-emerald-500/15 text-emerald-300 border border-emerald-500/30';
+        lista.innerHTML = '<div class="md:col-span-2 bg-emerald-500/10 border border-emerald-500/20 rounded-xl p-3 text-emerald-300 font-semibold">✅ Nenhuma anomalia térmica, de umidade, de compressor ou de conexão nas últimas 72h!</div>';
+        return;
+    }
+
+    badge.textContent = `${tot} anomalias (${crit} críticas)`;
+    badge.className = crit > 0
+        ? 'text-xs font-bold px-3 py-1 rounded-full bg-rose-500/20 text-rose-300 border border-rose-500/40'
+        : 'text-xs font-bold px-3 py-1 rounded-full bg-amber-500/20 text-amber-300 border border-amber-500/40';
+
+    lista.innerHTML = (an.itens || []).map(a => {
+        const isCrit = a.severidade === 'critico';
+        const border = isCrit ? 'border-rose-500/35 bg-rose-500/5' : 'border-amber-500/30 bg-amber-500/5';
+        const tagCor = isCrit ? 'text-rose-300' : 'text-amber-300';
+        const icone = isCrit ? '🚨' : '⚠️';
+        return `
+            <div class="rounded-xl border ${border} p-3 flex flex-col gap-1">
+                <div class="flex items-center justify-between gap-2">
+                    <span class="font-bold ${tagCor}">${icone} ${a.titulo}</span>
+                    <span class="text-[10px] font-mono text-slate-400 shrink-0">${a.hora}</span>
+                </div>
+                <p class="text-[11px] text-slate-300">${a.detalhe}</p>
+            </div>`;
+    }).join('');
 }
 
 function renderDiario() {
@@ -223,8 +258,62 @@ function renderHeatmap() {
 }
 
 // ========================================================
-// GÊMEO DIGITAL 3D & TIME-LAPSE
+// GÊMEO DIGITAL 3D (AO VIVO / TIME-LAPSE / TESTE VISUAL)
 // ========================================================
+function setTwinModo(modo) {
+    twinModo = modo;
+    const clsAtivo = 'px-2.5 py-1 rounded-lg bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 transition';
+    const clsLive = 'px-2.5 py-1 rounded-lg bg-rose-500/20 text-rose-300 border border-rose-500/40 transition';
+    const clsSim = 'px-2.5 py-1 rounded-lg bg-purple-500/20 text-purple-300 border border-purple-500/40 transition';
+    const clsOff = 'px-2.5 py-1 rounded-lg text-slate-400 hover:text-white transition';
+
+    document.getElementById('btnModoLive').className = modo === 'live' ? clsLive : clsOff;
+    document.getElementById('btnModoTimelapse').className = modo === 'timelapse' ? clsAtivo : clsOff;
+    document.getElementById('btnModoSimular').className = modo === 'simular' ? clsSim : clsOff;
+
+    document.getElementById('twinControlesTimelapse').classList.toggle('hidden', modo !== 'timelapse');
+    document.getElementById('twinSliderWrap').classList.toggle('hidden', modo !== 'timelapse');
+    document.getElementById('twinPainelSimular').classList.toggle('hidden', modo !== 'simular');
+
+    const badge = document.getElementById('twinModoBadge');
+    if (modo === 'live') {
+        badge.textContent = '● AO VIVO';
+        badge.className = 'text-[10px] font-bold px-2 py-0.5 rounded-full bg-rose-500/20 text-rose-300 border border-rose-500/40';
+    } else if (modo === 'timelapse') {
+        badge.textContent = '⏪ TIME-LAPSE 24H';
+        badge.className = 'text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-500/40';
+    } else {
+        badge.textContent = '🧪 SIMULAÇÃO 3D';
+        badge.className = 'text-[10px] font-bold px-2 py-0.5 rounded-full bg-purple-500/20 text-purple-300 border border-purple-500/40';
+    }
+
+    reiniciarTimerTwin();
+    atualizarHudTwin();
+}
+
+function toggleSimRele(k) {
+    simReles[k] = !simReles[k];
+    document.querySelectorAll('.btn-sim-rele').forEach(b => {
+        const key = b.getAttribute('data-sim');
+        b.className = simReles[key]
+            ? 'btn-sim-rele px-2.5 py-1 rounded-lg bg-purple-500/25 text-purple-200 border border-purple-400/50'
+            : 'btn-sim-rele px-2.5 py-1 rounded-lg bg-slate-900 text-slate-400 border border-slate-700';
+    });
+    if (twinModo !== 'simular') setTwinModo('simular');
+    else atualizarHudTwin();
+}
+
+function toggleAutoRotUI() {
+    if (!window.toggleTwinAutoRotate) return;
+    const on = window.toggleTwinAutoRotate();
+    const btn = document.getElementById('btnTwinAutoRot');
+    if (btn) {
+        btn.className = on
+            ? 'px-2 py-1 rounded-lg bg-emerald-500/25 border border-emerald-400/50 text-[10px] font-bold text-emerald-200'
+            : 'px-2 py-1 rounded-lg bg-slate-950/85 hover:bg-slate-800 border border-slate-700 text-[10px] font-bold text-slate-300';
+    }
+}
+
 function prepararTwin() {
     twinFrames = labData.timelapse || [];
     twinIdx = Math.max(0, twinFrames.length - 1);
@@ -260,7 +349,7 @@ function irParaFrameTwin(idx) {
 
 function reiniciarTimerTwin() {
     if (twinTimer) clearInterval(twinTimer);
-    if (!twinPlaying || twinFrames.length < 2) return;
+    if (twinModo !== 'timelapse' || !twinPlaying || twinFrames.length < 2) return;
     twinTimer = setInterval(() => {
         twinIdx = (twinIdx + 1) % twinFrames.length;
         const sl = document.getElementById('twinSlider');
@@ -270,124 +359,70 @@ function reiniciarTimerTwin() {
 }
 
 function atualizarHudTwin() {
-    const f = twinFrames[twinIdx];
+    let f = null;
+    if (twinModo === 'live') {
+        f = liveTelemetryRow || (twinFrames.length ? twinFrames[twinFrames.length - 1] : null);
+    } else if (twinModo === 'timelapse') {
+        f = twinFrames[twinIdx];
+    } else {
+        const base = liveTelemetryRow || (twinFrames.length ? twinFrames[twinFrames.length - 1] : { temp_int: 26.5, temp_ext: 25.5, hum_int: 97.0 });
+        f = {
+            slot: 'SIMULAÇÃO 3D',
+            timestamp: 'SIMULAÇÃO 3D',
+            temp_int: base.temp_int,
+            temp_ext: base.temp_ext,
+            hum_int: base.hum_int,
+            rele_luz: simReles.luz ? 1 : 0,
+            rele_umid: simReles.umid ? 1 : 0,
+            rele_vento: simReles.vento ? 1 : 0,
+            rele_exaust: simReles.exaust ? 1 : 0,
+            rele_ar: simReles.ar ? 1 : 0
+        };
+    }
     if (!f) return;
+
     const ti = parseFloat(f.temp_int);
     const te = f.temp_ext !== null ? parseFloat(f.temp_ext) : NaN;
     const hi = parseFloat(f.hum_int);
     const svp = 0.61078 * Math.exp((17.27 * ti) / (ti + 237.3));
     const vpd = Math.max(0, svp * (1 - hi / 100));
 
-    document.getElementById('twinHudHora').textContent = f.slot.slice(5, 16);
+    const horaTxt = twinModo === 'simular'
+        ? '🧪 MODO TESTE 3D'
+        : (f.timestamp ? `🔴 ${f.timestamp.slice(5, 19)}` : f.slot.slice(5, 16));
+    document.getElementById('twinHudHora').textContent = horaTxt;
     document.getElementById('twinTempInt').textContent = `${ti.toFixed(1)}°C`;
     document.getElementById('twinTempExt').textContent = isNaN(te) ? '--°C' : `${te.toFixed(1)}°C`;
     document.getElementById('twinHumInt').textContent = `${hi.toFixed(1)}%`;
     document.getElementById('twinVpd').textContent = `${vpd.toFixed(2)} kPa`;
 
-    const badges = [];
-    if (parseInt(f.rele_ar, 10) === 1) badges.push('<span class="px-2 py-0.5 rounded bg-cyan-500/20 text-cyan-300 border border-cyan-500/30 font-bold">❄️ AC</span>');
-    if (parseInt(f.rele_exaust, 10) === 1) badges.push('<span class="px-2 py-0.5 rounded bg-sky-500/20 text-sky-300 border border-sky-500/30 font-bold">💨 Exaustor</span>');
-    if (parseInt(f.rele_umid, 10) === 1) badges.push('<span class="px-2 py-0.5 rounded bg-blue-500/20 text-blue-300 border border-blue-500/30 font-bold">💧 Névoa</span>');
-    if (parseInt(f.rele_vento, 10) === 1) badges.push('<span class="px-2 py-0.5 rounded bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 font-bold">🌀 Brisa</span>');
-    if (parseInt(f.rele_luz, 10) === 1) badges.push('<span class="px-2 py-0.5 rounded bg-amber-500/20 text-amber-300 border border-amber-500/30 font-bold">💡 Luz</span>');
-    if (badges.length === 0) badges.push('<span class="px-2 py-0.5 rounded bg-slate-800 text-slate-400">Em repouso</span>');
-    document.getElementById('twinBadges').innerHTML = badges.join('');
-}
+    const rLuz = parseInt(f.rele_luz || 0, 10) === 1;
+    const rUmid = parseInt(f.rele_umid || 0, 10) === 1;
+    const rVento = parseInt(f.rele_vento || 0, 10) === 1;
+    const rExaust = parseInt(f.rele_exaust || 0, 10) === 1;
+    const rAr = parseInt(f.rele_ar || 0, 10) === 1;
 
-function inicializarCanvasTwin() {
-    const cv = document.getElementById('canvasTwin3D');
-    if (!cv) return;
-    cv.addEventListener('pointerdown', e => { twinDrag = true; twinLastX = e.clientX; twinLastY = e.clientY; });
-    window.addEventListener('pointerup', () => { twinDrag = false; });
-    window.addEventListener('pointercancel', () => { twinDrag = false; });
-    window.addEventListener('pointermove', e => {
-        if (!twinDrag) return;
-        twinYaw += (e.clientX - twinLastX) * 0.008;
-        twinPitch = Math.max(0.15, Math.min(1.1, twinPitch + (e.clientY - twinLastY) * 0.008));
-        twinLastX = e.clientX;
-        twinLastY = e.clientY;
-    });
-    for (let i = 0; i < 45; i++) {
-        twinParticulas.push({ x: (Math.random() - 0.5) * 1.4, y: Math.random() * 1.6 - 0.8, z: (Math.random() - 0.5) * 1.4, v: 0.01 + Math.random() * 0.015 });
-    }
-}
-
-function proj3D(x, y, z, w, h, scale) {
-    const cy = Math.cos(twinYaw), sy = Math.sin(twinYaw);
-    const cp = Math.cos(twinPitch), sp = Math.sin(twinPitch);
-    const x1 = x * cy - z * sy;
-    const z1 = x * sy + z * cy;
-    const y2 = y * cp - z1 * sp;
-    const z2 = y * sp + z1 * cp + 5.2;
-    const f = scale / Math.max(1.5, z2);
-    return [w / 2 + x1 * f, h / 2 - y2 * f];
-}
-
-function animarTwinLoop() {
-    const cv = document.getElementById('canvasTwin3D');
-    if (cv && !document.getElementById('secLabTwin').classList.contains('hidden')) {
-        const dpr = window.devicePixelRatio || 1;
-        const rect = cv.getBoundingClientRect();
-        if (rect.width > 0 && rect.height > 0 && (cv.width !== Math.floor(rect.width * dpr) || cv.height !== Math.floor(rect.height * dpr))) {
-            cv.width = Math.floor(rect.width * dpr);
-            cv.height = Math.floor(rect.height * dpr);
-        }
-        const ctx = cv.getContext('2d');
-        const w = cv.width, h = cv.height;
-        const scale = Math.min(w, h) * 1.15;
-        ctx.clearRect(0, 0, w, h);
-
-        const f = twinFrames[twinIdx] || { temp_int: 26.5, temp_ext: 25.5, rele_luz: 0, rele_umid: 0, rele_exaust: 0, rele_ar: 0 };
-        const ti = parseFloat(f.temp_int || 26);
-        const luz = parseInt(f.rele_luz || 0, 10) === 1;
-        const umid = parseInt(f.rele_umid || 0, 10) === 1;
-        const exaust = parseInt(f.rele_exaust || 0, 10) === 1;
-        const ar = parseInt(f.rele_ar || 0, 10) === 1;
-
-        const drawBox = (rx, ry, rz, stroke, fill) => {
-            const pts = [
-                [-rx, -ry, -rz], [rx, -ry, -rz], [rx, ry, -rz], [-rx, ry, -rz],
-                [-rx, -ry, rz], [rx, -ry, rz], [rx, ry, rz], [-rx, ry, rz]
-            ].map(p => proj3D(p[0], p[1], p[2], w, h, scale));
-            const edges = [[0,1],[1,2],[2,3],[3,0],[4,5],[5,6],[6,7],[7,4],[0,4],[1,5],[2,6],[3,7]];
-            if (fill) {
-                ctx.fillStyle = fill;
-                ctx.beginPath();
-                [0, 1, 5, 4].forEach((idx, i) => i === 0 ? ctx.moveTo(...pts[idx]) : ctx.lineTo(...pts[idx]));
-                ctx.closePath();
-                ctx.fill();
-            }
-            ctx.strokeStyle = stroke;
-            ctx.lineWidth = 1.5 * dpr;
-            edges.forEach(([a, b]) => {
-                ctx.beginPath(); ctx.moveTo(...pts[a]); ctx.lineTo(...pts[b]); ctx.stroke();
-            });
-        };
-
-        // Quarto externo
-        drawBox(1.85, 1.25, 1.85, ar ? 'rgba(56,189,248,0.6)' : 'rgba(100,116,139,0.28)', ar ? 'rgba(14,165,233,0.06)' : 'rgba(30,41,59,0.12)');
-
-        // Estufa interna (cor térmica)
-        let corEstufa = 'rgba(52,211,153,0.85)';
-        if (ti >= 28.5) corEstufa = 'rgba(244,63,94,0.9)';
-        else if (ti >= 27.5) corEstufa = 'rgba(251,191,36,0.85)';
-        drawBox(0.95, 1.0, 0.95, corEstufa, luz ? 'rgba(251,191,36,0.08)' : 'rgba(16,185,129,0.05)');
-
-        // Partículas de névoa / fluxo Pós-AC
-        twinParticulas.forEach(p => {
-            if (umid) p.y += p.v;
-            else if (exaust) p.x += p.v * 1.4;
-            else p.y += p.v * 0.25;
-            if (p.y > 0.9) p.y = -0.85;
-            if (p.x > 0.85) p.x = -0.85;
-            const [px, py] = proj3D(p.x * 0.8, p.y * 0.9, p.z * 0.8, w, h, scale);
-            ctx.fillStyle = umid ? 'rgba(34,211,238,0.8)' : (exaust ? 'rgba(56,189,248,0.75)' : 'rgba(148,163,184,0.25)');
-            ctx.beginPath();
-            ctx.arc(px, py, (umid || exaust ? 2.5 : 1.3) * dpr, 0, Math.PI * 2);
-            ctx.fill();
+    if (window.updateTwin3DState) {
+        window.updateTwin3DState({
+            tempInt: ti,
+            tempExt: isNaN(te) ? 26 : te,
+            humInt: hi,
+            luz: rLuz,
+            umid: rUmid,
+            vento: rVento,
+            exaust: rExaust,
+            ar: rAr
         });
     }
-    requestAnimationFrame(animarTwinLoop);
+
+    const badges = [];
+    if (rAr) badges.push('<span class="px-2 py-0.5 rounded bg-cyan-500/20 text-cyan-300 border border-cyan-500/30 font-bold">❄️ AC Resfriando</span>');
+    if (rExaust) badges.push('<span class="px-2 py-0.5 rounded bg-orange-500/20 text-orange-300 border border-orange-500/30 font-bold">🌪️ Exaustor Sugando</span>');
+    if (rUmid) badges.push('<span class="px-2 py-0.5 rounded bg-sky-500/20 text-sky-300 border border-sky-500/30 font-bold">💧 Névoa Ativa</span>');
+    if (rVento) badges.push('<span class="px-2 py-0.5 rounded bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 font-bold">🌀 Vento Interno</span>');
+    if (rLuz) badges.push('<span class="px-2 py-0.5 rounded bg-amber-500/20 text-amber-300 border border-amber-500/30 font-bold">💡 LED Ligado</span>');
+    if (badges.length === 0) badges.push('<span class="px-2 py-0.5 rounded bg-slate-800 text-slate-400">Em repouso</span>');
+    document.getElementById('twinBadges').innerHTML = badges.join('');
 }
 
 // ========================================================
@@ -439,7 +474,7 @@ function renderSeguranca360() {
         item(true, 'Corte Anti-Congelamento', `${hv.tCongela ?? '--'}°C`),
         item(true, 'Corte de Luz por Calor', `${hv.tCorteLuz ?? '--'}°C`),
         item(true, 'Limite Contínuo do AC', `${hv.tMaxRun ?? '--'} min`),
-        item(true, 'Guarda de Umidade Pós-AC', `${hv.uGuardaCorte ?? 88}% (Pós-AC: ${hv.tSifaoPosAc ?? 15} min)`)
+        item(true, 'Guarda de Umidade Pós-AC', `${hv.uGuardaCorte ?? 88}% (Pós-AC: ${hv.tSifaoPosAc ?? 5} min)`)
     ].join('');
 
     document.getElementById('segListaHardware').innerHTML = [
@@ -460,6 +495,7 @@ function renderSeguranca360() {
 // ========================================================
 let consoleFiltro = 'todos';
 let consoleLinhas = [];
+let consolePausado = false;
 
 function setFiltroConsole(f) {
     consoleFiltro = f;
@@ -472,9 +508,25 @@ function setFiltroConsole(f) {
     renderConsoleLab();
 }
 
+function toggleConsolePause() {
+    consolePausado = !consolePausado;
+    const btn = document.getElementById('btnConsolePause');
+    if (btn) btn.textContent = consolePausado ? '▶️ Retomar' : '⏸️ Pausar';
+}
+
 function copiarConsoleLab() {
     const txt = consoleLinhas.map(l => `[${l.hora}] [${l.tipo.toUpperCase()}] ${l.msg}`).join('\n');
     if (navigator.clipboard) navigator.clipboard.writeText(txt);
+}
+
+function baixarConsoleLog() {
+    const txt = consoleLinhas.map(l => `[${l.hora}] [${l.tipo.toUpperCase()}] ${l.msg}`).join('\n');
+    const blob = new Blob([txt], { type: 'text/plain;charset=utf-8' });
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = `grow-serial-${new Date().toISOString().slice(0, 16).replace(/[:T]/g, '-')}.log`;
+    a.click();
+    URL.revokeObjectURL(a.href);
 }
 
 async function atualizarConsoleAoVivo() {
@@ -482,6 +534,11 @@ async function atualizarConsoleAoVivo() {
         const res = await fetch(`api/index.php?limit=40&_=${Date.now()}`, { cache: 'no-store' });
         const rows = await res.json();
         if (!Array.isArray(rows) || rows.length === 0) return;
+
+        liveTelemetryRow = rows[rows.length - 1];
+        if (twinModo === 'live') atualizarHudTwin();
+
+        if (consolePausado) return;
 
         const logs = [];
         let prev = null;
@@ -553,4 +610,3 @@ function renderConsoleLab() {
         ? '<div class="text-slate-500">Nenhum evento registrado neste filtro nos últimos 40 min.</div>'
         : filtradas.map(l => `<div><span class="text-slate-500">[${l.hora}]</span> <span class="${l.cor}">${l.msg}</span></div>`).join('');
 }
-

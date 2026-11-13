@@ -3,10 +3,10 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
-    <title>🧬 Lab Nerd 360° — Grow de Cogumelos</title>
-    <meta name="description" content="Laboratório analítico 360°, Gêmeo Digital 3D e auditoria de segurança do Grow de Cogumelos.">
+    <title>🧬 Lab Nerd 360° — Gêmeo 3D, Serial &amp; Anomalias</title>
+    <meta name="description" content="Gêmeo Digital 3D em tempo real, Serial Monitor ao vivo e Detecção de Anomalias do Grow de Cogumelos.">
     <meta property="og:title" content="🧬 Lab Nerd 360° — Grow de Cogumelos">
-    <meta property="og:description" content="Analytics semanal/mensal, Gêmeo Digital 3D em Time-Lapse e auditoria de segurança 360°.">
+    <meta property="og:description" content="Gêmeo Digital 3D físico da estufa, Serial Monitor da placa e Detecção de Anomalias.">
     <meta property="og:image" content="https://grow.alquimistasmagicos.com.br/thumb.png">
     <meta property="og:type" content="website">
     <link rel="icon" type="image/png" href="icon.png">
@@ -28,7 +28,7 @@
                 <div class="w-9 h-9 rounded-xl bg-gradient-to-br from-emerald-500/20 to-cyan-500/20 border border-emerald-500/30 flex items-center justify-center text-lg">🧬</div>
                 <div>
                     <h1 class="text-sm sm:text-base font-extrabold tracking-tight text-white flex items-center gap-2">
-                        Lab Nerd <span class="text-[10px] font-bold px-2 py-0.5 rounded-full bg-purple-500/15 text-purple-300 border border-purple-500/30">RAIO-X 360°</span>
+                        Lab Nerd <span class="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-500/15 text-emerald-300 border border-emerald-500/30">3D &amp; RAIO-X 360°</span>
                     </h1>
                     <p id="labSubtitulo" class="text-[11px] text-slate-400">Carregando telemetria histórica...</p>
                 </div>
@@ -41,21 +41,176 @@
                     <button onclick="carregarLab(90)" data-dias="90" class="btn-periodo px-2.5 py-1 rounded-lg transition text-slate-400 hover:text-white">90d</button>
                     <button onclick="carregarLab(365)" data-dias="365" class="btn-periodo px-2.5 py-1 rounded-lg transition text-slate-400 hover:text-white">1 Ano</button>
                 </div>
-                <a href="index.html" class="px-3 py-1.5 rounded-xl bg-slate-900 hover:bg-slate-800 border border-slate-700 text-xs font-bold text-slate-200 transition">← Voltar ao Painel</a>
+                <a href="index.html" class="px-3 py-1.5 rounded-xl bg-slate-900 hover:bg-slate-800 border border-slate-700 text-xs font-bold text-slate-200 transition">← Painel</a>
             </div>
         </div>
 
         <!-- Abas -->
         <div class="max-w-7xl mx-auto px-4 pb-2.5 flex items-center gap-2 overflow-x-auto">
-            <button onclick="trocarAbaLab('analytics')" id="tabLabAnalytics" class="px-3.5 py-1.5 rounded-xl text-xs font-bold bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 shrink-0 transition">📊 Analytics &amp; Cruzamentos</button>
-            <button onclick="trocarAbaLab('twin')" id="tabLabTwin" class="px-3.5 py-1.5 rounded-xl text-xs font-bold text-slate-400 hover:text-white bg-slate-900/60 border border-slate-800 shrink-0 transition">🧊 Gêmeo 3D &amp; Time-Lapse</button>
-            <button onclick="trocarAbaLab('seguranca')" id="tabLabSeguranca" class="px-3.5 py-1.5 rounded-xl text-xs font-bold text-slate-400 hover:text-white bg-slate-900/60 border border-slate-800 shrink-0 transition">🛡️ Segurança 360°</button>
+            <button onclick="trocarAbaLab('twin')" id="tabLabTwin" class="px-3.5 py-1.5 rounded-xl text-xs font-bold bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 shrink-0 transition">🧊 Gêmeo 3D Ao Vivo</button>
+            <button onclick="trocarAbaLab('seguranca')" id="tabLabSeguranca" class="px-3.5 py-1.5 rounded-xl text-xs font-bold text-slate-400 hover:text-white bg-slate-900/60 border border-slate-800 shrink-0 transition">💻 Serial &amp; Segurança 360°</button>
+            <button onclick="trocarAbaLab('analytics')" id="tabLabAnalytics" class="px-3.5 py-1.5 rounded-xl text-xs font-bold text-slate-400 hover:text-white bg-slate-900/60 border border-slate-800 shrink-0 transition">🚨 Anomalias &amp; Analytics</button>
         </div>
     </header>
 
     <main class="max-w-7xl mx-auto px-4 py-6 space-y-6">
-        <!-- ABA 1: ANALYTICS & CRUZAMENTOS -->
-        <section id="secLabAnalytics" class="space-y-6">
+        <!-- ABA 1: GÊMEO 3D AO VIVO & TIME-LAPSE -->
+        <section id="secLabTwin" class="space-y-5">
+            <div class="bg-slate-900/70 border border-slate-800 rounded-2xl p-4 sm:p-5 space-y-4">
+                <div class="flex flex-col lg:flex-row lg:items-center justify-between gap-3">
+                    <div>
+                        <h2 class="text-sm sm:text-base font-bold text-white flex items-center gap-2">
+                            <span>🧊 Estufa Master Tents 3D</span>
+                            <span id="twinModoBadge" class="text-[10px] font-bold px-2 py-0.5 rounded-full bg-rose-500/20 text-rose-300 border border-rose-500/40">● AO VIVO</span>
+                        </h2>
+                        <p class="text-[11px] text-slate-400">Arraste em 360°, dê zoom com pinça/scroll • Veja cada relé atuando fisicamente na estufa</p>
+                    </div>
+                    <div class="flex items-center gap-2 flex-wrap">
+                        <div class="flex bg-slate-950 p-1 rounded-xl border border-slate-800 text-xs font-bold">
+                            <button id="btnModoLive" onclick="setTwinModo('live')" class="px-2.5 py-1 rounded-lg bg-rose-500/20 text-rose-300 border border-rose-500/40 transition">🔴 Ao Vivo</button>
+                            <button id="btnModoTimelapse" onclick="setTwinModo('timelapse')" class="px-2.5 py-1 rounded-lg text-slate-400 hover:text-white transition">⏪ Time-Lapse 24h</button>
+                            <button id="btnModoSimular" onclick="setTwinModo('simular')" class="px-2.5 py-1 rounded-lg text-slate-400 hover:text-white transition">🧪 Testar 3D</button>
+                        </div>
+                        <div id="twinControlesTimelapse" class="hidden flex items-center gap-1.5">
+                            <button id="btnTwinPlay" onclick="toggleTwinPlay()" class="px-3 py-1.5 rounded-xl bg-emerald-500/20 hover:bg-emerald-500/30 border border-emerald-500/40 text-emerald-300 text-xs font-bold transition">⏸️ Pausar</button>
+                            <select id="selTwinVel" onchange="setTwinVelocidade(this.value)" class="bg-slate-950 border border-slate-700 rounded-xl px-2 py-1.5 text-xs font-bold text-slate-200">
+                                <option value="400">1x</option>
+                                <option value="150" selected>4x</option>
+                                <option value="50">12x</option>
+                            </select>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Barra de Teste Visual dos Relés (aparece no modo Testar 3D) -->
+                <div id="twinPainelSimular" class="hidden bg-slate-950/90 border border-purple-500/30 rounded-xl p-3 flex flex-wrap items-center justify-between gap-2">
+                    <span class="text-[11px] font-bold text-purple-300">🧪 Teste visual (não altera a placa real):</span>
+                    <div class="flex flex-wrap gap-1.5 text-xs font-bold">
+                        <button onclick="toggleSimRele('luz')" data-sim="luz" class="btn-sim-rele px-2.5 py-1 rounded-lg bg-slate-900 text-slate-400 border border-slate-700">💡 Luz</button>
+                        <button onclick="toggleSimRele('umid')" data-sim="umid" class="btn-sim-rele px-2.5 py-1 rounded-lg bg-slate-900 text-slate-400 border border-slate-700">💧 Névoa</button>
+                        <button onclick="toggleSimRele('vento')" data-sim="vento" class="btn-sim-rele px-2.5 py-1 rounded-lg bg-slate-900 text-slate-400 border border-slate-700">🌀 Vento Int.</button>
+                        <button onclick="toggleSimRele('exaust')" data-sim="exaust" class="btn-sim-rele px-2.5 py-1 rounded-lg bg-slate-900 text-slate-400 border border-slate-700">🌪️ Exaustor</button>
+                        <button onclick="toggleSimRele('ar')" data-sim="ar" class="btn-sim-rele px-2.5 py-1 rounded-lg bg-slate-900 text-slate-400 border border-slate-700">❄️ Ar Cond.</button>
+                    </div>
+                </div>
+
+                <div class="grid grid-cols-1 lg:grid-cols-[1fr_290px] gap-4 items-stretch">
+                    <div class="relative rounded-2xl overflow-hidden border border-slate-800 bg-slate-950">
+                        <div id="twin3dContainer" class="w-full h-[360px] sm:h-[460px] cursor-grab active:cursor-grabbing touch-none"></div>
+                        <div id="twinHudHora" class="absolute top-3 left-3 px-3 py-1.5 rounded-xl bg-slate-950/85 border border-slate-700/80 text-xs font-mono font-bold text-cyan-300 pointer-events-none">--:--</div>
+                        <div class="absolute bottom-3 left-3 right-3 flex flex-wrap items-center justify-between gap-2 pointer-events-none">
+                            <div class="flex items-center gap-1.5 pointer-events-auto">
+                                <button onclick="setTwinCameraPreset('frente')" class="px-2 py-1 rounded-lg bg-slate-950/85 hover:bg-slate-800 border border-slate-700 text-[10px] font-bold text-slate-300">Frente</button>
+                                <button onclick="setTwinCameraPreset('interior')" class="px-2 py-1 rounded-lg bg-slate-950/85 hover:bg-slate-800 border border-slate-700 text-[10px] font-bold text-slate-300">Interior</button>
+                                <button onclick="setTwinCameraPreset('topo')" class="px-2 py-1 rounded-lg bg-slate-950/85 hover:bg-slate-800 border border-slate-700 text-[10px] font-bold text-slate-300">Topo</button>
+                                <button id="btnTwinAutoRot" onclick="toggleAutoRotUI()" class="px-2 py-1 rounded-lg bg-slate-950/85 hover:bg-slate-800 border border-slate-700 text-[10px] font-bold text-slate-300">🔄 360°</button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="bg-slate-950/80 border border-slate-800 rounded-2xl p-4 flex flex-col justify-between gap-3">
+                        <div class="space-y-3">
+                            <div class="text-xs font-bold uppercase tracking-wider text-slate-400">Telemetria do Quadro</div>
+                            <div class="grid grid-cols-2 gap-2.5 text-xs">
+                                <div class="bg-slate-900/80 p-2.5 rounded-xl border border-slate-800">
+                                    <span class="text-[10px] text-slate-400 block">Estufa</span>
+                                    <span id="twinTempInt" class="text-base font-extrabold text-emerald-400">--°C</span>
+                                </div>
+                                <div class="bg-slate-900/80 p-2.5 rounded-xl border border-slate-800">
+                                    <span class="text-[10px] text-slate-400 block">Quarto</span>
+                                    <span id="twinTempExt" class="text-base font-extrabold text-sky-400">--°C</span>
+                                </div>
+                                <div class="bg-slate-900/80 p-2.5 rounded-xl border border-slate-800">
+                                    <span class="text-[10px] text-slate-400 block">Umidade</span>
+                                    <span id="twinHumInt" class="text-base font-extrabold text-cyan-300">--%</span>
+                                </div>
+                                <div class="bg-slate-900/80 p-2.5 rounded-xl border border-slate-800">
+                                    <span class="text-[10px] text-slate-400 block">VPD</span>
+                                    <span id="twinVpd" class="text-base font-extrabold text-purple-300">-- kPa</span>
+                                </div>
+                            </div>
+                            <div class="space-y-1.5 text-xs pt-1">
+                                <div class="text-[10px] font-bold uppercase tracking-wider text-slate-400">Efeitos Físicos Ativos</div>
+                                <div id="twinBadges" class="flex flex-wrap gap-1.5"></div>
+                            </div>
+                        </div>
+
+                        <div id="twinSliderWrap" class="hidden space-y-1.5">
+                            <input id="twinSlider" type="range" min="0" max="100" value="0" oninput="irParaFrameTwin(this.value)" class="w-full accent-emerald-400">
+                            <div class="flex justify-between text-[10px] text-slate-500 font-mono">
+                                <span id="twinInicioLbl">-24h</span>
+                                <span id="twinFimLbl">Agora</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- ABA 2: SERIAL MONITOR & SEGURANÇA 360° -->
+        <section id="secLabSeguranca" class="hidden space-y-6">
+            <!-- Console Serial Monitor ao Vivo -->
+            <div class="bg-slate-900/70 border border-emerald-500/30 rounded-2xl p-4 sm:p-5 space-y-3">
+                <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                    <div>
+                        <h3 class="text-sm font-bold text-emerald-300 flex items-center gap-2"><span>💻</span> Console Serial Monitor da Placa (Tempo Real)</h3>
+                        <p class="text-[11px] text-slate-400">Eventos de relés, heartbeats, alertas de clima e quedas reconstruídos ao vivo (atualiza a cada 10s)</p>
+                    </div>
+                    <div class="flex items-center gap-1.5 flex-wrap text-[11px] font-bold">
+                        <button onclick="setFiltroConsole('todos')" data-cfilt="todos" class="btn-cfilt px-2.5 py-1 rounded-lg bg-emerald-500/20 text-emerald-300 border border-emerald-500/40">Todos</button>
+                        <button onclick="setFiltroConsole('acoes')" data-cfilt="acoes" class="btn-cfilt px-2.5 py-1 rounded-lg bg-slate-950 text-slate-400 border border-slate-800">Ações</button>
+                        <button onclick="setFiltroConsole('alertas')" data-cfilt="alertas" class="btn-cfilt px-2.5 py-1 rounded-lg bg-slate-950 text-slate-400 border border-slate-800">Alertas</button>
+                        <button id="btnConsolePause" onclick="toggleConsolePause()" class="px-2.5 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700">⏸️ Pausar</button>
+                        <button onclick="copiarConsoleLab()" class="px-2.5 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700">📋 Copiar</button>
+                        <button onclick="baixarConsoleLog()" class="px-2.5 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700">⬇️ .log</button>
+                    </div>
+                </div>
+                <div id="labConsoleOut" class="bg-black/85 border border-slate-800 rounded-xl p-3 font-mono text-[11px] leading-relaxed h-72 overflow-y-auto space-y-1 text-slate-300"></div>
+            </div>
+
+            <div class="bg-slate-900/70 border border-slate-800 rounded-2xl p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                <div class="space-y-1">
+                    <span class="text-xs font-bold uppercase tracking-wider text-emerald-300">🛡️ Auditoria de Segurança &amp; Saúde 360°</span>
+                    <h2 id="segScoreTitulo" class="text-xl font-extrabold text-white">Calculando índice de confiabilidade...</h2>
+                    <p id="segScoreDesc" class="text-xs text-slate-400">Verifica integridade OTA, quedas de conexão, sensores, ciclos do compressor e travas térmicas.</p>
+                </div>
+                <div id="segScoreBadge" class="text-3xl font-black px-5 py-3 rounded-2xl bg-emerald-500/15 text-emerald-300 border border-emerald-500/30 text-center shrink-0">--%</div>
+            </div>
+
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-5">
+                <div class="bg-slate-900/70 border border-slate-800 rounded-2xl p-4 sm:p-5 space-y-3">
+                    <h3 class="text-sm font-bold text-cyan-300 flex items-center gap-2"><span>🚀</span> Firmware, OTA &amp; Infraestrutura</h3>
+                    <div id="segListaInfra" class="space-y-2 text-xs"></div>
+                </div>
+                <div class="bg-slate-900/70 border border-slate-800 rounded-2xl p-4 sm:p-5 space-y-3">
+                    <h3 class="text-sm font-bold text-amber-300 flex items-center gap-2"><span>🔒</span> Travas Térmicas &amp; Proteções Ativas</h3>
+                    <div id="segListaTravas" class="space-y-2 text-xs"></div>
+                </div>
+                <div class="bg-slate-900/70 border border-slate-800 rounded-2xl p-4 sm:p-5 space-y-3">
+                    <h3 class="text-sm font-bold text-emerald-300 flex items-center gap-2"><span>🩺</span> Sensores &amp; Saúde do Compressor</h3>
+                    <div id="segListaHardware" class="space-y-2 text-xs"></div>
+                </div>
+                <div class="bg-slate-900/70 border border-slate-800 rounded-2xl p-4 sm:p-5 space-y-3">
+                    <h3 class="text-sm font-bold text-rose-300 flex items-center gap-2"><span>📡</span> Quedas de Wi-Fi / Energia (Últimas 72h)</h3>
+                    <div id="segListaGaps" class="space-y-2 text-xs max-h-60 overflow-y-auto pr-1"></div>
+                </div>
+            </div>
+        </section>
+
+        <!-- ABA 3: ANOMALIAS & ANALYTICS -->
+        <section id="secLabAnalytics" class="hidden space-y-6">
+            <!-- Detector de Anomalias -->
+            <div class="bg-slate-900/70 border border-rose-500/30 rounded-2xl p-4 sm:p-5 space-y-3">
+                <div class="flex flex-wrap items-center justify-between gap-2">
+                    <div>
+                        <h2 class="text-sm sm:text-base font-bold text-white flex items-center gap-2">🚨 Detector Automático de Anomalias (Últimas 72h)</h2>
+                        <p class="text-[11px] text-slate-400">Varre ciclos curtos de AC, AC sem queda térmica, quedas bruscas de umidade, picos térmicos e quedas de sinal</p>
+                    </div>
+                    <span id="anomBadgeTotal" class="text-xs font-bold px-3 py-1 rounded-full bg-slate-800 text-slate-300 border border-slate-700">-- ocorrências</span>
+                </div>
+                <div id="labAnomaliasLista" class="grid grid-cols-1 md:grid-cols-2 gap-2.5 max-h-72 overflow-y-auto pr-1 text-xs"></div>
+            </div>
+
             <!-- KPIs -->
             <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
                 <div class="bg-slate-900/70 border border-slate-800 rounded-2xl p-4 space-y-1">
@@ -89,11 +244,9 @@
             <!-- Gráficos Diário & Dispersão -->
             <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
                 <div class="bg-slate-900/70 border border-slate-800 rounded-2xl p-4 sm:p-5 space-y-3">
-                    <div class="flex items-center justify-between gap-2">
-                        <div>
-                            <h2 class="text-sm font-bold text-white">📈 Evolução Diária: Temperatura &amp; Horas de AC</h2>
-                            <p class="text-[11px] text-slate-400">Média diária da estufa vs quarto e carga do ar-condicionado</p>
-                        </div>
+                    <div>
+                        <h2 class="text-sm font-bold text-white">📈 Evolução Diária: Temperatura &amp; Horas de AC</h2>
+                        <p class="text-[11px] text-slate-400">Média diária da estufa vs quarto e carga do ar-condicionado</p>
                     </div>
                     <div class="h-64 sm:h-72 relative"><canvas id="chartLabDiario"></canvas></div>
                 </div>
@@ -125,128 +278,11 @@
                 <div id="labHeatmapInfo" class="text-[11px] text-cyan-300 bg-slate-950/70 border border-slate-800 rounded-xl px-3 py-2 min-h-[34px] flex items-center">Toque ou passe o mouse em qualquer hora do mapa acima para ver os detalhes.</div>
             </div>
         </section>
-
-        <!-- ABA 2: GÊMEO 3D & TIME-LAPSE -->
-        <section id="secLabTwin" class="hidden space-y-5">
-            <div class="bg-slate-900/70 border border-slate-800 rounded-2xl p-4 sm:p-5 space-y-4">
-                <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-                    <div>
-                        <h2 class="text-sm sm:text-base font-bold text-white">🧊 Gêmeo Digital 3D — Time-Lapse das Últimas 24h</h2>
-                        <p class="text-[11px] text-slate-400">Arraste para girar em 360° • Veja névoa, fluxo Pós-AC, luz e temperatura térmica em movimento</p>
-                    </div>
-                    <div class="flex items-center gap-2">
-                        <button id="btnTwinPlay" onclick="toggleTwinPlay()" class="px-3.5 py-1.5 rounded-xl bg-emerald-500/20 hover:bg-emerald-500/30 border border-emerald-500/40 text-emerald-300 text-xs font-bold transition">⏸️ Pausar</button>
-                        <select id="selTwinVel" onchange="setTwinVelocidade(this.value)" class="bg-slate-950 border border-slate-700 rounded-xl px-2.5 py-1.5 text-xs font-bold text-slate-200">
-                            <option value="400">1x</option>
-                            <option value="150" selected>4x</option>
-                            <option value="50">12x</option>
-                        </select>
-                    </div>
-                </div>
-
-                <div class="grid grid-cols-1 lg:grid-cols-[1fr_280px] gap-4 items-stretch">
-                    <div class="relative rounded-2xl overflow-hidden border border-slate-800 bg-slate-950">
-                        <canvas id="canvasTwin3D" class="w-full h-[320px] sm:h-[420px] block cursor-grab active:cursor-grabbing touch-none"></canvas>
-                        <div id="twinHudHora" class="absolute top-3 left-3 px-3 py-1.5 rounded-xl bg-slate-950/80 border border-slate-700/80 text-xs font-mono font-bold text-cyan-300">--:--</div>
-                    </div>
-
-                    <div class="bg-slate-950/80 border border-slate-800 rounded-2xl p-4 flex flex-col justify-between gap-3">
-                        <div class="space-y-3">
-                            <div class="text-xs font-bold uppercase tracking-wider text-slate-400">Telemetria do Quadro</div>
-                            <div class="grid grid-cols-2 gap-2.5 text-xs">
-                                <div class="bg-slate-900/80 p-2.5 rounded-xl border border-slate-800">
-                                    <span class="text-[10px] text-slate-400 block">Estufa</span>
-                                    <span id="twinTempInt" class="text-base font-extrabold text-emerald-400">--°C</span>
-                                </div>
-                                <div class="bg-slate-900/80 p-2.5 rounded-xl border border-slate-800">
-                                    <span class="text-[10px] text-slate-400 block">Quarto</span>
-                                    <span id="twinTempExt" class="text-base font-extrabold text-sky-400">--°C</span>
-                                </div>
-                                <div class="bg-slate-900/80 p-2.5 rounded-xl border border-slate-800">
-                                    <span class="text-[10px] text-slate-400 block">Umidade</span>
-                                    <span id="twinHumInt" class="text-base font-extrabold text-cyan-300">--%</span>
-                                </div>
-                                <div class="bg-slate-900/80 p-2.5 rounded-xl border border-slate-800">
-                                    <span class="text-[10px] text-slate-400 block">VPD</span>
-                                    <span id="twinVpd" class="text-base font-extrabold text-purple-300">-- kPa</span>
-                                </div>
-                            </div>
-                            <div class="space-y-1.5 text-xs pt-1">
-                                <div class="text-[10px] font-bold uppercase tracking-wider text-slate-400">Atuadores no Momento</div>
-                                <div id="twinBadges" class="flex flex-wrap gap-1.5"></div>
-                            </div>
-                        </div>
-
-                        <div class="space-y-1.5">
-                            <input id="twinSlider" type="range" min="0" max="100" value="0" oninput="irParaFrameTwin(this.value)" class="w-full accent-emerald-400">
-                            <div class="flex justify-between text-[10px] text-slate-500 font-mono">
-                                <span id="twinInicioLbl">-24h</span>
-                                <span id="twinFimLbl">Agora</span>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </section>
-
-        <!-- ABA 3: SEGURANÇA 360° -->
-        <section id="secLabSeguranca" class="hidden space-y-6">
-            <div class="bg-slate-900/70 border border-slate-800 rounded-2xl p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-                <div class="space-y-1">
-                    <span class="text-xs font-bold uppercase tracking-wider text-emerald-300">🛡️ Auditoria de Segurança &amp; Saúde 360°</span>
-                    <h2 id="segScoreTitulo" class="text-xl font-extrabold text-white">Calculando índice de confiabilidade...</h2>
-                    <p id="segScoreDesc" class="text-xs text-slate-400">Verifica integridade OTA, quedas de conexão, sensores, ciclos do compressor e travas térmicas.</p>
-                </div>
-                <div id="segScoreBadge" class="text-3xl font-black px-5 py-3 rounded-2xl bg-emerald-500/15 text-emerald-300 border border-emerald-500/30 text-center shrink-0">--%</div>
-            </div>
-
-            <div class="grid grid-cols-1 md:grid-cols-2 gap-5">
-                <!-- Card 1: Firmware & Infra -->
-                <div class="bg-slate-900/70 border border-slate-800 rounded-2xl p-4 sm:p-5 space-y-3">
-                    <h3 class="text-sm font-bold text-cyan-300 flex items-center gap-2"><span>🚀</span> Firmware, OTA &amp; Infraestrutura</h3>
-                    <div id="segListaInfra" class="space-y-2 text-xs"></div>
-                </div>
-
-                <!-- Card 2: Travas & Limites -->
-                <div class="bg-slate-900/70 border border-slate-800 rounded-2xl p-4 sm:p-5 space-y-3">
-                    <h3 class="text-sm font-bold text-amber-300 flex items-center gap-2"><span>🔒</span> Travas Térmicas &amp; Proteções Ativas</h3>
-                    <div id="segListaTravas" class="space-y-2 text-xs"></div>
-                </div>
-
-                <!-- Card 3: Saúde Sensores & Compressor -->
-                <div class="bg-slate-900/70 border border-slate-800 rounded-2xl p-4 sm:p-5 space-y-3">
-                    <h3 class="text-sm font-bold text-emerald-300 flex items-center gap-2"><span>🩺</span> Sensores &amp; Saúde do Compressor</h3>
-                    <div id="segListaHardware" class="space-y-2 text-xs"></div>
-                </div>
-
-                <!-- Card 4: Quedas / Gaps -->
-                <div class="bg-slate-900/70 border border-slate-800 rounded-2xl p-4 sm:p-5 space-y-3">
-                    <h3 class="text-sm font-bold text-rose-300 flex items-center gap-2"><span>📡</span> Quedas de Wi-Fi / Energia (Últimas 72h)</h3>
-                    <div id="segListaGaps" class="space-y-2 text-xs max-h-60 overflow-y-auto pr-1"></div>
-                </div>
-            </div>
-
-            <!-- Console Serial Monitor ao Vivo -->
-            <div class="bg-slate-900/70 border border-slate-800 rounded-2xl p-4 sm:p-5 space-y-3">
-                <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
-                    <div>
-                        <h3 class="text-sm font-bold text-emerald-300 flex items-center gap-2"><span>💻</span> Console Monitor da Placa (Tempo Real)</h3>
-                        <p class="text-[11px] text-slate-400">Eventos de relés, heartbeats, alertas de clima e quedas reconstruídos ao vivo (atualiza a cada 10s)</p>
-                    </div>
-                    <div class="flex items-center gap-1.5 flex-wrap text-[11px] font-bold">
-                        <button onclick="setFiltroConsole('todos')" data-cfilt="todos" class="btn-cfilt px-2.5 py-1 rounded-lg bg-emerald-500/20 text-emerald-300 border border-emerald-500/40">Todos</button>
-                        <button onclick="setFiltroConsole('acoes')" data-cfilt="acoes" class="btn-cfilt px-2.5 py-1 rounded-lg bg-slate-950 text-slate-400 border border-slate-800">Ações</button>
-                        <button onclick="setFiltroConsole('alertas')" data-cfilt="alertas" class="btn-cfilt px-2.5 py-1 rounded-lg bg-slate-950 text-slate-400 border border-slate-800">Alertas</button>
-                        <button onclick="copiarConsoleLab()" class="px-2.5 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700">📋 Copiar</button>
-                    </div>
-                </div>
-                <div id="labConsoleOut" class="bg-black/80 border border-slate-800 rounded-xl p-3 font-mono text-[11px] leading-relaxed h-64 overflow-y-auto space-y-1 text-slate-300"></div>
-            </div>
-        </section>
     </main>
 
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js" defer></script>
     <script src="js/vendor/charts-bundle.min.js?v=1.8.0" defer></script>
-    <script src="js/lab.js?v=1.8.0" defer></script>
+    <script src="js/twin3d.js?v=1.9.0" defer></script>
+    <script src="js/lab.js?v=1.9.0" defer></script>
 </body>
 </html>
-
