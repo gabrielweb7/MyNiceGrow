@@ -21,6 +21,7 @@
     let roomThermDisplay, tentThermDisplay;
     let frontWallGroup; // Parede frontal + porta (visível apenas no modo FPS ou zoom afastado)
     let cabinRoofGroup; // Telhado e chaminé da casa da lagoa (visível no FPS ou zoom afastado)
+    let tentGroup = null;
     let roomDoorPivot, roomDoorOpen = false, roomDoorAngle = 0;
     let fpsHandsGroup, fpsHandL, fpsHandR;
     let heldRock = null, grabAnim = 0;
@@ -224,7 +225,40 @@
             }
         }
 
-        // 3. Encaixe no chão / piso da casa / deck
+        // 3. Encaixe em cima de qualquer outro objeto sólido (empilhar/apoiar em cima das coisas)
+        if (hoverRay && interactiveMeshes.length) {
+            hoverRay.setFromCamera(hoverCenter, camera);
+            const objHits = hoverRay.intersectObjects(interactiveMeshes, false);
+            for (let h = 0; h < objHits.length; h++) {
+                const hit = objHits[h];
+                if (hit.distance > maxDist) break;
+                const hObj = hit.object;
+                if (hObj.userData.equipId === 'porta') continue;
+                const hitRoot = hObj.userData.pickRoot || (hObj.userData.isPickable ? hObj : null);
+                if (!hitRoot || hitRoot === item) continue;
+                let worldNy = 0;
+                if (hit.face) {
+                    const nMat = new THREE.Matrix3().getNormalMatrix(hObj.matrixWorld);
+                    const wn = hit.face.normal.clone().applyMatrix3(nMat).normalize();
+                    worldNy = wn.y;
+                }
+                if (!hoverBox) hoverBox = new THREE.Box3();
+                hoverBox.setFromObject(hitRoot);
+                if (worldNy > 0.42 || hit.point.y >= hoverBox.max.y - 0.14) {
+                    const topY = Math.max(hit.point.y, hoverBox.max.y - 0.01);
+                    return {
+                        t: hit.distance,
+                        x: hit.point.x,
+                        y: topY + itemHalfH,
+                        z: hit.point.z,
+                        planeY: topY,
+                        shelf: hitRoot
+                    };
+                }
+            }
+        }
+
+        // 4. Encaixe no chão / piso da casa / deck
         if (dir.y < -0.05) {
             const approxFloor = Math.max(-0.2, getGroundHeight(origin.x + dir.x * 2.5, origin.z + dir.z * 2.5));
             const t = (approxFloor - origin.y) / dir.y;
@@ -833,14 +867,8 @@
         const capMat = new THREE.MeshStandardMaterial({ color: 0xd97706, roughness: 0.55 });
         const stemMat = new THREE.MeshStandardMaterial({ color: 0xfef3c7, roughness: 0.7 });
 
-        // Prateleiras internas da estufa como superfície de encaixe para os bolos
-        const tentRackProxy = new THREE.Object3D();
-        tentRackProxy.position.set(GX, 0, GZ);
-        tentRackProxy.userData.isShelf = true;
-        tentRackProxy.userData.halfW = 0.65;
-        tentRackProxy.userData.halfD = 0.45;
-        tentRackProxy.userData.shelfLevels = [0.362, 0.932, 1.492];
-        shelfUnits.push(tentRackProxy);
+        // Prateleiras internas da estufa (registrada depois no tentGroup inteiro)
+        tentGroup = group;
 
         [-0.34, 0.34].forEach((rx, rIdx) => {
             [0.35, 0.92, 1.48].forEach((sy, sIdx) => {
@@ -889,7 +917,7 @@
 
                 scene.add(cakeGroup);
                 tagInteractive(cakeGroup, 'cogumelos');
-                registerPickable(cakeGroup, { halfH: 0, holdDist: 1.35, supportedBy: tentRackProxy });
+                registerPickable(cakeGroup, { halfH: 0, holdDist: 1.35, supportedBy: tentGroup });
             });
         });
 
@@ -955,6 +983,14 @@
         group.add(exaustHelice);
         tagInteractive(exaustTube, 'exaust');
         tagInteractive(exaustHelice, 'exaust');
+        registerPickable(group, {
+            isShelf: true,
+            halfH: 0,
+            holdDist: 2.45,
+            halfW: 0.68,
+            halfD: 0.56,
+            shelfLevels: [0.362, 0.932, 1.492]
+        });
 
         return group;
     }
@@ -2251,12 +2287,15 @@
             let nx = Math.max(-450, Math.min(450, cam.fpsX + mx));
             let nz = Math.max(-450, Math.min(450, cam.fpsZ + mz));
 
-            // Colisão com a estufa
-            const inTentX = nx > GX - halfW - 0.18 && nx < GX + halfW + 0.18;
-            const inTentZ = nz > GZ - halfD - 0.18 && nz < GZ + halfD - 0.05;
-            if (inTentX && inTentZ) {
-                nx = cam.fpsX;
-                nz = cam.fpsZ;
+            // Colisão com a estufa (acompanha onde a estufa foi colocada)
+            if (tentGroup && heldRock !== tentGroup && Math.abs((cam.fpsY - 1.62) - tentGroup.position.y) < 2.2) {
+                const tgx = tentGroup.position.x, tgz = tentGroup.position.z;
+                const inTentX = nx > tgx - halfW - 0.18 && nx < tgx + halfW + 0.18;
+                const inTentZ = nz > tgz - halfD - 0.18 && nz < tgz + halfD - 0.05;
+                if (inTentX && inTentZ) {
+                    nx = cam.fpsX;
+                    nz = cam.fpsZ;
+                }
             }
 
             // Colisão com a parede frontal e folha da porta (só passa se a porta estiver aberta!)
@@ -2356,6 +2395,8 @@
                 lastSnapTarget = findPlacementTarget(heldRock);
                 if (snapPreviewMesh) {
                     if (lastSnapTarget) {
+                        const rScale = heldRock.userData.isShelf ? 2.4 : 1.0;
+                        snapPreviewMesh.scale.set(rScale, rScale, 1);
                         snapPreviewMesh.visible = true;
                         snapPreviewMesh.position.set(lastSnapTarget.x, lastSnapTarget.planeY + 0.015, lastSnapTarget.z);
                     } else {
