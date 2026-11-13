@@ -585,6 +585,7 @@ function toggleTwinFpsUI() {
     if (window.setTwinFpsMode) window.setTwinFpsMode(twinFpsAtivo);
     const btn = document.getElementById('btnTwinFps');
     const joy = document.getElementById('twinJoystick');
+    const jumpBtn = document.getElementById('btnTwinJump');
     const hud = document.getElementById('twinFpsHud');
     const cross = document.getElementById('twinFpsCrosshair');
     const hint = document.getElementById('twinFpsHint');
@@ -595,13 +596,14 @@ function toggleTwinFpsUI() {
             : 'px-2.5 py-1 rounded-lg bg-slate-950/85 hover:bg-slate-800 border border-cyan-500/40 text-[10px] font-bold text-cyan-300 shrink-0';
     }
     if (joy) joy.classList.toggle('hidden', !twinFpsAtivo);
+    if (jumpBtn) jumpBtn.classList.toggle('hidden', !twinFpsAtivo);
     if (hud) hud.classList.toggle('hidden', !twinFpsAtivo);
     if (cross) cross.classList.toggle('hidden', !twinFpsAtivo);
     if (!twinFpsAtivo) {
         const dp = document.getElementById('twinDoorPrompt');
         if (dp) dp.classList.add('hidden');
     }
-    if (hint && !twinFpsAtivo) hint.textContent = 'Clique na cena p/ ocultar mouse • WASD • Shift correr • F sair';
+    if (hint && !twinFpsAtivo) hint.textContent = 'Clique na cena p/ ocultar mouse • WASD • Espaço pular • Shift correr';
 }
 
 window.onTwinDoorHint = function (near, isOpen) {

@@ -22,6 +22,7 @@
     let frontWallGroup; // Parede frontal + porta (visível apenas no modo FPS ou zoom afastado)
     let cabinRoofGroup; // Telhado e chaminé da casa da lagoa (visível no FPS ou zoom afastado)
     let roomDoorPivot, roomDoorOpen = false, roomDoorAngle = 0;
+    let fpsHandsGroup, fpsHandL, fpsHandR;
     let waterTexRef;
     const lakeMists = [];
     let streamlinesGroup, showStreamlines = false;
@@ -70,6 +71,8 @@
         fpsX: 0.45,
         fpsY: 1.65,
         fpsZ: 1.65,
+        fpsVelY: 0,
+        fpsGrounded: true,
         fpsYaw: 0.12,
         fpsPitch: -0.06,
         keys: { w: false, s: false, a: false, d: false, shift: false, lookL: false, lookR: false, lookU: false, lookD: false },
@@ -1867,6 +1870,10 @@
             if (k === 'a' || e.key === 'ArrowLeft') { cam.keys.a = true; e.preventDefault(); }
             if (k === 'd' || e.key === 'ArrowRight') { cam.keys.d = true; e.preventDefault(); }
             if (e.key === 'Shift') cam.keys.shift = true;
+            if (e.code === 'Space' || e.key === ' ') {
+                e.preventDefault();
+                if (window.triggerTwinJump) window.triggerTwinJump();
+            }
             if (k === 'e') {
                 const dPorta = Math.hypot(cam.fpsX - 2.25, cam.fpsZ - 2.45);
                 if (dPorta < 2.6) window.toggleTwinDoor();
@@ -1959,7 +1966,7 @@
 
             const joyMag = Math.hypot(cam.joyX, cam.joyY);
             const isSprinting = cam.keys.shift || joyMag > 0.85;
-            const speed = isSprinting ? 0.14 : 0.058;
+            const speed = isSprinting ? 0.24 : 0.068;
             const fwdX = -Math.sin(cam.fpsYaw);
             const fwdZ = -Math.cos(cam.fpsYaw);
             const rightX = Math.cos(cam.fpsYaw);
@@ -2010,10 +2017,17 @@
 
             cam.fpsX = nx;
             cam.fpsZ = nz;
-            const targetEyeY = Math.max(0.0, getGroundHeight(cam.fpsX, cam.fpsZ)) + 1.62;
-            cam.fpsY += (targetEyeY - cam.fpsY) * 0.18;
+            const floorEyeY = Math.max(0.0, getGroundHeight(cam.fpsX, cam.fpsZ)) + 1.62;
+            cam.fpsVelY -= 0.011;
+            cam.fpsY += cam.fpsVelY;
+            if (cam.fpsY <= floorEyeY) {
+                cam.fpsY = floorEyeY;
+                cam.fpsVelY = 0;
+                cam.fpsGrounded = true;
+            }
             const walking = (mx !== 0 || mz !== 0);
-            const bob = walking ? Math.sin(simTime * (cam.keys.shift ? 11.0 : 6.5)) * 0.025 : 0;
+            const bobFreq = isSprinting ? 12.5 : 7.5;
+            const bob = (walking && cam.fpsGrounded) ? Math.sin(simTime * bobFreq) * 0.028 : 0;
 
             camera.position.set(cam.fpsX, cam.fpsY + bob, cam.fpsZ);
             camera.lookAt(
@@ -2022,11 +2036,24 @@
                 cam.fpsZ + fwdZ * Math.cos(cam.fpsPitch)
             );
 
+            if (fpsHandsGroup) {
+                fpsHandsGroup.visible = true;
+                const sw = walking ? Math.sin(simTime * bobFreq) : 0;
+                const swCos = walking ? Math.cos(simTime * bobFreq) : 0;
+                const airDip = cam.fpsGrounded ? 0 : Math.max(-0.06, Math.min(0.06, -cam.fpsVelY * 0.25));
+                const idleBreath = Math.sin(simTime * 2.2) * 0.005;
+                fpsHandL.position.set(-0.28 + swCos * 0.012, -0.24 + sw * 0.032 + idleBreath + airDip, -0.40 - sw * 0.055);
+                fpsHandL.rotation.x = -0.35 + sw * 0.28;
+                fpsHandR.position.set(0.28 - swCos * 0.012, -0.24 - sw * 0.032 + idleBreath + airDip, -0.40 + sw * 0.055);
+                fpsHandR.rotation.x = -0.35 - sw * 0.28;
+            }
+
             if (typeof window.onTwinDoorHint === 'function') {
                 const dPorta = Math.hypot(cam.fpsX - 2.25, cam.fpsZ - 2.45);
                 window.onTwinDoorHint(dPorta < 2.6, roomDoorOpen);
             }
         } else {
+            if (fpsHandsGroup) fpsHandsGroup.visible = false;
             if (cam.autoRotate && !cam.dragging) cam.targetTheta += 0.003;
             cam.theta += (cam.targetTheta - cam.theta) * 0.12;
             cam.phi += (cam.targetPhi - cam.phi) * 0.12;
@@ -2355,6 +2382,8 @@
         scene.add(buildRoom());
         scene.add(buildTent());
         scene.add(buildStreamlines());
+        buildFpsHands();
+        scene.add(camera);
         buildFluids(createFluidTexture());
         bindControls(renderer.domElement);
         animate();
@@ -2446,6 +2475,40 @@
 
     window.setTwinFpsKey = function (k, pressed) {
         if (k in cam.keys) cam.keys[k] = !!pressed;
+    };
+
+    function buildFpsHands() {
+        fpsHandsGroup = new THREE.Group();
+        fpsHandsGroup.visible = false;
+        const sleeveMat = new THREE.MeshStandardMaterial({ color: 0x0ea5e9, roughness: 0.7 });
+        const skinMat = new THREE.MeshStandardMaterial({ color: 0xfde6d8, roughness: 0.65 });
+
+        function makeArm() {
+            const g = new THREE.Group();
+            const sleeve = new THREE.Mesh(new THREE.CylinderGeometry(0.048, 0.055, 0.24, 10), sleeveMat);
+            sleeve.rotation.x = Math.PI / 2;
+            sleeve.position.z = 0.08;
+            g.add(sleeve);
+            const hand = new THREE.Mesh(new THREE.SphereGeometry(0.052, 12, 10), skinMat);
+            hand.scale.set(0.95, 0.85, 1.2);
+            hand.position.z = -0.05;
+            g.add(hand);
+            return g;
+        }
+        fpsHandL = makeArm();
+        fpsHandL.position.set(-0.28, -0.24, -0.40);
+        fpsHandR = makeArm();
+        fpsHandR.position.set(0.28, -0.24, -0.40);
+        fpsHandsGroup.add(fpsHandL);
+        fpsHandsGroup.add(fpsHandR);
+        camera.add(fpsHandsGroup);
+    }
+
+    window.triggerTwinJump = function () {
+        if (cam.mode === 'fps' && cam.fpsGrounded) {
+            cam.fpsVelY = 0.175;
+            cam.fpsGrounded = false;
+        }
     };
 
     window.setTwinJoystick = function (jx, jy) {
