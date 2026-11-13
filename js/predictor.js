@@ -1,4 +1,4 @@
-﻿// ========================================================
+// ========================================================
 // MOTOR TÉRMICO PREDITIVO (GRÁFICO FANTASMA & REGRESSÃO HVAC)
 // ========================================================
 
@@ -335,17 +335,17 @@ function calcularProjecaoTermica({
         const tRoomCeilEst = ceilW > 0 ? (ceilSum / ceilW) : null;
         const tRoomStableEst = stableRoomW >= 1.5 ? (stableRoomSum / stableRoomW) : null;
         let tRoomNatNow = (tRoomCeilEst !== null && tRoomStableEst !== null)
-            ? (0.65 * Math.max(tRoomCeilEst, tRoomStableEst) + 0.35 * tRoomStableEst)
+            ? (0.50 * tRoomCeilEst + 0.50 * tRoomStableEst)
             : (tRoomCeilEst !== null ? tRoomCeilEst : (tRoomStableEst !== null ? tRoomStableEst : (lastTe !== null ? lastTe : 26.5)));
         if (tEqNewton !== null) {
-            tRoomNatNow = 0.60 * tRoomNatNow + 0.40 * tEqNewton;
+            tRoomNatNow = 0.65 * tRoomNatNow + 0.35 * tEqNewton;
         }
         if (!lastArOn && lastTe !== null) {
             if (slopeExtPerMin > 0.015) {
-                const extraSlope = Math.min(1.6, slopeExtPerMin * 7.5);
+                const extraSlope = Math.min(1.2, slopeExtPerMin * 6.0);
                 tRoomNatNow = Math.max(tRoomNatNow, lastTe + extraSlope);
-            } else if (lastTe > tRoomNatNow) {
-                tRoomNatNow = 0.70 * lastTe + 0.30 * tRoomNatNow;
+            } else {
+                tRoomNatNow = 0.55 * lastTe + 0.45 * tRoomNatNow;
             }
         }
 
@@ -446,8 +446,8 @@ function calcularProjecaoTermica({
         const avgRoomDropAc = calcMediana(roomDropsObs, 2.2, 1.2, 4.2);
         const avgMinRoomAc = calcMediana(minRoomTempsObs, (tRoomNatNow - 2.4), 16.0, 32.0);
         const tRoomCycleRef = acCycleRefCnt > 0 ? (acCycleRefSum / acCycleRefCnt) : tRoomNatNow;
-        const kRoomReboundFast = calcMediana(roomReboundFastObs, 0.065, 0.025, 0.11);
-        const kRoomDriftSlow = calcMediana(roomReboundSlowObs, Math.min(0.035, kRoomReboundFast * 0.45), 0.012, 0.055);
+        const kRoomReboundFast = calcMediana(roomReboundFastObs, 0.035, 0.015, 0.055);
+        const kRoomDriftSlow = calcMediana(roomReboundSlowObs, Math.min(0.022, kRoomReboundFast * 0.50), 0.008, 0.032);
         const kGrowWarm = calcMediana(growWarmRatesObs, 0.036, 0.015, 0.11);
         const kSifaoMix = calcMediana(sifaoMixRatesObs, 0.11, 0.04, 0.25);
         const kHumExaust = calcMediana(humExaustRatesObs, 0.082, 0.035, 0.22);
@@ -605,12 +605,12 @@ function calcularProjecaoTermica({
                     ? Math.max(15.5, avgMinRoomAc + (tRoomEqSim - tRoomCycleRef) * 0.30)
                     : Math.max(16.0, tRoomEqSim - Math.max(2.0, avgRoomDropAc));
                 if (tExtSim > floorSalaAc) {
-                    const kRoomCool = Math.max(0.045, Math.min(0.10, avgRoomCoolRate / Math.max(1.2, avgRoomDropAc)));
+                    const kRoomCool = Math.max(0.030, Math.min(0.065, avgRoomCoolRate / Math.max(1.2, avgRoomDropAc)));
                     tExtSim += (floorSalaAc - tExtSim) * (1 - Math.exp(-kRoomCool * subDtMin));
                 }
             } else {
                 const minsDesdeOffSim = simArUltimoDesligTs > 0 ? ((t - simArUltimoDesligTs) / 60000) : 999;
-                const pesoFast = (tExtSim < tRoomEqSim - 0.15) ? Math.max(0, 1 - (minsDesdeOffSim / 20)) : 0;
+                const pesoFast = (tExtSim < tRoomEqSim - 0.15) ? Math.max(0, 0.65 * (1 - (minsDesdeOffSim / 12))) : 0;
                 const rateRoom = pesoFast * kRoomReboundFast + (1 - pesoFast) * kRoomDriftSlow;
                 const dRoomPhys = (tRoomEqSim - tExtSim) * (1 - Math.exp(-rateRoom * subDtMin));
                 const elapsedExtMin = (t - maxTs) / 60000;
