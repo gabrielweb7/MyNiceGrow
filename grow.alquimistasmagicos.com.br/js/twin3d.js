@@ -30,6 +30,7 @@
     const pickableItems = [];
     const shelfUnits = [];
     let snapPreviewMesh = null;
+    let ghostPreview = null, ghostMat = null;
     let hoverAuraGroup = null, hoverAuraMat = null, hoverEdgeMat = null;
     let hoverRay = null, hoverCenter = null, hoverBox = null, hoverSize = null, hoverPos = null;
     let lastSnapTarget = null;
@@ -156,6 +157,85 @@
                 if (fallingRocks.indexOf(it) === -1) fallingRocks.push(it);
             }
         }
+    }
+
+    function clampPosAgainstCabinWalls(px, py, pz, cx, cz, margin, isWallSnap) {
+        const m = margin || 0.22;
+        const inCabinCam = cx > -2.55 && cx < 3.45 && cz > -2.05 && cz < 2.45;
+        const doorOpen = roomDoorAngle > 0.85;
+        let rx = px, ry = py, rz = pz;
+        if (inCabinCam) {
+            if (!isWallSnap) {
+                rx = Math.max(-2.52 + m, Math.min(3.42 - m, rx));
+                rz = Math.max(-2.02 + m, rz);
+            }
+            const inDoorGap = rx >= 1.84 && rx <= 2.66 && doorOpen;
+            if (!inDoorGap && rz > 2.42 - m) rz = 2.42 - m;
+            ry = Math.min(3.05, ry);
+        } else {
+            const inDoorGap = rx >= 1.84 && rx <= 2.66 && doorOpen;
+            if (!inDoorGap && rx > -2.65 - m && rx < 3.55 + m && rz > -2.15 - m && rz < 2.55 + m && py < 3.3) {
+                const dL = Math.abs(rx - (-2.65 - m));
+                const dR = Math.abs(rx - (3.55 + m));
+                const dB = Math.abs(rz - (-2.15 - m));
+                const dF = Math.abs(rz - (2.55 + m));
+                const minD = Math.min(dL, dR, dB, dF);
+                if (minD === dL) rx = -2.65 - m;
+                else if (minD === dR) rx = 3.55 + m;
+                else if (minD === dB) rz = -2.15 - m;
+                else rz = 2.55 + m;
+            }
+        }
+        return { x: rx, y: ry, z: rz };
+    }
+
+    function isPlacementBlocked(x, y, z, item, target) {
+        if (!target) return true;
+        if (getGroundHeight(x, z) < -0.18 && !target.shelf) return true;
+        const m = item.userData.isShelf ? 0.45 : 0.16;
+        const inCabinCam = cam.fpsX > -2.55 && cam.fpsX < 3.45 && cam.fpsZ > -2.05 && cam.fpsZ < 2.45;
+        const doorOpen = roomDoorAngle > 0.85;
+        const inDoorGap = x >= 1.84 && x <= 2.66 && doorOpen;
+        if (!item.userData.snapToWall) {
+            if (inCabinCam) {
+                if (x < -2.52 + m || x > 3.42 - m || z < -2.02 + m) return true;
+                if (!inDoorGap && z > 2.42 - m) return true;
+            } else if (!inDoorGap && x > -2.65 - m && x < 3.55 + m && z > -2.15 - m && z < 2.55 + m && y < 3.3) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    function clearPlacementGhost() {
+        if (ghostPreview && scene) {
+            scene.remove(ghostPreview);
+        }
+        ghostPreview = null;
+    }
+
+    function createPlacementGhost(item) {
+        clearPlacementGhost();
+        if (!item || !scene) return;
+        if (!ghostMat) {
+            ghostMat = new THREE.MeshBasicMaterial({
+                color: 0x34d399,
+                transparent: true,
+                opacity: 0.34,
+                depthWrite: false
+            });
+        }
+        const g = item.clone();
+        g.traverse(child => {
+            if (child.isMesh) {
+                child.material = ghostMat;
+                child.castShadow = false;
+                child.receiveShadow = false;
+            }
+        });
+        g.visible = false;
+        scene.add(g);
+        ghostPreview = g;
     }
 
     function findPlacementTarget(item) {
@@ -2092,6 +2172,9 @@
             const moved = Math.hypot(e.clientX - refX, e.clientY - refY);
             if (moved < (e.pointerType === 'touch' ? 12 : 6)) {
                 if (cam.mode === 'fps' && heldRock) {
+                    if (lastSnapTarget && lastSnapTarget.blocked) {
+                        return;
+                    }
                     if (lastSnapTarget) {
                         heldRock.position.set(lastSnapTarget.x, lastSnapTarget.y, lastSnapTarget.z);
                         heldRock.userData.supportedBy = lastSnapTarget.shelf || null;
@@ -2115,6 +2198,7 @@
                     }
                     heldRock = null;
                     lastSnapTarget = null;
+                    clearPlacementGhost();
                     if (snapPreviewMesh) snapPreviewMesh.visible = false;
                     if (typeof window.onTwinHeldChange === 'function') window.onTwinHeldChange(false);
                     return;
@@ -2142,6 +2226,7 @@
                             if (heldRock.userData.isShelf) {
                                 dropUnsupportedItems(heldRock);
                             }
+                            createPlacementGhost(heldRock);
                             if (typeof window.onTwinHeldChange === 'function') window.onTwinHeldChange(true);
                             return;
                         }
@@ -2387,9 +2472,15 @@
                 const dir = new THREE.Vector3();
                 camera.getWorldDirection(dir);
                 const distHold = heldRock.userData.holdDist || 1.45;
-                const tx = camera.position.x + dir.x * distHold;
-                const ty = camera.position.y + dir.y * distHold - 0.10 + Math.sin(simTime * 3.0) * 0.025;
-                const tz = camera.position.z + dir.z * distHold;
+                const rawX = camera.position.x + dir.x * distHold;
+                const rawY = camera.position.y + dir.y * distHold - 0.10 + Math.sin(simTime * 3.0) * 0.025;
+                const rawZ = camera.position.z + dir.z * distHold;
+                const wallMargin = heldRock.userData.isShelf ? 0.52 : 0.22;
+                const clamped = clampPosAgainstCabinWalls(rawX, rawY, rawZ, cam.fpsX, cam.fpsZ, wallMargin, !!heldRock.userData.snapToWall);
+                const minFloorY = Math.max(-0.2, getGroundHeight(clamped.x, clamped.z)) + (heldRock.userData.halfH || 0) + 0.04;
+                const tx = clamped.x;
+                const ty = Math.max(minFloorY, clamped.y);
+                const tz = clamped.z;
                 heldRock.position.x += (tx - heldRock.position.x) * 0.28;
                 heldRock.position.y += (ty - heldRock.position.y) * 0.28;
                 heldRock.position.z += (tz - heldRock.position.z) * 0.28;
@@ -2404,15 +2495,41 @@
                 }
 
                 lastSnapTarget = findPlacementTarget(heldRock);
+                const canPlace = lastSnapTarget ? !isPlacementBlocked(lastSnapTarget.x, lastSnapTarget.y, lastSnapTarget.z, heldRock, lastSnapTarget) : false;
+                if (lastSnapTarget) lastSnapTarget.blocked = !canPlace;
+
                 if (snapPreviewMesh) {
                     if (lastSnapTarget) {
                         const rScale = heldRock.userData.isShelf ? 2.4 : 1.0;
                         snapPreviewMesh.scale.set(rScale, rScale, 1);
+                        snapPreviewMesh.material.color.setHex(canPlace ? 0x34d399 : 0xf87171);
                         snapPreviewMesh.visible = true;
                         snapPreviewMesh.position.set(lastSnapTarget.x, lastSnapTarget.planeY + 0.015, lastSnapTarget.z);
                     } else {
                         snapPreviewMesh.visible = false;
                     }
+                }
+                if (ghostPreview) {
+                    if (lastSnapTarget) {
+                        ghostPreview.position.set(lastSnapTarget.x, lastSnapTarget.y, lastSnapTarget.z);
+                        ghostPreview.rotation.y = typeof lastSnapTarget.wallRotY === 'number' ? lastSnapTarget.wallRotY : heldRock.rotation.y;
+                        ghostMat.color.setHex(canPlace ? 0x34d399 : 0xf87171);
+                        ghostPreview.visible = true;
+                    } else {
+                        ghostPreview.visible = false;
+                    }
+                }
+                if (hoverAuraGroup && hoverBox) {
+                    hoverBox.setFromObject(heldRock);
+                    hoverBox.getSize(hoverSize);
+                    hoverBox.getCenter(hoverPos);
+                    hoverAuraGroup.position.copy(hoverPos);
+                    hoverAuraGroup.scale.set(hoverSize.x + 0.05, hoverSize.y + 0.05, hoverSize.z + 0.05);
+                    hoverAuraMat.color.setHex(canPlace ? 0x34d399 : 0xf87171);
+                    hoverEdgeMat.color.setHex(canPlace ? 0x6ee7b7 : 0xfca5a5);
+                    hoverAuraMat.opacity = 0.14;
+                    hoverEdgeMat.opacity = 0.65;
+                    hoverAuraGroup.visible = true;
                 }
             } else {
                 lastSnapTarget = null;
@@ -2431,6 +2548,8 @@
                         hoverBox.getCenter(hoverPos);
                         hoverAuraGroup.position.copy(hoverPos);
                         hoverAuraGroup.scale.set(hoverSize.x + 0.05, hoverSize.y + 0.05, hoverSize.z + 0.05);
+                        hoverAuraMat.color.setHex(0x38bdf8);
+                        hoverEdgeMat.color.setHex(0x7dd3fc);
                         const pulse = 0.5 + 0.5 * Math.sin(simTime * 5.2);
                         hoverAuraMat.opacity = 0.11 + pulse * 0.09;
                         hoverEdgeMat.opacity = 0.42 + pulse * 0.36;
@@ -2441,8 +2560,6 @@
                 }
             }
 
-            if (heldRock && hoverAuraGroup) hoverAuraGroup.visible = false;
-
             if (typeof window.onTwinDoorHint === 'function') {
                 const dPorta = Math.hypot(cam.fpsX - 2.25, cam.fpsZ - 2.45);
                 window.onTwinDoorHint(dPorta < 2.6, roomDoorOpen);
@@ -2450,6 +2567,7 @@
         } else {
             if (fpsHandsGroup) fpsHandsGroup.visible = false;
             if (snapPreviewMesh) snapPreviewMesh.visible = false;
+            if (ghostPreview) ghostPreview.visible = false;
             if (hoverAuraGroup) hoverAuraGroup.visible = false;
             if (cam.autoRotate && !cam.dragging) cam.targetTheta += 0.003;
             cam.theta += (cam.targetTheta - cam.theta) * 0.12;
@@ -2988,6 +3106,7 @@
                 heldRock.userData.velY = 0;
                 fallingRocks.push(heldRock);
                 heldRock = null;
+                clearPlacementGhost();
                 if (typeof window.onTwinHeldChange === 'function') window.onTwinHeldChange(false);
             }
             if (document.pointerLockElement && document.exitPointerLock) {
@@ -3063,6 +3182,8 @@
     window.resetTwinWorldObjects = function () {
         heldRock = null;
         lastSnapTarget = null;
+        clearPlacementGhost();
+        if (typeof window.onTwinHeldChange === 'function') window.onTwinHeldChange(false);
         pendingDroppedRock = null;
         pendingDroppedItems.length = 0;
         fallingRocks.length = 0;
