@@ -732,7 +732,10 @@ function calcularProjecaoTermica({
             isUmidOn = true;
             isVentoOn = true;
         }
-        if (isExaustOn) isUmidOn = false;
+        if (isExaustOn) {
+            isUmidOn = false;
+            isVentoOn = false;
+        }
         if (isUmidOn) isVentoOn = true;
 
         // Dinâmica da umidade calibrada pelo histórico real do grow

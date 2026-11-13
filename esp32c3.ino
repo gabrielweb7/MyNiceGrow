@@ -5,7 +5,7 @@
 //  Versão Atual: v451 (Sifão Exclusivo Pós-AC, FAE Protegido & Pré-AC Evap Sem Exaustão)
 // ============================================================
 
-#define FW_VERSION 454
+#define FW_VERSION 455
 
 #include <Arduino.h>
 #include <ArduinoJson.h>
@@ -1644,9 +1644,10 @@ void executarMotor(unsigned long agora) {
   }
 
   // BLOQUEIO CONTRA DESPERDÍCIO (EXAUSTOR):
-  // Sempre que o exaustor estiver ligado (FAE programado, Sifão ou Onda Seca Evaporativa), não injeta névoa ao mesmo tempo
+  // Sempre que o exaustor estiver ligado (FAE programado, Sifão ou Pós-AC), não injeta névoa nem liga ventilador interno
   if (releExaustExt) {
     releUmidific = false;
+    releVentoInt = false;
   }
 
   if (releUmidific) releVentoInt = true;
