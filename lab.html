@@ -225,6 +225,23 @@
                     <div id="segListaGaps" class="space-y-2 text-xs max-h-60 overflow-y-auto pr-1"></div>
                 </div>
             </div>
+
+            <!-- Console Serial Monitor ao Vivo -->
+            <div class="bg-slate-900/70 border border-slate-800 rounded-2xl p-4 sm:p-5 space-y-3">
+                <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                    <div>
+                        <h3 class="text-sm font-bold text-emerald-300 flex items-center gap-2"><span>💻</span> Console Monitor da Placa (Tempo Real)</h3>
+                        <p class="text-[11px] text-slate-400">Eventos de relés, heartbeats, alertas de clima e quedas reconstruídos ao vivo (atualiza a cada 10s)</p>
+                    </div>
+                    <div class="flex items-center gap-1.5 flex-wrap text-[11px] font-bold">
+                        <button onclick="setFiltroConsole('todos')" data-cfilt="todos" class="btn-cfilt px-2.5 py-1 rounded-lg bg-emerald-500/20 text-emerald-300 border border-emerald-500/40">Todos</button>
+                        <button onclick="setFiltroConsole('acoes')" data-cfilt="acoes" class="btn-cfilt px-2.5 py-1 rounded-lg bg-slate-950 text-slate-400 border border-slate-800">Ações</button>
+                        <button onclick="setFiltroConsole('alertas')" data-cfilt="alertas" class="btn-cfilt px-2.5 py-1 rounded-lg bg-slate-950 text-slate-400 border border-slate-800">Alertas</button>
+                        <button onclick="copiarConsoleLab()" class="px-2.5 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700">📋 Copiar</button>
+                    </div>
+                </div>
+                <div id="labConsoleOut" class="bg-black/80 border border-slate-800 rounded-xl p-3 font-mono text-[11px] leading-relaxed h-64 overflow-y-auto space-y-1 text-slate-300"></div>
+            </div>
         </section>
     </main>
 

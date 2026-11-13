@@ -25,6 +25,8 @@ document.addEventListener('DOMContentLoaded', () => {
     inicializarCanvasTwin();
     carregarLab(30);
     animarTwinLoop();
+    atualizarConsoleAoVivo();
+    setInterval(atualizarConsoleAoVivo, 10000);
 });
 
 function trocarAbaLab(aba) {
@@ -451,5 +453,104 @@ function renderSeguranca360() {
     document.getElementById('segListaGaps').innerHTML = gaps.length === 0
         ? '<div class="text-emerald-300 bg-emerald-500/10 border border-emerald-500/20 rounded-xl p-3 font-semibold">✅ Nenhuma queda superior a 3 minutos nas últimas 72h!</div>'
         : gaps.map(g => `<div class="flex justify-between bg-slate-950/70 border border-rose-500/20 rounded-xl px-3 py-2"><span class="text-slate-300">${g.inicio} ➔ ${g.fim}</span><span class="font-bold text-rose-300">${g.minutos} min offline</span></div>`).join('');
+}
+
+// ========================================================
+// CONSOLE SERIAL MONITOR AO VIVO
+// ========================================================
+let consoleFiltro = 'todos';
+let consoleLinhas = [];
+
+function setFiltroConsole(f) {
+    consoleFiltro = f;
+    document.querySelectorAll('.btn-cfilt').forEach(b => {
+        const ativo = b.getAttribute('data-cfilt') === f;
+        b.className = ativo
+            ? 'btn-cfilt px-2.5 py-1 rounded-lg bg-emerald-500/20 text-emerald-300 border border-emerald-500/40'
+            : 'btn-cfilt px-2.5 py-1 rounded-lg bg-slate-950 text-slate-400 border border-slate-800';
+    });
+    renderConsoleLab();
+}
+
+function copiarConsoleLab() {
+    const txt = consoleLinhas.map(l => `[${l.hora}] [${l.tipo.toUpperCase()}] ${l.msg}`).join('\n');
+    if (navigator.clipboard) navigator.clipboard.writeText(txt);
+}
+
+async function atualizarConsoleAoVivo() {
+    try {
+        const res = await fetch(`api/index.php?limit=40&_=${Date.now()}`, { cache: 'no-store' });
+        const rows = await res.json();
+        if (!Array.isArray(rows) || rows.length === 0) return;
+
+        const logs = [];
+        let prev = null;
+        rows.forEach(r => {
+            const hora = (r.timestamp || '').slice(11, 19) || '--:--:--';
+            const ti = parseFloat(r.temp_int);
+            const hi = parseFloat(r.hum_int);
+            const te = parseFloat(r.temp_ext);
+
+            if (prev) {
+                const mapRele = [
+                    ['rele_ar', '❄️ AC'],
+                    ['rele_exaust', '💨 EXAUSTOR'],
+                    ['rele_umid', '💧 UMIDIFICADOR'],
+                    ['rele_vento', '🌀 VENTILADOR INT'],
+                    ['rele_luz', '💡 LUZ']
+                ];
+                mapRele.forEach(([k, nome]) => {
+                    const a = parseInt(prev[k] || 0, 10);
+                    const b = parseInt(r[k] || 0, 10);
+                    if (a !== b) {
+                        logs.push({
+                            hora,
+                            tipo: 'acao',
+                            cor: 'text-sky-300',
+                            msg: `${nome} ${b === 1 ? 'LIGADO' : 'DESLIGADO'} (Estufa: ${ti.toFixed(1)}°C | ${hi.toFixed(0)}% | Quarto: ${isNaN(te) ? '--' : te.toFixed(1)}°C)`
+                        });
+                    }
+                });
+                const dt = (Number(r.unix_ts || 0) - Number(prev.unix_ts || 0));
+                if (dt > 180) {
+                    logs.push({ hora, tipo: 'alerta', cor: 'text-rose-400', msg: `⚠️ GAP DE CONEXÃO: ${Math.round(dt / 60)} min sem telemetria!` });
+                }
+            }
+            if (!isNaN(ti) && ti >= 30.0) {
+                logs.push({ hora, tipo: 'alerta', cor: 'text-rose-400', msg: `🚨 ALERTA TÉRMICO: Estufa em ${ti.toFixed(1)}°C!` });
+            }
+            if (isNaN(te) || te <= -30.0) {
+                logs.push({ hora, tipo: 'alerta', cor: 'text-amber-300', msg: `⚠️ SENSOR QUARTO OFFLINE (${r.temp_ext})` });
+            }
+            prev = r;
+        });
+
+        const ult = rows[rows.length - 1];
+        const hUlt = (ult.timestamp || '').slice(11, 19) || '--:--:--';
+        logs.push({
+            hora: hUlt,
+            tipo: 'info',
+            cor: 'text-emerald-300',
+            msg: `HEARTBEAT OK • Estufa: ${parseFloat(ult.temp_int).toFixed(1)}°C / ${parseFloat(ult.hum_int).toFixed(1)}% | Quarto: ${parseFloat(ult.temp_ext).toFixed(1)}°C | Fase: ${ult.fase || '--'}`
+        });
+
+        consoleLinhas = logs.slice(-60).reverse();
+        renderConsoleLab();
+    } catch (e) {
+        console.error('Erro console ao vivo:', e);
+    }
+}
+
+function renderConsoleLab() {
+    const el = document.getElementById('labConsoleOut');
+    if (!el) return;
+    const filtradas = consoleLinhas.filter(l => {
+        if (consoleFiltro === 'acoes') return l.tipo === 'acao';
+        if (consoleFiltro === 'alertas') return l.tipo === 'alerta';
+        return true;
+    });
+    el.innerHTML = filtradas.length === 0
+        ? '<div class="text-slate-500">Nenhum evento registrado neste filtro nos últimos 40 min.</div>'
+        : filtradas.map(l => `<div><span class="text-slate-500">[${l.hora}]</span> <span class="${l.cor}">${l.msg}</span></div>`).join('');
 }
 
