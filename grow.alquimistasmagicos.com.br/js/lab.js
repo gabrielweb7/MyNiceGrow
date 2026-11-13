@@ -580,6 +580,30 @@ function toggleSimRele(k) {
 }
 
 let twinFpsAtivo = false;
+let twinFpsHudTimer = null;
+let twinFpsHudHideTimer = null;
+
+function showTwinFpsHudTemporarily() {
+    const hud = document.getElementById('twinFpsHud');
+    if (!hud) return;
+    if (twinFpsHudTimer) clearTimeout(twinFpsHudTimer);
+    if (twinFpsHudHideTimer) clearTimeout(twinFpsHudHideTimer);
+    if (!twinFpsAtivo) {
+        hud.classList.add('hidden');
+        hud.style.opacity = '0';
+        return;
+    }
+    hud.classList.remove('hidden');
+    hud.style.pointerEvents = 'auto';
+    requestAnimationFrame(() => { hud.style.opacity = '1'; });
+    twinFpsHudTimer = setTimeout(() => {
+        hud.style.opacity = '0';
+        hud.style.pointerEvents = 'none';
+        twinFpsHudHideTimer = setTimeout(() => {
+            if (hud.style.opacity === '0') hud.classList.add('hidden');
+        }, 620);
+    }, 4000);
+}
 
 function isMobileTouch() {
     return (window.matchMedia && window.matchMedia('(pointer: coarse)').matches)
@@ -615,13 +639,13 @@ function toggleTwinFpsUI() {
     }
     if (joy) joy.style.display = (twinFpsAtivo && mobile) ? 'flex' : 'none';
     if (jumpBtn) jumpBtn.style.display = (twinFpsAtivo && mobile) ? 'flex' : 'none';
-    if (hud) hud.classList.toggle('hidden', !twinFpsAtivo);
     if (cross) cross.classList.toggle('hidden', !twinFpsAtivo);
     if (!twinFpsAtivo) {
         const dp = document.getElementById('twinDoorPrompt');
         if (dp) dp.classList.add('hidden');
     }
     updateTwinFpsHintText(false);
+    showTwinFpsHudTemporarily();
 }
 
 window.onTwinDoorHint = function (near, isOpen) {
@@ -637,6 +661,7 @@ window.onTwinDoorHint = function (near, isOpen) {
 
 window.onTwinPointerLockChange = function (locked) {
     updateTwinFpsHintText(locked);
+    if (twinFpsAtivo) showTwinFpsHudTemporarily();
 };
 
 document.addEventListener('keydown', (e) => {

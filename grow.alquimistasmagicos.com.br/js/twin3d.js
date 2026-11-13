@@ -881,7 +881,7 @@
                     });
                 }
 
-                world.add(cakeGroup);
+                scene.add(cakeGroup);
                 tagInteractive(cakeGroup, 'cogumelos');
                 registerPickable(cakeGroup, { halfH: 0, holdDist: 1.35, supportedBy: tentRackProxy });
             });
