@@ -28,7 +28,7 @@
     const airParticles = [];
 
     // Emissor dedicado de névoa na mangueira amarela (não rouba partículas suspensas do ar!)
-    const MIST_COUNT = 45;
+    const MIST_COUNT = 75;
     let mistPoints, mistPos;
     const mistParticles = [];
 
@@ -732,7 +732,7 @@
         }
         mGeo.setAttribute('position', new THREE.BufferAttribute(mistPos, 3));
         mistPoints = new THREE.Points(mGeo, new THREE.PointsMaterial({
-            size: 0.17,
+            size: 0.24,
             color: 0x7dd3fc,
             map: tex,
             transparent: true,
@@ -961,7 +961,7 @@
         airLines.geometry.attributes.color.needsUpdate = true;
 
         if (mistPoints) {
-            mistPoints.material.opacity += ((state.umid ? 0.52 : 0.0) - mistPoints.material.opacity) * 0.08;
+            mistPoints.material.opacity += ((state.umid ? 0.78 : 0.0) - mistPoints.material.opacity) * 0.08;
             if (mistPoints.material.opacity > 0.01) {
                 for (let i = 0; i < MIST_COUNT; i++) {
                     const m = mistParticles[i];
