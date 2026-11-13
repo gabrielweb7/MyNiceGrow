@@ -1985,10 +1985,10 @@
 
             const joyMag = Math.hypot(cam.joyX, cam.joyY);
             const joyDead = joyMag < 0.08 ? 0 : (joyMag - 0.08) / 0.92;
-            const joyScale = joyMag > 0.001 ? Math.pow(joyDead, 1.35) / joyMag : 0;
+            const joyScale = joyMag > 0.001 ? joyDead / joyMag : 0;
             const jx = cam.joyX * joyScale;
             const jy = cam.joyY * joyScale;
-            const speed = cam.keys.shift ? 0.16 : (joyMag > 0.08 ? 0.092 : 0.068);
+            const speed = cam.keys.shift ? 0.16 : (joyMag > 0.08 ? (0.045 + 0.070 * joyDead) : 0.068);
             const fwdX = -Math.sin(cam.fpsYaw);
             const fwdZ = -Math.cos(cam.fpsYaw);
             const rightX = Math.cos(cam.fpsYaw);
@@ -2037,6 +2037,8 @@
                 nz = cam.fpsZ;
             }
 
+            const actuallyMoved = Math.hypot(nx - cam.fpsX, nz - cam.fpsZ) > 0.0008;
+            cam.fpsMoving = actuallyMoved;
             cam.fpsX = nx;
             cam.fpsZ = nz;
             const floorEyeY = Math.max(0.0, getGroundHeight(cam.fpsX, cam.fpsZ)) + 1.62;
@@ -2047,7 +2049,7 @@
                 cam.fpsVelY = 0;
                 cam.fpsGrounded = true;
             }
-            const walking = (mx !== 0 || mz !== 0);
+            const walking = actuallyMoved;
             const bobFreq = cam.keys.shift ? 12.5 : 7.5;
             const bob = (walking && cam.fpsGrounded) ? Math.sin(simTime * bobFreq) * 0.028 : 0;
 
@@ -2532,6 +2534,7 @@
         cam.keys = { w: false, s: false, a: false, d: false, shift: false, lookL: false, lookR: false, lookU: false, lookD: false };
         cam.joyX = 0;
         cam.joyY = 0;
+        cam.fpsMoving = false;
         if (ativo) {
             cam.fpsX = 1.15; cam.fpsY = 1.62; cam.fpsZ = 1.85;
             cam.fpsYaw = 0.42; cam.fpsPitch = -0.05;
@@ -2594,7 +2597,7 @@
     };
 
     window.getTwinPlayerPose = function () {
-        const walking = cam.mode === 'fps' && (cam.keys.w || cam.keys.s || cam.keys.a || cam.keys.d || Math.hypot(cam.joyX, cam.joyY) > 0.1);
+        const walking = cam.mode === 'fps' && !!cam.fpsMoving;
         if (cam.mode === 'fps') {
             return {
                 x: cam.fpsX,

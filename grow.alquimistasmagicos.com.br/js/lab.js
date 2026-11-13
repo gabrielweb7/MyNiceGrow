@@ -41,15 +41,18 @@ function iniciarJoystickMinecraft() {
     const knob = document.getElementById('twinJoystickKnob');
     if (!joy || !knob) return;
     let activePointerId = null;
+    let startX = 0, startY = 0;
     const maxR = 52;
 
     function updateJoy(clientX, clientY) {
-        const rect = joy.getBoundingClientRect();
-        const cx = rect.left + rect.width / 2;
-        const cy = rect.top + rect.height / 2;
-        let dx = clientX - cx;
-        let dy = clientY - cy;
+        let dx = clientX - startX;
+        let dy = clientY - startY;
         const dist = Math.hypot(dx, dy);
+        if (dist < 6) {
+            knob.style.transform = 'translate(0px, 0px)';
+            if (window.setTwinJoystick) window.setTwinJoystick(0, 0);
+            return;
+        }
         if (dist > maxR) {
             dx = (dx / dist) * maxR;
             dy = (dy / dist) * maxR;
@@ -71,8 +74,11 @@ function iniciarJoystickMinecraft() {
         e.stopPropagation();
         if (activePointerId !== null) return;
         activePointerId = e.pointerId;
+        startX = e.clientX;
+        startY = e.clientY;
         try { joy.setPointerCapture(e.pointerId); } catch (err) {}
-        updateJoy(e.clientX, e.clientY);
+        knob.style.transform = 'translate(0px, 0px)';
+        if (window.setTwinJoystick) window.setTwinJoystick(0, 0);
     });
     joy.addEventListener('pointermove', (e) => {
         if (e.pointerId !== activePointerId) return;
