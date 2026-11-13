@@ -2,10 +2,10 @@
 //  GROW IA - Firmware Inteligente + Nuvem IoT
 //  Placa: ESP32-C3 SuperMini (Produção) / ESP32-S3 Dual-Core
 //  Autor: Gabriel + Antigravity AI
-//  Versão Atual: v457 (Sifão Pós-AC, FAE Protegido & Pré-AC Evaporativo Desativado)
+//  Versão Atual: v458 (Sifão Pós-AC Liberado pós-MaxRun com Queda Real & Meta Inclusiva)
 // ============================================================
 
-#define FW_VERSION 457
+#define FW_VERSION 458
 
 #include <Arduino.h>
 #include <ArduinoJson.h>
@@ -1408,7 +1408,7 @@ void executarMotor(unsigned long agora) {
   } else if (modoRefrigeracaoAtivo && (lastReleArCond || acElapsedPreBootMs > 0) && runArAtualMs >= maxRunContinuoArMs) {
     // Limite contínuo checado em TODA a faixa térmica ativa (mesmo abaixo de pf.tempMax durante a descida)
     Serial.printf("⏳ SEGURANÇA: Ar Condicionado atingiu limite contínuo de %lu min sem bater a meta. Pausa preventiva de 10 min...\n", maxRunContinuoArMs / 60000UL);
-    acFalhaObjetivo = true;
+    if (!acTeveQuedaReal) acFalhaObjetivo = true; // Só bloqueia Sifão Pós-AC se realmente não houve queda térmica
     descansoPreventivoAte = agora + (10UL * 60UL * 1000UL);
     modoRefrigeracaoAtivo = false;
     tempoAlvoAtingido = 0;
@@ -1423,7 +1423,7 @@ void executarMotor(unsigned long agora) {
     // Meta de desligamento dinâmica medida no QUARTO (tempExt) quando disponível; fallback para estufa se offline
     float metaDesligaAr = max(tempMinCongelamento + 0.2f, pf.tempMax - tempHistereseAr);
     float tempRefDesligaAr = sensorExtOk ? tempExt : tempInt;
-    if (tempRefDesligaAr < metaDesligaAr) {
+    if (tempRefDesligaAr <= (metaDesligaAr + 0.02f)) {
       if (tempoExtraRefrigeracaoMs == 0) {
         modoRefrigeracaoAtivo = false;
         tempoAlvoAtingido = 0;
