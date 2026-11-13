@@ -605,7 +605,7 @@ function calcularProjecaoTermica({
                     ? Math.max(15.5, avgMinRoomAc + (tRoomEqSim - tRoomCycleRef) * 0.30)
                     : Math.max(16.0, tRoomEqSim - Math.max(2.0, avgRoomDropAc));
                 if (tExtSim > floorSalaAc) {
-                    const kRoomCool = Math.max(0.030, Math.min(0.065, avgRoomCoolRate / Math.max(1.2, avgRoomDropAc)));
+                    const kRoomCool = Math.max(0.065, Math.min(0.13, avgRoomCoolRate / Math.max(1.2, avgRoomDropAc)));
                     tExtSim += (floorSalaAc - tExtSim) * (1 - Math.exp(-kRoomCool * subDtMin));
                 }
             } else {
