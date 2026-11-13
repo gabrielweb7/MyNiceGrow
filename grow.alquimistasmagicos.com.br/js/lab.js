@@ -582,7 +582,7 @@ function updateTwinFpsHintText(locked) {
     const hint = document.getElementById('twinFpsHint');
     if (!hint) return;
     if (isMobileTouch()) {
-        hint.textContent = '🕹️ Círculo esq. anda • Arraste tela p/ olhar • Toque p/ pegar';
+        hint.textContent = '🕹️ Esq: andar • Tela: olhar • Toque: pegar';
     } else if (locked) {
         hint.textContent = '🎯 Mouse travado • WASD andar • ESC libera / F sai';
     } else {

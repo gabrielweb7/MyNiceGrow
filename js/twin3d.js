@@ -1789,12 +1789,16 @@
     function bindControls(el) {
         const raycaster = new THREE.Raycaster();
         const pointerNdc = new THREE.Vector2();
+        const touchTaps = {};
 
         el.addEventListener('pointerdown', (e) => {
+            if (cam.mode === 'fps' && e.pointerType === 'touch') {
+                touchTaps[e.pointerId] = { x: e.clientX, y: e.clientY };
+                return;
+            }
             if (e.isPrimary === false) return;
             cam.downX = e.clientX; cam.downY = e.clientY;
             cam.lastX = e.clientX; cam.lastY = e.clientY;
-            if (cam.mode === 'fps' && e.pointerType === 'touch') return;
             if (cam.mode === 'fps' && e.pointerType === 'mouse' && document.pointerLockElement !== el && el.requestPointerLock) {
                 try { el.requestPointerLock(); } catch (err) {}
             }
@@ -1839,9 +1843,13 @@
         window.addEventListener('pointerup', (e) => {
             const wasDragging = cam.dragging;
             cam.dragging = false;
-            const isTouchFpsTap = cam.mode === 'fps' && e.pointerType === 'touch';
+            const touchTap = touchTaps[e.pointerId];
+            if (touchTap) delete touchTaps[e.pointerId];
+            const isTouchFpsTap = cam.mode === 'fps' && e.pointerType === 'touch' && !!touchTap;
             if ((!wasDragging && !isTouchFpsTap) || !el.contains(e.target)) return;
-            const moved = Math.hypot(e.clientX - cam.downX, e.clientY - cam.downY);
+            const refX = isTouchFpsTap ? touchTap.x : cam.downX;
+            const refY = isTouchFpsTap ? touchTap.y : cam.downY;
+            const moved = Math.hypot(e.clientX - refX, e.clientY - refY);
             if (moved < (e.pointerType === 'touch' ? 12 : 6)) {
                 if (cam.mode === 'fps' && heldRock) {
                     heldRock.userData.velY = 0;
@@ -1958,6 +1966,17 @@
         }, { passive: true });
         el.addEventListener('touchcancel', () => { lookTouchId = null; }, { passive: true });
         el.addEventListener('dblclick', () => window.resetTwinCamera());
+
+        function clearInputs() {
+            cam.keys = { w: false, s: false, a: false, d: false, shift: false, lookL: false, lookR: false, lookU: false, lookD: false };
+            cam.joyX = 0;
+            cam.joyY = 0;
+            cam.fpsMoving = false;
+            cam.dragging = false;
+            lookTouchId = null;
+        }
+        window.addEventListener('blur', clearInputs);
+        document.addEventListener('visibilitychange', () => { if (document.hidden) clearInputs(); });
     }
 
     function animate() {
@@ -2538,8 +2557,15 @@
         if (ativo) {
             cam.fpsX = 1.15; cam.fpsY = 1.62; cam.fpsZ = 1.85;
             cam.fpsYaw = 0.42; cam.fpsPitch = -0.05;
-        } else if (document.pointerLockElement && document.exitPointerLock) {
-            try { document.exitPointerLock(); } catch (e) {}
+        } else {
+            if (heldRock) {
+                heldRock.userData.velY = 0;
+                fallingRocks.push(heldRock);
+                heldRock = null;
+            }
+            if (document.pointerLockElement && document.exitPointerLock) {
+                try { document.exitPointerLock(); } catch (e) {}
+            }
         }
         return cam.mode === 'fps';
     };
@@ -2601,7 +2627,7 @@
         if (cam.mode === 'fps') {
             return {
                 x: cam.fpsX,
-                y: Math.max(0, getGroundHeight(cam.fpsX, cam.fpsZ)),
+                y: Math.max(0, getGroundHeight(cam.fpsX, cam.fpsZ), cam.fpsY - 1.62),
                 z: cam.fpsZ,
                 yaw: cam.fpsYaw,
                 pitch: cam.fpsPitch,
