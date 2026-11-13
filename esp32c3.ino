@@ -2,10 +2,10 @@
 //  GROW IA - Firmware Inteligente + Nuvem IoT
 //  Placa: ESP32-C3 SuperMini (Produção) / ESP32-S3 Dual-Core
 //  Autor: Gabriel + Antigravity AI
-//  Versão Atual: v458 (Sifão Pós-AC Liberado pós-MaxRun com Queda Real & Meta Inclusiva)
+//  Versão Atual: v459 (AC Liga/Desliga pela Temp. Externa + Sifão Pós-AC Garantido)
 // ============================================================
 
-#define FW_VERSION 458
+#define FW_VERSION 459
 
 #include <Arduino.h>
 #include <ArduinoJson.h>
@@ -1392,6 +1392,7 @@ void executarMotor(unsigned long agora) {
       }
     }
   }
+  float tempRefAr = sensorExtOk ? tempExt : tempInt;
   if (corteCongelaAtivo) {
     // Encerra completamente o ciclo automático para não religar cedo após AC_MIN_REST_MS
     modoRefrigeracaoAtivo = false;
@@ -1415,29 +1416,28 @@ void executarMotor(unsigned long agora) {
     tempoMetaPreBootMs = 0;
     evapAtivo = false;
     evapPreAcAtivo = false;
-  } else if (!evapAtivo && tempInt >= pf.tempMax) {
+  } else if (!evapAtivo && tempRefAr >= pf.tempMax) {
     modoRefrigeracaoAtivo = true;
     tempoAlvoAtingido = 0; // Se voltou a subir, cancela temporizador de desligamento
     tempoMetaPreBootMs = 0;
   } else if (modoRefrigeracaoAtivo) {
     // Meta de desligamento dinâmica medida no QUARTO (tempExt) quando disponível; fallback para estufa se offline
     float metaDesligaAr = max(tempMinCongelamento + 0.2f, pf.tempMax - tempHistereseAr);
-    float tempRefDesligaAr = sensorExtOk ? tempExt : tempInt;
-    if (tempRefDesligaAr <= (metaDesligaAr + 0.02f)) {
+    if (tempRefAr <= (metaDesligaAr + 0.02f)) {
       if (tempoExtraRefrigeracaoMs == 0) {
         modoRefrigeracaoAtivo = false;
         tempoAlvoAtingido = 0;
         tempoMetaPreBootMs = 0;
-        Serial.printf("❄️ CLIMATIZAÇÃO: Meta do quarto atingida (Quarto %.1f°C < %.1f°C | Estufa %.1f°C)! Desligando Ar Condicionado.\n", tempRefDesligaAr, metaDesligaAr, tempInt);
+        Serial.printf("❄️ CLIMATIZAÇÃO: Meta do quarto atingida (Quarto %.1f°C <= %.1f°C | Estufa %.1f°C)! Desligando Ar Condicionado.\n", tempRefAr, metaDesligaAr, tempInt);
       } else if (tempoAlvoAtingido == 0) {
         tempoAlvoAtingido = agora;
         tempoMetaPreBootMs = 0;
-        Serial.printf("❄️ CLIMATIZAÇÃO: Meta do quarto atingida (Quarto %.1f°C < %.1f°C)! Mantendo Ar ligado por mais %lu min...\n", tempRefDesligaAr, metaDesligaAr, tempoExtraRefrigeracaoMs / 60000UL);
+        Serial.printf("❄️ CLIMATIZAÇÃO: Meta do quarto atingida (Quarto %.1f°C <= %.1f°C)! Mantendo Ar ligado por mais %lu min...\n", tempRefAr, metaDesligaAr, tempoExtraRefrigeracaoMs / 60000UL);
       } else if ((tempoMetaPreBootMs + (agora - tempoAlvoAtingido)) >= tempoExtraRefrigeracaoMs) {
         modoRefrigeracaoAtivo = false;
         tempoAlvoAtingido = 0;
         tempoMetaPreBootMs = 0;
-        Serial.printf("❄️ CLIMATIZAÇÃO: %lu min pós-meta concluídos (Quarto %.1f°C < %.1f°C | Estufa %.1f°C). Desligando Ar Condicionado.\n", tempoExtraRefrigeracaoMs / 60000UL, tempRefDesligaAr, metaDesligaAr, tempInt);
+        Serial.printf("❄️ CLIMATIZAÇÃO: %lu min pós-meta concluídos (Quarto %.1f°C <= %.1f°C | Estufa %.1f°C). Desligando Ar Condicionado.\n", tempoExtraRefrigeracaoMs / 60000UL, tempRefAr, metaDesligaAr, tempInt);
       }
     } else {
       tempoAlvoAtingido = 0; // Ainda acima da metaDesligaAr no quarto: segue resfriando antes de contar pós-meta
@@ -1473,7 +1473,7 @@ void executarMotor(unsigned long agora) {
   // O exaustor NÃO liga durante o funcionamento do AC para não derrubar a umidade nem brigar com o umidificador.
   // Assim que o AC desliga e a sala estiver fria, a janela Pós-AC abre e aproveita o ar gelado residual da sala.
   if (cicloAcAtivoPrev && !acOperando && tempoSifaoPosAcMs > 0) {
-    bool acFuncionouDeFato = acCicloMonitorado && !acFalhaObjetivo && (acTeveQuedaReal || (sensorExtOk && tempExt < (pf.tempMax - 0.5f)) || (sensorIntOk && tempInt < (pf.tempMax - 0.3f)));
+    bool acFuncionouDeFato = acCicloMonitorado && !acFalhaObjetivo;
     if (acFuncionouDeFato) {
       janelaSifaoPosAcAte = agora + tempoSifaoPosAcMs;
       Serial.printf("🌬️ SIFÃO PÓS-AC: Janela aberta por %lu min para aproveitar o ar frio da sala!\n", tempoSifaoPosAcMs / 60000UL);
@@ -1546,11 +1546,12 @@ void executarMotor(unsigned long agora) {
   bool sensoresFrioOk = (sensorExtOk && tempExt > -40.0f);
 
   if (!sensoresFrioOk || !aproveitandoArGelado || tempInt <= tempSifaoMin) {
-    // Apenas pausa a injeção abaixo do piso sem destruir a janela Pós-AC de 15 min
+    // Apenas pausa a injeção abaixo do piso sem destruir a janela Pós-AC configurada
     injecaoFriaTermoOk = false;
-  } else if (tempExt <= (tempInt - deltaEntrada)) {
+  } else if (tempExt <= (tempInt + 0.2f)) {
+    // Na janela Pós-AC o quarto acabou de ser resfriado: garante os minutos configurados mesmo se o delta já for pequeno
     injecaoFriaTermoOk = true;
-  } else if (tempExt >= (tempInt - deltaSaida)) {
+  } else if (tempExt >= (tempInt + 0.6f)) {
     injecaoFriaTermoOk = false;
   }
 
