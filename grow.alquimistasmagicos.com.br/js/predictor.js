@@ -532,6 +532,7 @@ function calcularProjecaoTermica({
             }
         }
         let simArUltimoDesligTs = ultimoDesligamentoTs || 0;
+        let simArFalhouCiclo = false;
         let simDescansoPreventivoAteTs = (!simArOn && ultimoMaxRunDesligTs > 0 && (maxTs - ultimoMaxRunDesligTs) < 10 * 60000)
             ? (ultimoMaxRunDesligTs + 10 * 60000) : 0;
         let simSifaoAteTs = (!simArOn && ultimoDesligamentoTs > 0 && tSifaoPosAcMin > 0 && (maxTs - ultimoDesligamentoTs) < tSifaoPosAcMin * 60000)
@@ -606,7 +607,8 @@ function calcularProjecaoTermica({
                 }
             } else {
                 const minsDesdeOffSim = simArUltimoDesligTs > 0 ? ((t - simArUltimoDesligTs) / 60000) : 999;
-                const pesoFast = (tExtSim < tRoomEqSim - 0.15) ? Math.max(0, 0.65 * (1 - (minsDesdeOffSim / 12))) : 0;
+                const janelaReboundMin = Math.max(12, tSifaoPosAcMin || 15);
+                const pesoFast = (tExtSim < tRoomEqSim - 0.15) ? Math.max(0, 0.45 * (1 - (minsDesdeOffSim / janelaReboundMin))) : 0;
                 const rateRoom = pesoFast * kRoomReboundFast + (1 - pesoFast) * kRoomDriftSlow;
                 const dRoomPhys = (tRoomEqSim - tExtSim) * (1 - Math.exp(-rateRoom * subDtMin));
                 const elapsedExtMin = (t - maxTs) / 60000;
@@ -621,9 +623,10 @@ function calcularProjecaoTermica({
             }
 
             // Janela de Sifão Pós-AC + Histerese Térmica + Guarda de Umidade
-            if (simArPrev && !simArOn && tSifaoPosAcMin > 0) {
+            // Só abre a janela Pós-AC se o AC realmente completou o objetivo (!simArFalhouCiclo)
+            if (simArPrev && !simArOn && tSifaoPosAcMin > 0 && !simArFalhouCiclo) {
                 simSifaoAteTs = t + (tSifaoPosAcMin * 60000);
-            } else if (simArOn) {
+            } else if (simArOn || simArFalhouCiclo) {
                 simSifaoAteTs = 0;
             }
             simArPrev = simArOn;
@@ -735,7 +738,8 @@ function calcularProjecaoTermica({
             // Dinâmica da umidade calibrada pelo histórico real do grow
             if (isExaustOn) {
                 const diffH = Math.max(0, simHumInt - hExtSim);
-                const taxaQuedaUmid = Math.max(0.55, diffH * kHumExaust);
+                const kHumEfetivo = (isSifaoExaustOn && !isFaeProgOn) ? Math.min(kHumExaust, 0.032) : kHumExaust;
+                const taxaQuedaUmid = Math.max(0.40, diffH * kHumEfetivo);
                 simHumInt = Math.max(70.0, simHumInt - taxaQuedaUmid * subDtMin);
             } else if (isUmidOn) {
                 const fatorTopo = simHumInt > 96.5 ? Math.max(0.35, (100.2 - simHumInt) / 3.7) : 1.0;
@@ -804,6 +808,7 @@ function calcularProjecaoTermica({
                         const passouCongela = tIntPlot <= tCongelaSim;
                         const passouPosMeta = (simArAbaixoMetaTs > 0) && (tPosMetaMin === 0 || ((t - simArAbaixoMetaTs) >= (tPosMetaMin * 60000)));
                         if (passouMaxRun || passouCongela || passouPosMeta) {
+                            simArFalhouCiclo = (passouMaxRun && !passouCongela && !passouPosMeta);
                             simArOn = false;
                             simArUltimoDesligTs = t;
                             simArAbaixoMetaTs = 0;
@@ -824,6 +829,7 @@ function calcularProjecaoTermica({
                         tIntPlot = tIntBase + faeOffset;
                         if (!simEvapAtivo && (t >= simDescansoPreventivoAteTs) && (t - simArUltimoDesligTs >= 3 * 60000) && (tIntPlot >= tMeta) && (tIntPlot > tCongelaSim)) {
                             simArOn = true;
+                            simArFalhouCiclo = false;
                             simArInicioTs = t;
                             simArAbaixoMetaTs = 0;
                             tIntBase = tIntPlot;
