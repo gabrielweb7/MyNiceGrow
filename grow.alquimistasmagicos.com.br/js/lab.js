@@ -135,6 +135,7 @@ function iniciarMultiplayerTwin() {
                     y: pose.y,
                     z: pose.z,
                     yaw: pose.yaw,
+                    pitch: pose.pitch || 0,
                     walking: pose.walking,
                     inFps: pose.inFps
                 })

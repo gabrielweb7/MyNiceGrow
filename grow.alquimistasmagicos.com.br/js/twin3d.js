@@ -2304,21 +2304,26 @@
         armR.add(armRM);
         g.add(armR);
 
+        // Pivô da cabeça no pescoço para acompanhar a câmera (olhar para cima/baixo)
+        const headPivot = new THREE.Group();
+        headPivot.position.set(0, 0.96, 0);
+        g.add(headPivot);
+
         // Cabeça chibi redondinha
         const head = new THREE.Mesh(new THREE.SphereGeometry(0.21, 16, 14), skinMat);
-        head.position.y = 1.10;
+        head.position.y = 0.14;
         head.castShadow = true;
-        g.add(head);
+        headPivot.add(head);
 
         // Olhinhos e bochechas rosadas (frente em -Z para combinar com yaw do FPS)
         [-0.075, 0.075].forEach(ex => {
             const eye = new THREE.Mesh(new THREE.SphereGeometry(0.026, 8, 8), darkMat);
-            eye.position.set(ex, 1.11, -0.185);
-            g.add(eye);
+            eye.position.set(ex, 0.15, -0.185);
+            headPivot.add(eye);
             const cheek = new THREE.Mesh(new THREE.SphereGeometry(0.028, 8, 8), blushMat);
-            cheek.position.set(ex * 1.45, 1.06, -0.175);
+            cheek.position.set(ex * 1.45, 0.10, -0.175);
             cheek.scale.set(1.2, 0.7, 0.5);
-            g.add(cheek);
+            headPivot.add(cheek);
         });
 
         // Chapéu fofo de cogumelo com pintinhas brancas!
@@ -2326,19 +2331,19 @@
             new THREE.SphereGeometry(0.30, 16, 10, 0, Math.PI * 2, 0, Math.PI * 0.55),
             hatMat
         );
-        cap.position.y = 1.22;
+        cap.position.y = 0.26;
         cap.castShadow = true;
-        g.add(cap);
+        headPivot.add(cap);
         [
-            [0.14, 1.38, -0.12],
-            [-0.15, 1.36, -0.10],
-            [0.0, 1.43, 0.14],
-            [-0.12, 1.35, 0.16],
-            [0.16, 1.34, 0.12]
+            [0.14, 0.42, -0.12],
+            [-0.15, 0.40, -0.10],
+            [0.0, 0.47, 0.14],
+            [-0.12, 0.39, 0.16],
+            [0.16, 0.38, 0.12]
         ].forEach(([sx, sy, sz]) => {
             const spot = new THREE.Mesh(new THREE.SphereGeometry(0.042, 8, 8), whiteMat);
             spot.position.set(sx, sy, sz);
-            g.add(spot);
+            headPivot.add(spot);
         });
 
         // Tag com nome flutuante
@@ -2346,7 +2351,7 @@
         tag.position.y = 1.72;
         g.add(tag);
 
-        return { group: g, armL, armR, legL, legR, phase: Math.random() * 6 };
+        return { group: g, headPivot, armL, armR, legL, legR, phase: Math.random() * 6 };
     }
 
     function stepMultiplayerAvatars() {
@@ -2358,11 +2363,16 @@
             rp.group.position.y += (rp.ty - rp.group.position.y) * 0.18;
             rp.group.position.z += (rp.tz - rp.group.position.z) * 0.18;
 
-            // Interpolação angular suave
+            // Interpolação angular suave (corpo no eixo Y, cabeça no eixo X)
             let dy = rp.tyaw - rp.group.rotation.y;
             while (dy > Math.PI) dy -= Math.PI * 2;
             while (dy < -Math.PI) dy += Math.PI * 2;
             rp.group.rotation.y += dy * 0.2;
+
+            if (rp.headPivot) {
+                const targetPitch = Math.max(-0.85, Math.min(0.85, rp.tpitch || 0));
+                rp.headPivot.rotation.x += (targetPitch - rp.headPivot.rotation.x) * 0.22;
+            }
 
             if (rp.walking) {
                 const sw = Math.sin(simTime * 9.5 + rp.phase) * 0.65;
@@ -2587,11 +2597,12 @@
                 y: Math.max(0, getGroundHeight(cam.fpsX, cam.fpsZ)),
                 z: cam.fpsZ,
                 yaw: cam.fpsYaw,
+                pitch: cam.fpsPitch,
                 walking,
                 inFps: true
             };
         }
-        return { x: 1.15, y: 0.02, z: 3.45, yaw: 0.25, walking: false, inFps: false };
+        return { x: 1.15, y: 0.02, z: 3.45, yaw: 0.25, pitch: 0, walking: false, inFps: false };
     };
 
     window.updateMultiplayerPlayers = function (list) {
@@ -2605,6 +2616,9 @@
                 const av = buildCuteAvatar(p.color || 0x38bdf8, p.hatColor || 0xe11d48, p.name || 'Visitante');
                 av.group.position.set(p.x || 1.15, p.y || 0.02, p.z || 3.45);
                 av.group.rotation.y = p.yaw || 0;
+                if (av.headPivot) {
+                    av.headPivot.rotation.x = Math.max(-0.85, Math.min(0.85, p.pitch || 0));
+                }
                 scene.add(av.group);
                 remotePlayers[p.id] = {
                     ...av,
@@ -2612,6 +2626,7 @@
                     ty: p.y || 0.02,
                     tz: p.z || 3.45,
                     tyaw: p.yaw || 0,
+                    tpitch: p.pitch || 0,
                     walking: !!p.walking
                 };
             } else {
@@ -2620,6 +2635,7 @@
                 rp.ty = p.y;
                 rp.tz = p.z;
                 rp.tyaw = p.yaw;
+                rp.tpitch = p.pitch || 0;
                 rp.walking = !!p.walking;
             }
         }

@@ -55,6 +55,7 @@ if ($action === 'leave' && $id !== '') {
         'y' => round((float)($input['y'] ?? 0.0), 3),
         'z' => round((float)($input['z'] ?? 3.4), 3),
         'yaw' => round((float)($input['yaw'] ?? 0.42), 3),
+        'pitch' => round((float)($input['pitch'] ?? 0.0), 3),
         'walking' => !empty($input['walking']),
         'inFps' => !empty($input['inFps']),
         'lastSeen' => $now
@@ -80,3 +81,4 @@ echo json_encode([
     'online' => count($players),
     'players' => $others
 ]);
+
