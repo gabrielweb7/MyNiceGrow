@@ -18,6 +18,7 @@
     let acVaneMat, acLedMat;
     let frontWallGroup; // Parede frontal + porta (visível apenas no modo FPS)
     const mushrooms = []; // Cogumelos animados (pin -> crescimento -> flush -> reinício)
+    const mushrooms = []; // Cogumelos animados (pin -> crescimento -> flush -> reinício)
 
     // Partículas persistentes DENTRO da estufa (homogêneas em todas as prateleiras)
     const GROW_COUNT = 320;
@@ -549,18 +550,22 @@
 
         growPoints.material.size += ((state.umid ? 0.25 : 0.16) - growPoints.material.size) * 0.08;
 
+        const tentActive = state.vento || state.exaust || state.umid;
+        const tentCurl = tentActive ? 0.0012 : 0.00018;
+        const tentDamp = tentActive ? 0.95 : 0.91;
+
         for (let i = 0; i < GROW_COUNT; i++) {
             const p = growParticles[i];
             const lx = p.x - GX;
             const lz = p.z - GZ;
 
-            // Turbulência curl contínua
-            p.vx += Math.sin(p.y * 2.5 + simTime) * Math.cos(lz * 2.3 + simTime * 0.7) * 0.0014;
-            p.vy += Math.sin(lx * 2.4 + simTime * 0.8) * 0.0010;
-            p.vz += Math.cos(p.y * 2.3 - simTime) * Math.sin(lx * 2.5 + simTime * 0.6) * 0.0014;
+            // Turbulência curl contínua (suave em repouso, intensa com vento/exaustor/névoa)
+            p.vx += Math.sin(p.y * 2.5 + simTime) * Math.cos(lz * 2.3 + simTime * 0.7) * tentCurl;
+            p.vy += Math.sin(lx * 2.4 + simTime * 0.8) * (tentCurl * 0.7);
+            p.vz += Math.cos(p.y * 2.3 - simTime) * Math.sin(lx * 2.5 + simTime * 0.6) * tentCurl;
 
             // Empuxo térmico suave (evita acumular tudo no teto quando vento está desligado)
-            p.vy += (p.temp - state.tempInt) * 0.00035;
+            p.vy += (p.temp - state.tempInt) * (tentActive ? 0.00030 : 0.00010);
 
             // Ventilador Interno (vórtice interno)
             if (state.vento) {
@@ -584,7 +589,7 @@
                 }
             }
 
-            p.vx *= 0.95; p.vy *= 0.95; p.vz *= 0.95;
+            p.vx *= tentDamp; p.vy *= tentDamp; p.vz *= tentDamp;
             p.x += p.vx; p.y += p.vy; p.z += p.vz;
 
             const localGoal = state.tempInt + (p.y > 1.8 ? topHeatBonus : 0);
@@ -637,20 +642,26 @@
         const topExX = GX + 0.05, topExY = H + 0.15, topExZ = GZ - 0.20;
         const ductOutX = GX - halfW - 0.36, ductOutY = 0.16, ductOutZ = GZ + 0.35;
 
+        const roomActive = state.ar || state.exaust;
+        const roomCurl = roomActive ? 0.00065 : 0.00009;
+        const roomTime = roomActive ? simTime : simTime * 0.25;
+        const roomDamp = roomActive ? 0.96 : 0.90;
+        const roomTail = roomActive ? 5.5 : 1.8;
+
         for (let i = 0; i < ROOM_COUNT; i++) {
             const p = roomParticles[i];
 
-            // 1. Turbulência curl 3D homogênea + leve restauração espacial para não aglomerar nos cantos
-            p.vx += Math.sin(p.y * 1.4 + simTime * 0.9) * Math.cos(p.z * 1.2 + simTime * 0.6) * 0.0012;
-            p.vy += Math.sin(p.x * 1.1 + simTime * 0.7) * Math.cos(p.z * 1.1 + simTime * 0.5) * 0.0009;
-            p.vz += Math.cos(p.y * 1.3 - simTime * 0.8) * Math.sin(p.x * 1.2 + simTime * 0.5) * 0.0012;
-            p.vx += (p.homeX - p.x) * 0.00025;
-            p.vy += (p.homeY - p.y) * 0.00025;
-            p.vz += (p.homeZ - p.z) * 0.00025;
+            // 1. Convecção natural calma em repouso; turbulência apenas quando AC ou Exaustor estão ligados
+            p.vx += Math.sin(p.y * 1.4 + roomTime * 0.9) * Math.cos(p.z * 1.2 + roomTime * 0.6) * roomCurl;
+            p.vy += Math.sin(p.x * 1.1 + roomTime * 0.7) * Math.cos(p.z * 1.1 + roomTime * 0.5) * (roomCurl * 0.75);
+            p.vz += Math.cos(p.y * 1.3 - roomTime * 0.8) * Math.sin(p.x * 1.2 + roomTime * 0.5) * roomCurl;
+            p.vx += (p.homeX - p.x) * (roomActive ? 0.00025 : 0.00012);
+            p.vy += (p.homeY - p.y) * (roomActive ? 0.00025 : 0.00012);
+            p.vz += (p.homeZ - p.z) * (roomActive ? 0.00025 : 0.00012);
 
             // 2. Empuxo térmico relativo à temperatura real do quarto
             const refTempY = state.tempExt + (p.y / 3.4 - 0.5) * 0.35;
-            p.vy += (p.temp - refTempY) * 0.00040;
+            p.vy += (p.temp - refTempY) * (roomActive ? 0.00035 : 0.00008);
 
             // 3. Fonte térmica da janela (condução leve na parede esquerda)
             if (p.x < -2.0 && p.y > 0.8 && p.y < 2.3 && Math.abs(p.z + 0.35) < 0.9) {
@@ -718,7 +729,7 @@
             const goalRoom = (state.tempExt - acCoolSpread) + (p.y / 3.4 - 0.5) * 0.6;
             p.temp += (goalRoom - p.temp) * (state.ar ? 0.025 : 0.015);
 
-            p.vx *= 0.96; p.vy *= 0.96; p.vz *= 0.96;
+            p.vx *= roomDamp; p.vy *= roomDamp; p.vz *= roomDamp;
             p.x += p.vx; p.y += p.vy; p.z += p.vz;
 
             // Colisão com paredes, piso e teto do quarto
@@ -749,7 +760,7 @@
             roomCol[i * 3] = r; roomCol[i * 3 + 1] = g; roomCol[i * 3 + 2] = b;
 
             // Vetor de linha de fluxo (cauda proporcional à velocidade real)
-            const tail = 5.5;
+            const tail = roomTail;
             roomLinePos[i * 6] = p.x;
             roomLinePos[i * 6 + 1] = p.y;
             roomLinePos[i * 6 + 2] = p.z;
