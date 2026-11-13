@@ -17,13 +17,13 @@
     let ventoHelice, exaustHelice;
     let acVaneMat, acLedMat;
 
-    // Partículas persistentes DENTRO da estufa (conservação de massa, nunca somem)
-    const GROW_COUNT = 280;
+    // Partículas persistentes DENTRO da estufa (homogêneas em todas as prateleiras)
+    const GROW_COUNT = 320;
     let growPoints, growPos, growCol;
     const growParticles = [];
 
-    // Partículas + Linhas de Fluxo CFD no QUARTO INTEIRO
-    const ROOM_COUNT = 520;
+    // Partículas + Linhas de Fluxo CFD homogêneas no QUARTO INTEIRO
+    const ROOM_COUNT = 640;
     let roomPoints, roomPos, roomCol;
     let roomLines, roomLinePos, roomLineCol;
     const roomParticles = [];
@@ -67,23 +67,27 @@
     const halfW = W / 2, halfD = D / 2;
 
     function tempToRGB(t, isMist) {
-        const clamped = Math.max(19.0, Math.min(31.0, t));
+        const clamped = Math.max(20.0, Math.min(30.5, t));
         let r, g, b;
         if (clamped <= 23.0) {
-            const u = (clamped - 19.0) / 4.0;
-            r = 0.12 + 0.08 * u; g = 0.55 + 0.32 * u; b = 1.0;
-        } else if (clamped <= 26.0) {
-            const u = (clamped - 23.0) / 3.0;
-            r = 0.20 * (1 - u) + 0.16 * u; g = 0.87; b = 1.0 * (1 - u) + 0.48 * u;
-        } else if (clamped <= 28.0) {
-            const u = (clamped - 26.0) / 2.0;
-            r = 0.16 + 0.82 * u; g = 0.87 - 0.12 * u; b = 0.48 * (1 - u) + 0.12 * u;
+            // Azul gelado -> Ciano frio
+            const u = (clamped - 20.0) / 3.0;
+            r = 0.06 + 0.08 * u; g = 0.58 + 0.30 * u; b = 1.0;
+        } else if (clamped <= 26.2) {
+            // Ciano -> Verde esmeralda ideal
+            const u = (clamped - 23.0) / 3.2;
+            r = 0.14 * (1 - u) + 0.08 * u; g = 0.88 * (1 - u) + 0.85 * u; b = 1.0 * (1 - u) + 0.45 * u;
+        } else if (clamped <= 27.8) {
+            // Verde -> Amarelo/Âmbar atenção
+            const u = (clamped - 26.2) / 1.6;
+            r = 0.08 + 0.90 * u; g = 0.85 - 0.15 * u; b = 0.45 * (1 - u) + 0.08 * u;
         } else {
-            const u = (clamped - 28.0) / 3.0;
-            r = 0.98; g = 0.75 - 0.50 * u; b = 0.12 + 0.14 * u;
+            // Âmbar -> Vermelho calor crítico
+            const u = (clamped - 27.8) / 2.7;
+            r = 0.98; g = 0.70 - 0.48 * u; b = 0.08 + 0.10 * u;
         }
         if (isMist) {
-            r = r * 0.55 + 0.45; g = g * 0.55 + 0.45; b = b * 0.55 + 0.45;
+            r = r * 0.62 + 0.38; g = g * 0.62 + 0.38; b = b * 0.62 + 0.38;
         }
         return [r, g, b];
     }
@@ -453,38 +457,45 @@
         }));
         scene.add(growPoints);
 
-        // 2. Fluido no Quarto INTEIRO (convecção térmica real, jato/retorno do AC Split, janela e duto)
+        // 2. Fluido homogêneo no Quarto INTEIRO (grade 3D estratificada + jitter para cobertura uniforme)
         const rGeo = new THREE.BufferGeometry();
         roomPos = new Float32Array(ROOM_COUNT * 3);
         roomCol = new Float32Array(ROOM_COUNT * 3);
-        for (let i = 0; i < ROOM_COUNT; i++) {
-            let rx = -2.45 + Math.random() * 5.6;
-            let ry = 0.12 + Math.random() * 3.1;
-            let rz = -1.95 + Math.random() * 3.8;
-            // Evita nascer dentro da estufa
-            if (rx > GX - halfW - 0.08 && rx < GX + halfW + 0.08 && rz > GZ - halfD - 0.08 && rz < GZ + halfD + 0.08 && ry < H + 0.05) {
-                rx = 0.75 + Math.random() * 2.2;
+        const nx = 10, ny = 8, nz = 8; // 10 * 8 * 8 = 640 partículas homogêneas
+        let idx = 0;
+        for (let ix = 0; ix < nx; ix++) {
+            for (let iy = 0; iy < ny; iy++) {
+                for (let iz = 0; iz < nz; iz++) {
+                    let rx = -2.38 + ((ix + 0.5) / nx) * 5.65 + (Math.random() - 0.5) * 0.32;
+                    let ry = 0.18 + ((iy + 0.5) / ny) * 3.05 + (Math.random() - 0.5) * 0.22;
+                    let rz = -1.88 + ((iz + 0.5) / nz) * 3.95 + (Math.random() - 0.5) * 0.30;
+                    if (rx > GX - halfW - 0.08 && rx < GX + halfW + 0.08 && rz > GZ - halfD - 0.08 && rz < GZ + halfD + 0.08 && ry < H + 0.05) {
+                        rx = (rx < GX) ? (GX - halfW - 0.22) : (GX + halfW + 0.22);
+                    }
+                    const p = {
+                        homeX: rx, homeY: ry, homeZ: rz,
+                        x: rx, y: ry, z: rz,
+                        vx: (Math.random() - 0.5) * 0.006,
+                        vy: (Math.random() - 0.5) * 0.004,
+                        vz: (Math.random() - 0.5) * 0.006,
+                        temp: state.tempExt
+                    };
+                    roomParticles.push(p);
+                    roomPos[idx * 3] = p.x; roomPos[idx * 3 + 1] = p.y; roomPos[idx * 3 + 2] = p.z;
+                    const [r, g, b] = tempToRGB(p.temp, false);
+                    roomCol[idx * 3] = r; roomCol[idx * 3 + 1] = g; roomCol[idx * 3 + 2] = b;
+                    idx++;
+                }
             }
-            const p = {
-                x: rx, y: ry, z: rz,
-                vx: (Math.random() - 0.5) * 0.008,
-                vy: (Math.random() - 0.5) * 0.006,
-                vz: (Math.random() - 0.5) * 0.008,
-                temp: state.tempExt + (ry / 3.2 - 0.5) * 1.2
-            };
-            roomParticles.push(p);
-            roomPos[i * 3] = p.x; roomPos[i * 3 + 1] = p.y; roomPos[i * 3 + 2] = p.z;
-            const [r, g, b] = tempToRGB(p.temp, false);
-            roomCol[i * 3] = r; roomCol[i * 3 + 1] = g; roomCol[i * 3 + 2] = b;
         }
         rGeo.setAttribute('position', new THREE.BufferAttribute(roomPos, 3));
         rGeo.setAttribute('color', new THREE.BufferAttribute(roomCol, 3));
         roomPoints = new THREE.Points(rGeo, new THREE.PointsMaterial({
-            size: 0.13,
+            size: 0.20,
             map: tex,
             vertexColors: true,
             transparent: true,
-            opacity: 0.55,
+            opacity: 0.48,
             depthWrite: false
         }));
         scene.add(roomPoints);
@@ -600,14 +611,17 @@
         for (let i = 0; i < ROOM_COUNT; i++) {
             const p = roomParticles[i];
 
-            // 1. Turbulência curl 3D no volume do quarto (mantém o ar distribuído em 3D)
-            p.vx += Math.sin(p.y * 1.4 + simTime * 0.9) * Math.cos(p.z * 1.2 + simTime * 0.6) * 0.0014;
-            p.vy += Math.sin(p.x * 1.1 + simTime * 0.7) * Math.cos(p.z * 1.1 + simTime * 0.5) * 0.0011;
-            p.vz += Math.cos(p.y * 1.3 - simTime * 0.8) * Math.sin(p.x * 1.2 + simTime * 0.5) * 0.0014;
+            // 1. Turbulência curl 3D homogênea + leve restauração espacial para não aglomerar nos cantos
+            p.vx += Math.sin(p.y * 1.4 + simTime * 0.9) * Math.cos(p.z * 1.2 + simTime * 0.6) * 0.0012;
+            p.vy += Math.sin(p.x * 1.1 + simTime * 0.7) * Math.cos(p.z * 1.1 + simTime * 0.5) * 0.0009;
+            p.vz += Math.cos(p.y * 1.3 - simTime * 0.8) * Math.sin(p.x * 1.2 + simTime * 0.5) * 0.0012;
+            p.vx += (p.homeX - p.x) * 0.00025;
+            p.vy += (p.homeY - p.y) * 0.00025;
+            p.vz += (p.homeZ - p.z) * 0.00025;
 
-            // 2. Empuxo térmico relativo à média local (não cola tudo no chão!)
-            const refTempY = state.tempExt + (p.y / 3.4 - 0.5) * 0.4;
-            p.vy += (p.temp - refTempY) * 0.00045;
+            // 2. Empuxo térmico relativo à temperatura real do quarto
+            const refTempY = state.tempExt + (p.y / 3.4 - 0.5) * 0.35;
+            p.vy += (p.temp - refTempY) * 0.00040;
 
             // 3. Fonte térmica da janela (condução leve na parede esquerda)
             if (p.x < -2.0 && p.y > 0.8 && p.y < 2.3 && Math.abs(p.z + 0.35) < 0.9) {
@@ -670,9 +684,10 @@
                 }
             }
 
-            // Difusão térmica natural com o ambiente do quarto
-            const goalRoom = state.ar ? (state.tempExt - 1.5 + (p.y / 3.4) * 1.4) : (state.tempExt + (p.y / 3.4 - 0.5) * 0.8);
-            p.temp += (goalRoom - p.temp) * 0.008;
+            // Difusão térmica em tempo real: acompanha tempExt do quarto e gela progressivamente quando AC liga!
+            const acCoolSpread = state.ar ? (1.8 + Math.max(0, 1.0 - (p.x + 2.4) * 0.18) * 1.4) : 0.0;
+            const goalRoom = (state.tempExt - acCoolSpread) + (p.y / 3.4 - 0.5) * 0.6;
+            p.temp += (goalRoom - p.temp) * (state.ar ? 0.025 : 0.015);
 
             p.vx *= 0.96; p.vy *= 0.96; p.vz *= 0.96;
             p.x += p.vx; p.y += p.vy; p.z += p.vz;
