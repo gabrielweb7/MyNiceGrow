@@ -62,7 +62,7 @@ function calcularProjecaoTermica({
         const FAE_LEN = 18;
         const duracoesCicloMin = [], coolRatesObs = [], dropsObs = [], roomCoolRatesObs = [], roomDropsObs = [], minRoomTempsObs = [];
         const roomReboundFastObs = [], roomReboundSlowObs = [], growWarmRatesObs = [], sifaoMixRatesObs = [];
-        const humExaustRatesObs = [], humUmidRiseObs = [], humArRatesObs = [];
+        const humExaustRatesObs = [], humUmidRiseObs = [];
         const roomCeilingObs = [], newtonRoomPairs = [];
         const hourOffsetSum = new Array(24).fill(0), hourOffsetW = new Array(24).fill(0);
         const sumFaeDelta = new Array(FAE_LEN + 1).fill(0);
@@ -216,9 +216,6 @@ function calcularProjecaoTermica({
                         } else if (!exOn && !prevEx && umOn && prevUm && prevHi < 97.5 && hItem > prevHi) {
                             const rUp = (hItem - prevHi) / dtM;
                             if (rUp > 0.5 && rUp < 9.0) humUmidRiseObs.push(rUp);
-                        } else if (arOn && prevAr && !exOn && !prevEx && !umOn && !prevUm && hItem < prevHi) {
-                            const rArDrop = (prevHi - hItem) / dtM;
-                            if (rArDrop > 0.02 && rArDrop < 0.85) humArRatesObs.push(rArDrop);
                         }
                     }
                 }
@@ -452,7 +449,6 @@ function calcularProjecaoTermica({
         const kSifaoMix = calcMediana(sifaoMixRatesObs, 0.11, 0.04, 0.25);
         const kHumExaust = calcMediana(humExaustRatesObs, 0.082, 0.035, 0.22);
         const rHumUmidUp = calcMediana(humUmidRiseObs, 3.6, 1.4, 7.5);
-        const rHumArDrop = calcMediana(humArRatesObs, 0.12, 0.03, 0.55);
         const avgDropPostMeta = dropsObs.length > 0
             ? Math.max(0.5, Math.min(1.4, calcMediana(dropsObs, 1.2, 0.4, 3.0) * 0.45))
             : 0.7;
@@ -744,8 +740,6 @@ function calcularProjecaoTermica({
             } else if (isUmidOn) {
                 const fatorTopo = simHumInt > 96.5 ? Math.max(0.35, (100.2 - simHumInt) / 3.7) : 1.0;
                 simHumInt = Math.min(100.0, simHumInt + (rHumUmidUp * fatorTopo) * subDtMin);
-            } else if (simArOn) {
-                simHumInt = Math.max(70.0, simHumInt - rHumArDrop * subDtMin);
             } else {
                 simHumInt += (uAlvoSim - simHumInt) * Math.min(1, 0.04 * subDtMin);
             }
