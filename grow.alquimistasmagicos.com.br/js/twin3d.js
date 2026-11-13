@@ -29,6 +29,8 @@
     const pickableItems = [];
     const shelfUnits = [];
     let snapPreviewMesh = null;
+    let hoverAuraGroup = null, hoverAuraMat = null, hoverEdgeMat = null;
+    let hoverRay = null, hoverCenter = null, hoverBox = null, hoverSize = null, hoverPos = null;
     let lastSnapTarget = null;
     let pendingDroppedRock = null;
     const pendingDroppedItems = [];
@@ -2363,7 +2365,31 @@
             } else {
                 lastSnapTarget = null;
                 if (snapPreviewMesh) snapPreviewMesh.visible = false;
+                if (hoverAuraGroup && hoverRay) {
+                    hoverRay.setFromCamera(hoverCenter, camera);
+                    const hits = interactiveMeshes.length ? hoverRay.intersectObjects(interactiveMeshes, false) : [];
+                    let target = null;
+                    if (hits.length && hits[0].distance < 7.5) {
+                        const hObj = hits[0].object;
+                        target = hObj.userData.pickRoot || (hObj.userData.isPickable ? hObj : (hObj.userData.equipId === 'porta' ? roomDoorPivot : null));
+                    }
+                    if (target) {
+                        hoverBox.setFromObject(target);
+                        hoverBox.getSize(hoverSize);
+                        hoverBox.getCenter(hoverPos);
+                        hoverAuraGroup.position.copy(hoverPos);
+                        hoverAuraGroup.scale.set(hoverSize.x + 0.05, hoverSize.y + 0.05, hoverSize.z + 0.05);
+                        const pulse = 0.5 + 0.5 * Math.sin(simTime * 5.2);
+                        hoverAuraMat.opacity = 0.11 + pulse * 0.09;
+                        hoverEdgeMat.opacity = 0.42 + pulse * 0.36;
+                        hoverAuraGroup.visible = true;
+                    } else {
+                        hoverAuraGroup.visible = false;
+                    }
+                }
             }
+
+            if (heldRock && hoverAuraGroup) hoverAuraGroup.visible = false;
 
             if (typeof window.onTwinDoorHint === 'function') {
                 const dPorta = Math.hypot(cam.fpsX - 2.25, cam.fpsZ - 2.45);
@@ -2372,6 +2398,7 @@
         } else {
             if (fpsHandsGroup) fpsHandsGroup.visible = false;
             if (snapPreviewMesh) snapPreviewMesh.visible = false;
+            if (hoverAuraGroup) hoverAuraGroup.visible = false;
             if (cam.autoRotate && !cam.dragging) cam.targetTheta += 0.003;
             cam.theta += (cam.targetTheta - cam.theta) * 0.12;
             cam.phi += (cam.targetPhi - cam.phi) * 0.12;
@@ -2781,6 +2808,20 @@
         snapPreviewMesh.rotation.x = -Math.PI / 2;
         snapPreviewMesh.visible = false;
         scene.add(snapPreviewMesh);
+
+        hoverRay = new THREE.Raycaster();
+        hoverCenter = new THREE.Vector2(0, 0);
+        hoverBox = new THREE.Box3();
+        hoverSize = new THREE.Vector3();
+        hoverPos = new THREE.Vector3();
+        hoverAuraGroup = new THREE.Group();
+        hoverAuraMat = new THREE.MeshBasicMaterial({ color: 0x38bdf8, transparent: true, opacity: 0.15, depthWrite: false });
+        const auraBoxGeo = new THREE.BoxGeometry(1, 1, 1);
+        hoverAuraGroup.add(new THREE.Mesh(auraBoxGeo, hoverAuraMat));
+        hoverEdgeMat = new THREE.LineBasicMaterial({ color: 0x7dd3fc, transparent: true, opacity: 0.6 });
+        hoverAuraGroup.add(new THREE.LineSegments(new THREE.EdgesGeometry(auraBoxGeo), hoverEdgeMat));
+        hoverAuraGroup.visible = false;
+        scene.add(hoverAuraGroup);
 
         const keyLight = new THREE.DirectionalLight(0xfff1d6, 1.28);
         keyLight.position.set(32, 42, -55);
