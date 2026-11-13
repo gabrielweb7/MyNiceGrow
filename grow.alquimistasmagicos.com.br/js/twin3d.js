@@ -1792,14 +1792,14 @@
 
         el.addEventListener('pointerdown', (e) => {
             if (e.isPrimary === false) return;
+            cam.downX = e.clientX; cam.downY = e.clientY;
+            cam.lastX = e.clientX; cam.lastY = e.clientY;
             if (cam.mode === 'fps' && e.pointerType === 'touch') return;
             if (cam.mode === 'fps' && e.pointerType === 'mouse' && document.pointerLockElement !== el && el.requestPointerLock) {
                 try { el.requestPointerLock(); } catch (err) {}
             }
             cam.dragging = true;
             cam.pinchDist = 0;
-            cam.downX = e.clientX; cam.downY = e.clientY;
-            cam.lastX = e.clientX; cam.lastY = e.clientY;
         });
         document.addEventListener('pointerlockchange', () => {
             const locked = document.pointerLockElement === el;
@@ -1839,9 +1839,10 @@
         window.addEventListener('pointerup', (e) => {
             const wasDragging = cam.dragging;
             cam.dragging = false;
-            if (!wasDragging || e.target !== el) return;
+            const isTouchFpsTap = cam.mode === 'fps' && e.pointerType === 'touch';
+            if ((!wasDragging && !isTouchFpsTap) || !el.contains(e.target)) return;
             const moved = Math.hypot(e.clientX - cam.downX, e.clientY - cam.downY);
-            if (moved < 6) {
+            if (moved < (e.pointerType === 'touch' ? 12 : 6)) {
                 if (cam.mode === 'fps' && heldRock) {
                     heldRock.userData.velY = 0;
                     fallingRocks.push(heldRock);
@@ -2047,7 +2048,7 @@
                 cam.fpsGrounded = true;
             }
             const walking = (mx !== 0 || mz !== 0);
-            const bobFreq = isSprinting ? 12.5 : 7.5;
+            const bobFreq = cam.keys.shift ? 12.5 : 7.5;
             const bob = (walking && cam.fpsGrounded) ? Math.sin(simTime * bobFreq) * 0.028 : 0;
 
             camera.position.set(cam.fpsX, cam.fpsY + bob, cam.fpsZ);

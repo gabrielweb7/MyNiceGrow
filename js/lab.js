@@ -614,7 +614,11 @@ window.onTwinDoorHint = function (near, isOpen) {
     const dp = document.getElementById('twinDoorPrompt');
     if (!dp) return;
     dp.classList.toggle('hidden', !near);
-    if (near) dp.textContent = isOpen ? '🚪 Fechar Porta (E)' : '🚪 Abrir Porta (E)';
+    if (near) {
+        dp.textContent = isMobileTouch()
+            ? (isOpen ? '🚪 Toque na porta p/ Fechar' : '🚪 Toque na porta p/ Abrir')
+            : (isOpen ? '🚪 Fechar Porta (E)' : '🚪 Abrir Porta (E)');
+    }
 };
 
 window.onTwinPointerLockChange = function (locked) {
