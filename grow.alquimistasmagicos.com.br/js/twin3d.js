@@ -90,7 +90,8 @@
             r = 0.98; g = 0.70 - 0.48 * u; b = 0.08 + 0.10 * u;
         }
         if (isMist) {
-            r = r * 0.62 + 0.38; g = g * 0.62 + 0.38; b = b * 0.62 + 0.38;
+            // Azul clarinho representando vapor d'água do umidificador
+            return [0.52, 0.88, 1.0];
         }
         return [r, g, b];
     }
@@ -541,10 +542,12 @@
         growPos = new Float32Array(GROW_COUNT * 3);
         growCol = new Float32Array(GROW_COUNT * 3);
         for (let i = 0; i < GROW_COUNT; i++) {
+            const gx0 = GX + (Math.random() - 0.5) * (W * 0.85);
+            const gy0 = 0.15 + Math.random() * (H - 0.3);
+            const gz0 = GZ + (Math.random() - 0.5) * (D * 0.82);
             const p = {
-                x: GX + (Math.random() - 0.5) * (W * 0.85),
-                y: 0.15 + Math.random() * (H - 0.3),
-                z: GZ + (Math.random() - 0.5) * (D * 0.82),
+                homeX: gx0, homeY: gy0, homeZ: gz0,
+                x: gx0, y: gy0, z: gz0,
                 vx: 0, vy: 0, vz: 0,
                 temp: state.tempInt,
                 mist: false
@@ -627,44 +630,48 @@
         simTime += 0.025;
         const topHeatBonus = state.luz ? 1.1 : 0.0;
 
-        growPoints.material.size += ((state.umid ? 0.25 : 0.16) - growPoints.material.size) * 0.08;
+        growPoints.material.size += ((state.umid ? 0.22 : 0.16) - growPoints.material.size) * 0.08;
 
-        const tentActive = state.vento || state.exaust || state.umid;
-        const tentCurl = tentActive ? 0.0012 : 0.00018;
-        const tentDamp = tentActive ? 0.95 : 0.91;
+        const tentAirflow = state.vento || state.exaust;
+        const tentCurl = tentAirflow ? 0.00055 : (state.umid ? 0.00028 : 0.00009);
+        const tentTime = tentAirflow ? simTime : (state.umid ? simTime * 0.5 : simTime * 0.25);
+        const tentDamp = tentAirflow ? 0.95 : (state.umid ? 0.94 : 0.90);
 
         for (let i = 0; i < GROW_COUNT; i++) {
             const p = growParticles[i];
             const lx = p.x - GX;
             const lz = p.z - GZ;
 
-            // Turbulência curl contínua (suave em repouso, intensa com vento/exaustor/névoa)
-            p.vx += Math.sin(p.y * 2.5 + simTime) * Math.cos(lz * 2.3 + simTime * 0.7) * tentCurl;
-            p.vy += Math.sin(lx * 2.4 + simTime * 0.8) * (tentCurl * 0.7);
-            p.vz += Math.cos(p.y * 2.3 - simTime) * Math.sin(lx * 2.5 + simTime * 0.6) * tentCurl;
+            // Ar suspenso em repouso; corrente suave quando umidificador/exaustor/vento ligam
+            p.vx += Math.sin(p.y * 2.5 + tentTime) * Math.cos(lz * 2.3 + tentTime * 0.7) * tentCurl;
+            p.vy += Math.sin(lx * 2.4 + tentTime * 0.8) * (tentCurl * 0.7);
+            p.vz += Math.cos(p.y * 2.3 - tentTime) * Math.sin(lx * 2.5 + tentTime * 0.6) * tentCurl;
+            p.vx += (p.homeX - p.x) * (tentAirflow ? 0.00008 : 0.00014);
+            p.vy += (p.homeY - p.y) * (tentAirflow ? 0.00008 : 0.00014);
+            p.vz += (p.homeZ - p.z) * (tentAirflow ? 0.00008 : 0.00014);
 
-            // Empuxo térmico suave (evita acumular tudo no teto quando vento está desligado)
-            p.vy += (p.temp - state.tempInt) * (tentActive ? 0.00030 : 0.00010);
+            // Empuxo térmico suave
+            p.vy += (p.temp - state.tempInt) * (tentAirflow ? 0.00020 : 0.00007);
 
-            // Ventilador Interno (vórtice interno)
+            // Ventilador Interno (vórtice interno suave)
             if (state.vento) {
                 const dist = Math.hypot(lx, lz) + 0.06;
-                p.vx += (-lz / dist) * 0.0042;
-                p.vz += (lx / dist) * 0.0042;
+                p.vx += (-lz / dist) * 0.0024;
+                p.vz += (lx / dist) * 0.0024;
             }
 
             // Exaustor no TOPO empurra ar de cima para baixo, e o ar sai pelo duto INFERIOR ESQUERDO!
             if (state.exaust) {
-                p.vy -= 0.0042; // Downwash de cima para baixo
+                p.vy -= 0.0022; // Downwash tranquilo de cima para baixo
                 // Atrai em direção ao duto inferior esquerdo (-halfW, 0.16, 0.35)
                 if (p.y < 0.75) {
                     const dx = (-halfW - 0.15) - lx;
                     const dy = 0.16 - p.y;
                     const dz = 0.35 - lz;
                     const d = Math.hypot(dx, dy, dz) + 0.15;
-                    p.vx += (dx / d) * 0.0065;
-                    p.vy += (dy / d) * 0.0055;
-                    p.vz += (dz / d) * 0.0065;
+                    p.vx += (dx / d) * 0.0036;
+                    p.vy += (dy / d) * 0.0030;
+                    p.vz += (dz / d) * 0.0036;
                 }
             }
 
@@ -685,14 +692,14 @@
                 p.temp = state.tempExt;
                 p.mist = false;
             } else {
-                // Se umidificador ligado, parte das partículas reciclam na mangueira amarela (topo direito)
-                if (state.umid && Math.random() < 0.015) {
+                // Se umidificador ligado, névoa azul clarinha sai bem devagar da mangueira amarela (topo direito)
+                if (state.umid && Math.random() < 0.008) {
                     p.x = GX + halfW - 0.12;
                     p.y = 2.12;
                     p.z = GZ + 0.15;
-                    p.vx = -(0.015 + Math.random() * 0.01);
-                    p.vy = -(0.012 + Math.random() * 0.01);
-                    p.vz = (Math.random() - 0.5) * 0.012;
+                    p.vx = -(0.004 + Math.random() * 0.003);
+                    p.vy = -(0.005 + Math.random() * 0.004);
+                    p.vz = (Math.random() - 0.5) * 0.003;
                     p.temp = state.tempInt - 0.7;
                     p.mist = true;
                 }
