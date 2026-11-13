@@ -448,7 +448,7 @@
         room.add(tub);
 
         room.traverse(obj => {
-            if (obj.isMesh && obj !== floor && obj !== backWall && obj !== leftWall && obj !== rightWall && obj !== ceiling && obj !== frontWall) {
+            if (obj.isMesh && obj !== floor && obj !== backWall && obj !== leftWall && obj !== rightWall && obj !== ceiling && obj !== fwLeft && obj !== fwRight && obj !== fwTop) {
                 obj.castShadow = true;
                 obj.receiveShadow = true;
             }
@@ -1471,6 +1471,9 @@
         trunkInst.count = treeCount;
         pineInst1.count = treeCount;
         pineInst2.count = treeCount;
+        trunkInst.instanceMatrix.needsUpdate = true;
+        pineInst1.instanceMatrix.needsUpdate = true;
+        pineInst2.instanceMatrix.needsUpdate = true;
         world.add(trunkInst);
         world.add(pineInst1);
         world.add(pineInst2);
@@ -1834,7 +1837,7 @@
             const targetConeOp = state.luz ? (0.075 + wetness * 0.035 + Math.sin(simTime * 2.1) * 0.006) : 0.0;
             ledConeMat.opacity += (targetConeOp - ledConeMat.opacity) * 0.12;
         }
-        ambientLight.intensity += ((state.luz ? 0.62 : 0.74) - ambientLight.intensity) * 0.08;
+        ambientLight.intensity += ((state.luz ? 0.48 : 0.56) - ambientLight.intensity) * 0.08;
         acVaneMat.emissiveIntensity = state.ar ? 0.85 : 0.05;
         acLedMat.color.setHex(state.ar ? 0x38bdf8 : 0x475569);
         if (acVanePivot) {

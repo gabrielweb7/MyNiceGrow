@@ -22,7 +22,11 @@ const simReles = { luz: false, umid: false, vento: false, exaust: false, ar: fal
 document.addEventListener('DOMContentLoaded', () => {
     carregarPrefsAnalytics();
     if (window.initTwin3D) {
-        window.initTwin3D(document.getElementById('twin3dContainer'));
+        try {
+            window.initTwin3D(document.getElementById('twin3dContainer'));
+        } catch (err) {
+            console.error('Erro ao inicializar Twin3D:', err);
+        }
     }
     carregarLab(30);
     atualizarConsoleAoVivo();
