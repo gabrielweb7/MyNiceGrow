@@ -1937,8 +1937,8 @@
                     if (t.identifier === lookTouchId) {
                         const dx = t.clientX - lookLastX;
                         const dy = t.clientY - lookLastY;
-                        cam.fpsYaw -= dx * 0.0042;
-                        cam.fpsPitch = Math.max(-1.1, Math.min(1.1, cam.fpsPitch - dy * 0.0036));
+                        cam.fpsYaw -= dx * 0.0048;
+                        cam.fpsPitch = Math.max(-1.1, Math.min(1.1, cam.fpsPitch - dy * 0.0042));
                         lookLastX = t.clientX;
                         lookLastY = t.clientY;
                     }
