@@ -457,6 +457,71 @@ function toggleAutoRotUI() {
     }
 }
 
+let twinCssFullscreen = false;
+
+function syncTwinFullscreenUI() {
+    const card = document.getElementById('twinCanvasCard');
+    const cont = document.getElementById('twin3dContainer');
+    const btn = document.getElementById('btnTwinFullscreen');
+    const ativo = !!document.fullscreenElement || twinCssFullscreen;
+
+    if (card) {
+        card.classList.toggle('fixed', twinCssFullscreen && !document.fullscreenElement);
+        card.classList.toggle('inset-0', twinCssFullscreen && !document.fullscreenElement);
+        card.classList.toggle('z-50', twinCssFullscreen && !document.fullscreenElement);
+        card.classList.toggle('rounded-none', ativo);
+        card.classList.toggle('rounded-2xl', !ativo);
+    }
+    if (cont) {
+        cont.classList.toggle('h-screen', ativo);
+        cont.classList.toggle('h-[360px]', !ativo);
+        cont.classList.toggle('sm:h-[460px]', !ativo);
+    }
+    if (btn) {
+        btn.textContent = ativo ? '🗗 Sair Tela Cheia' : '⛶ Tela Cheia';
+        btn.className = ativo
+            ? 'px-2.5 py-1 rounded-lg bg-emerald-500/25 border border-emerald-400/60 text-[10px] font-bold text-emerald-200'
+            : 'px-2.5 py-1 rounded-lg bg-slate-950/85 hover:bg-slate-800 border border-slate-700 text-[10px] font-bold text-slate-200';
+    }
+}
+
+async function toggleTwinFullscreen() {
+    const card = document.getElementById('twinCanvasCard');
+    if (!card) return;
+    if (document.fullscreenElement) {
+        await document.exitFullscreen().catch(() => {});
+        twinCssFullscreen = false;
+        syncTwinFullscreenUI();
+        return;
+    }
+    if (twinCssFullscreen) {
+        twinCssFullscreen = false;
+        syncTwinFullscreenUI();
+        return;
+    }
+    if (card.requestFullscreen) {
+        try {
+            await card.requestFullscreen();
+            syncTwinFullscreenUI();
+            return;
+        } catch (e) { /* fallback CSS abaixo */ }
+    }
+    twinCssFullscreen = true;
+    syncTwinFullscreenUI();
+}
+
+document.addEventListener('fullscreenchange', () => {
+    if (!document.fullscreenElement) twinCssFullscreen = false;
+    syncTwinFullscreenUI();
+});
+
+document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape' && twinCssFullscreen && !document.fullscreenElement) {
+        twinCssFullscreen = false;
+        syncTwinFullscreenUI();
+    }
+});
+
 function prepararTwin() {
     twinFrames = labData.timelapse || [];
     twinIdx = Math.max(0, twinFrames.length - 1);
