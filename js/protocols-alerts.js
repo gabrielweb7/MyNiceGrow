@@ -115,7 +115,7 @@ function atualizarStatusProtocolos(ultimo) {
             desc = "Ar Condicionado refrigerando a sala; exaustor puxando ar frio com proteção contínua de umidade.";
             cor = "text-cyan-300";
         } else {
-            const diagAc = diagnosticarCicloAcRecente(ultimo, tempMax, hvac);
+            const diagAc = diagnosticarCicloAcRecente(ultimo, tempMax, hvacCfg);
             if (diagAc && diagAc.tipo === 'ac_sem_resfriar') {
                 status = "⚠️ AC Ligado Sem Resfriar";
                 desc = diagAc.msg;
@@ -167,7 +167,7 @@ function atualizarStatusProtocolos(ultimo) {
         cor = "text-blue-300";
     } else {
         if (tI >= tempMax) {
-            const diagAc = diagnosticarCicloAcRecente(ultimo, tempMax, hvac);
+            const diagAc = diagnosticarCicloAcRecente(ultimo, tempMax, hvacCfg);
             if (diagAc && diagAc.tipo === 'ac_nao_atingiu') {
                 status = "⚠️ AC Não Atingiu a Meta";
                 desc = diagAc.msg;
@@ -178,7 +178,7 @@ function atualizarStatusProtocolos(ultimo) {
                 cor = "text-amber-400";
             }
         } else {
-            const diagAc = diagnosticarCicloAcRecente(ultimo, tempMax, hvac);
+            const diagAc = diagnosticarCicloAcRecente(ultimo, tempMax, hvacCfg);
             if (diagAc && diagAc.tipo === 'ac_nao_atingiu') {
                 status = "⚠️ AC Não Atingiu a Meta";
                 desc = diagAc.msg;
