@@ -362,9 +362,9 @@ async function salvarFormClima() {
     let uGuardaCorteVal = 88.0;
     let uRetornoAlvoVal = 1;
     let uGuardaRetornoVal = uAlvoVal;
-    let tEvapPreVal = Math.round(clampVal(document.getElementById('cfgTEvapPre') ? document.getElementById('cfgTEvapPre').value : 4, 0, 15, 4));
-    let tEvapAntVal = Math.round(clampVal(document.getElementById('cfgTEvapAnt') ? document.getElementById('cfgTEvapAnt').value : 0.3, 0.0, 1.5, 0.3) * 10) / 10;
-    let tEvapCoolVal = Math.round(clampVal(document.getElementById('cfgTEvapCool') ? document.getElementById('cfgTEvapCool').value : 45, 10, 180, 45));
+    let tEvapPreVal = 0;
+    let tEvapAntVal = 0.3;
+    let tEvapCoolVal = 45;
 
     // Atualiza os inputs na tela caso algum valor tenha sido corrigido pelo clamp
     document.getElementById('cfgTx').value = tXVal;

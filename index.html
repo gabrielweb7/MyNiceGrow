@@ -706,43 +706,7 @@
                                 </div>
                             </div>
 
-                            <!-- Pré-Resfriamento Evaporativo Inteligente (Antes do AC) -->
-                            <div class="bg-slate-950/60 border border-emerald-500/20 rounded-xl p-4 space-y-4">
-                                <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
-                                    <h4 class="text-xs font-bold text-emerald-300 uppercase tracking-wider flex items-center gap-1.5">
-                                        <span>💧🌀</span> Pré-Resfriamento Evaporativo (Antes do AC)
-                                    </h4>
-                                    <span id="badgeEvapPreAc" class="text-[11px] font-semibold px-2.5 py-1 rounded-lg bg-emerald-500/10 text-emerald-300 border border-emerald-500/25">
-                                        Testa antes de ligar o compressor
-                                    </span>
-                                </div>
-                                <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                                    <div>
-                                        <label for="cfgTEvapPre" class="text-xs text-slate-300 block mb-1.5 font-medium">Tentativa Antes do AC</label>
-                                        <div class="relative">
-                                            <input type="number" step="1" min="0" max="15" id="cfgTEvapPre" value="4" oninput="sincronizarUiEvap()" class="w-full bg-slate-900/90 text-emerald-300 text-lg font-extrabold border border-slate-700 rounded-xl p-2.5 pr-10 text-center outline-none focus:border-emerald-500 transition">
-                                            <span class="absolute right-3 top-3 text-xs text-slate-500 font-bold">min</span>
-                                        </div>
-                                        <span class="text-[11px] text-slate-400 mt-1.5 block">Segura o AC p/ testar evaporação (0 = desativa).</span>
-                                    </div>
-                                    <div>
-                                        <label for="cfgTEvapAnt" class="text-xs text-slate-300 block mb-1.5 font-medium">Antecipar Abaixo da T.Máx</label>
-                                        <div class="relative">
-                                            <input type="number" step="0.1" min="0" max="1.5" id="cfgTEvapAnt" value="0.3" oninput="sincronizarUiEvap()" class="w-full bg-slate-900/90 text-cyan-300 text-lg font-extrabold border border-slate-700 rounded-xl p-2.5 pr-8 text-center outline-none focus:border-cyan-500 transition">
-                                            <span class="absolute right-3 top-3 text-xs text-slate-500 font-bold">°C</span>
-                                        </div>
-                                        <span class="text-[11px] text-slate-400 mt-1.5 block">Começa antes de bater a máxima da fase.</span>
-                                    </div>
-                                    <div>
-                                        <label for="cfgTEvapCool" class="text-xs text-slate-300 block mb-1.5 font-medium">Pausa se Não Der Conta</label>
-                                        <div class="relative">
-                                            <input type="number" step="5" min="10" max="180" id="cfgTEvapCool" value="45" oninput="sincronizarUiEvap()" class="w-full bg-slate-900/90 text-amber-300 text-lg font-extrabold border border-slate-700 rounded-xl p-2.5 pr-10 text-center outline-none focus:border-amber-500 transition">
-                                            <span class="absolute right-3 top-3 text-xs text-slate-500 font-bold">min</span>
-                                        </div>
-                                        <span class="text-[11px] text-slate-400 mt-1.5 block">Alterna com AC e só tenta de novo após esta pausa.</span>
-                                    </div>
-                                </div>
-                            </div>
+
 
                             <!-- Ação Salvar HVAC -->
                             <div class="pt-4 border-t border-slate-800 flex flex-col sm:flex-row items-center justify-between gap-3">
@@ -963,9 +927,9 @@
 
     <!-- Módulos da Aplicação (Organizados e Otimizados) -->
     <script src="js/state-api.js?v=1.6.9" defer></script>
-    <script src="js/predictor.js?v=1.7.9" defer></script>
+    <script src="js/predictor.js?v=1.8.1" defer></script>
     <script src="js/charts.js?v=1.7.0" defer></script>
-    <script src="js/config-clima.js?v=1.7.7" defer></script>
+    <script src="js/config-clima.js?v=1.8.1" defer></script>
     <script src="js/protocols-alerts.js?v=1.7.7" defer></script>
     <script src="js/app.js?v=1.7.0" defer></script>
 </body>

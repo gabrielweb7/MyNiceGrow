@@ -632,7 +632,8 @@ function calcularProjecaoTermica({
         simArPrev = simArOn;
 
         const simEmJanelaSifao = (simSifaoAteTs > 0 && t < simSifaoAteTs);
-        const simAproveitandoFrio = !!cfgProj && !simArOn && simEmJanelaSifao;
+        const simEmPosMetaAc = (simArOn && simArAbaixoMetaTs > 0 && tPosMetaMin > 0);
+        const simAproveitandoFrio = !!cfgProj && ((!simArOn && simEmJanelaSifao) || (simEmPosMetaAc && tSifaoPosAcMin > 0));
 
         // Pré-Resfriamento Evaporativo (Estágio 1 antes do AC)
         const tWetSalaSim = calculaBulboUmidoStull(tExtSim, hExtSim);

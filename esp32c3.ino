@@ -5,7 +5,7 @@
 //  Versão Atual: v451 (Sifão Exclusivo Pós-AC, FAE Protegido & Pré-AC Evap Sem Exaustão)
 // ============================================================
 
-#define FW_VERSION 455
+#define FW_VERSION 456
 
 #include <Arduino.h>
 #include <ArduinoJson.h>
@@ -1499,8 +1499,9 @@ void executarMotor(unsigned long agora) {
     janelaSifaoPosAcAte = 0;
     Serial.println("🌬️ SIFÃO PÓS-AC: Janela de aproveitamento encerrada.");
   }
-  // SIFÃO PURO PÓS-AC: Apenas quando o AC já desligou (!acOperando) e estamos na janela Pós-AC
-  bool aproveitandoArGelado = !acOperando && emJanelaSifaoPosAc;
+  // SIFÃO PÓS-AC: Inicia já durante os minutos finais do AC (Tempo Extra Após Meta) e continua após desligar
+  bool emPosMetaAc = (acOperando && modoRefrigeracaoAtivo && tempoExtraRefrigeracaoMs > 0 && tempoAlvoAtingido > 0);
+  bool aproveitandoArGelado = (!acOperando && emJanelaSifaoPosAc) || (emPosMetaAc && tempoSifaoPosAcMs > 0);
 
   // Persiste na Flash NVS apenas em mudanças reais de estado com RTC válido (protege pós-AC/meta contra micro-reset)
   bool acAtivoDesejado = (modoRefrigeracaoAtivo && modoAr != AR_FORCADA_OFF && !corteCongelaAtivo);
