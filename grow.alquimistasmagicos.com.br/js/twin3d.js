@@ -516,27 +516,28 @@
             shelfLevels: [0.14, 0.74, 1.34]
         });
 
-        // Umidificador azul no topo da estante preta (pegável)
+        // Umidificador azul + mangueira amarela juntos (pegáveis em conjunto!)
+        const ux = rx - 0.18, uy = 1.52, uz = rz;
+        const umidGroup = new THREE.Group();
+        umidGroup.position.set(ux, uy, uz);
         const umidBase = new THREE.Mesh(
             new THREE.CylinderGeometry(0.16, 0.19, 0.36, 16),
             new THREE.MeshStandardMaterial({ color: 0x38bdf8, roughness: 0.3, transparent: true, opacity: 0.88 })
         );
-        umidBase.position.set(rx - 0.18, 1.52, rz);
-        room.add(umidBase);
-        tagInteractive(umidBase, 'umid');
-        registerPickable(umidBase, { halfH: 0.18, holdDist: 1.4, supportedBy: blackShelfGroup });
+        umidGroup.add(umidBase);
 
-        // Mangueira amarela do umidificador entrando no topo da estufa
         const hoseMat = new THREE.MeshStandardMaterial({ color: 0xfacc15, roughness: 0.5 });
         const hoseCurve = new THREE.CatmullRomCurve3([
-            new THREE.Vector3(rx - 0.18, 1.72, rz),
-            new THREE.Vector3(rx - 0.15, 2.25, rz + 0.05),
-            new THREE.Vector3(GX + halfW + 0.05, 2.28, GZ + 0.15),
-            new THREE.Vector3(GX + halfW - 0.12, 2.15, GZ + 0.15)
+            new THREE.Vector3(0, 0.20, 0),
+            new THREE.Vector3(0.03, 0.73, 0.05),
+            new THREE.Vector3((GX + halfW + 0.05) - ux, 2.28 - uy, (GZ + 0.15) - uz),
+            new THREE.Vector3((GX + halfW - 0.12) - ux, 2.15 - uy, (GZ + 0.15) - uz)
         ]);
         const hose = new THREE.Mesh(new THREE.TubeGeometry(hoseCurve, 18, 0.04, 10, false), hoseMat);
-        room.add(hose);
-        tagInteractive(hose, 'umid');
+        umidGroup.add(hose);
+        room.add(umidGroup);
+        tagInteractive(umidGroup, 'umid');
+        registerPickable(umidGroup, { halfH: 0.18, holdDist: 1.55, supportedBy: blackShelfGroup });
 
         // Potes de vidro / frascos na estante (pegáveis)
         const jarMat = new THREE.MeshStandardMaterial({ color: 0xe2e8f0, roughness: 0.15, transparent: true, opacity: 0.65 });
