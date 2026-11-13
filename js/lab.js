@@ -20,6 +20,7 @@ let liveTelemetryRow = null;
 const simReles = { luz: false, umid: false, vento: false, exaust: false, ar: false };
 
 document.addEventListener('DOMContentLoaded', () => {
+    carregarPrefsAnalytics();
     if (window.initTwin3D) {
         window.initTwin3D(document.getElementById('twin3dContainer'));
     }
@@ -118,6 +119,84 @@ function recalcularCusto() {
     document.getElementById('kpiCusto').textContent = `R$ ${custo.toFixed(2)} (${kwhTot.toFixed(1)} kWh)`;
 }
 
+let anomFiltro = 'todas';
+
+function getAnalyticsPrefs() {
+    try {
+        const raw = localStorage.getItem('labAnalyticsPrefs');
+        if (raw) return JSON.parse(raw);
+    } catch (e) {}
+    return { zMin: 23.0, zMax: 27.0, showZona: true, showIgual: true };
+}
+
+function carregarPrefsAnalytics() {
+    const p = getAnalyticsPrefs();
+    const elMin = document.getElementById('cfgZonaMin');
+    const elMax = document.getElementById('cfgZonaMax');
+    const elZ = document.getElementById('chkZonaIdeal');
+    const elI = document.getElementById('chkLinhaIgual');
+    if (elMin) elMin.value = p.zMin;
+    if (elMax) elMax.value = p.zMax;
+    if (elZ) elZ.checked = !!p.showZona;
+    if (elI) elI.checked = !!p.showIgual;
+}
+
+function salvarPrefsAnalytics() {
+    const zMin = parseFloat(document.getElementById('cfgZonaMin')?.value || 23.0);
+    const zMax = parseFloat(document.getElementById('cfgZonaMax')?.value || 27.0);
+    const showZona = !!document.getElementById('chkZonaIdeal')?.checked;
+    const showIgual = !!document.getElementById('chkLinhaIgual')?.checked;
+    try { localStorage.setItem('labAnalyticsPrefs', JSON.stringify({ zMin, zMax, showZona, showIgual })); } catch (e) {}
+    if (labData) { renderDiario(); renderScatter(); renderPerfilHorario(); }
+}
+
+function setFiltroAnom(f) {
+    anomFiltro = f;
+    document.querySelectorAll('.btn-afilt').forEach(b => {
+        const active = b.getAttribute('data-afilt') === f;
+        b.className = active
+            ? 'btn-afilt px-2.5 py-1 rounded-lg bg-slate-800 text-white border border-slate-600 text-[11px] font-bold'
+            : 'btn-afilt px-2.5 py-1 rounded-lg bg-slate-950 text-slate-400 border border-slate-800 text-[11px] font-bold';
+    });
+    if (labData) renderAnomalias();
+}
+
+function exportarCsvLab() {
+    if (!labData || !labData.diario || !labData.diario.length) return;
+    const header = 'dia,temp_int_med,temp_ext_med,min_ar,min_umid,min_exaust\n';
+    const rows = labData.diario.map(d =>
+        `${d.dia},${d.temp_int_med ?? ''},${d.temp_ext_med ?? ''},${d.min_ar ?? 0},${d.min_umid ?? 0},${d.min_exaust ?? 0}`
+    ).join('\n');
+    const blob = new Blob([header + rows], { type: 'text/csv;charset=utf-8;' });
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = `grow-analytics-${new Date().toISOString().slice(0, 10)}.csv`;
+    a.click();
+}
+
+const idealZonePlugin = {
+    id: 'idealZoneBand',
+    beforeDatasetsDraw(chart) {
+        const p = getAnalyticsPrefs();
+        if (!p.showZona || !chart.scales || !chart.scales.y) return;
+        const { ctx, chartArea, scales: { y } } = chart;
+        if (!chartArea) return;
+        const yTop = Math.max(chartArea.top, y.getPixelForValue(p.zMax));
+        const yBot = Math.min(chartArea.bottom, y.getPixelForValue(p.zMin));
+        if (yBot <= yTop) return;
+        ctx.save();
+        ctx.fillStyle = 'rgba(16, 185, 129, 0.10)';
+        ctx.fillRect(chartArea.left, yTop, chartArea.right - chartArea.left, yBot - yTop);
+        ctx.strokeStyle = 'rgba(16, 185, 129, 0.35)';
+        ctx.setLineDash([4, 4]);
+        ctx.beginPath();
+        ctx.moveTo(chartArea.left, yTop); ctx.lineTo(chartArea.right, yTop);
+        ctx.moveTo(chartArea.left, yBot); ctx.lineTo(chartArea.right, yBot);
+        ctx.stroke();
+        ctx.restore();
+    }
+};
+
 function renderAnomalias() {
     const an = labData.anomalias || { total_72h: 0, criticas_72h: 0, itens: [] };
     const badge = document.getElementById('anomBadgeTotal');
@@ -138,20 +217,23 @@ function renderAnomalias() {
         ? 'text-xs font-bold px-3 py-1 rounded-full bg-rose-500/20 text-rose-300 border border-rose-500/40'
         : 'text-xs font-bold px-3 py-1 rounded-full bg-amber-500/20 text-amber-300 border border-amber-500/40';
 
-    lista.innerHTML = (an.itens || []).map(a => {
-        const isCrit = a.severidade === 'critico';
-        const border = isCrit ? 'border-rose-500/35 bg-rose-500/5' : 'border-amber-500/30 bg-amber-500/5';
-        const tagCor = isCrit ? 'text-rose-300' : 'text-amber-300';
-        const icone = isCrit ? '🚨' : '⚠️';
-        return `
-            <div class="rounded-xl border ${border} p-3 flex flex-col gap-1">
-                <div class="flex items-center justify-between gap-2">
-                    <span class="font-bold ${tagCor}">${icone} ${a.titulo}</span>
-                    <span class="text-[10px] font-mono text-slate-400 shrink-0">${a.hora}</span>
-                </div>
-                <p class="text-[11px] text-slate-300">${a.detalhe}</p>
-            </div>`;
-    }).join('');
+    const filtrados = (an.itens || []).filter(a => anomFiltro === 'todas' || a.severidade === anomFiltro);
+    lista.innerHTML = filtrados.length === 0
+        ? '<div class="md:col-span-2 text-slate-400 p-3">Nenhuma anomalia neste filtro.</div>'
+        : filtrados.map(a => {
+            const isCrit = a.severidade === 'critico';
+            const border = isCrit ? 'border-rose-500/35 bg-rose-500/5' : 'border-amber-500/30 bg-amber-500/5';
+            const tagCor = isCrit ? 'text-rose-300' : 'text-amber-300';
+            const icone = isCrit ? '🚨' : '⚠️';
+            return `
+                <div class="rounded-xl border ${border} p-3 flex flex-col gap-1">
+                    <div class="flex items-center justify-between gap-2">
+                        <span class="font-bold ${tagCor}">${icone} ${a.titulo}</span>
+                        <span class="text-[10px] font-mono text-slate-400 shrink-0">${a.hora}</span>
+                    </div>
+                    <p class="text-[11px] text-slate-300">${a.detalhe}</p>
+                </div>`;
+        }).join('');
 }
 
 const zoomOptsLab = (mode = 'x') => ({
@@ -177,6 +259,7 @@ function renderDiario() {
     if (chartDiario) chartDiario.destroy();
     chartDiario = new Chart(ctx, {
         type: 'bar',
+        plugins: [idealZonePlugin],
         data: {
             labels,
             datasets: [
@@ -209,17 +292,32 @@ function renderScatter() {
         else luzOff.push(pt);
     });
 
+    const prefs = getAnalyticsPrefs();
+    const datasets = [
+        { label: 'Luz ON', data: luzOn, backgroundColor: 'rgba(251,191,36,0.65)', pointRadius: 3 },
+        { label: 'Luz OFF', data: luzOff, backgroundColor: 'rgba(56,189,248,0.55)', pointRadius: 3 }
+    ];
+    if (prefs.showIgual && pts.length > 0) {
+        const allVals = pts.map(p => parseFloat(p.temp_ext)).filter(v => !isNaN(v));
+        const minV = Math.floor(Math.min(...allVals, 20));
+        const maxV = Math.ceil(Math.max(...allVals, 32));
+        datasets.push({
+            type: 'line',
+            label: 'Estufa = Quarto',
+            data: [{ x: minV, y: minV }, { x: maxV, y: maxV }],
+            borderColor: 'rgba(148,163,184,0.45)',
+            borderDash: [5, 5],
+            borderWidth: 1.5,
+            pointRadius: 0
+        });
+    }
+
     const ctx = document.getElementById('chartLabScatter');
     if (!ctx) return;
     if (chartScatter) chartScatter.destroy();
     chartScatter = new Chart(ctx, {
         type: 'scatter',
-        data: {
-            datasets: [
-                { label: 'Luz ON', data: luzOn, backgroundColor: 'rgba(251,191,36,0.65)', pointRadius: 3 },
-                { label: 'Luz OFF', data: luzOff, backgroundColor: 'rgba(56,189,248,0.55)', pointRadius: 3 }
-            ]
-        },
+        data: { datasets },
         options: {
             responsive: true,
             maintainAspectRatio: false,
@@ -258,6 +356,7 @@ function renderPerfilHorario() {
     if (chartHorario) chartHorario.destroy();
     chartHorario = new Chart(ctx, {
         type: 'bar',
+        plugins: [idealZonePlugin],
         data: {
             labels,
             datasets: [
@@ -673,14 +772,31 @@ async function atualizarConsoleAoVivo() {
     }
 }
 
+function copiarDiagnosticoLab() {
+    const score = document.getElementById('segScoreBadge')?.textContent || '--';
+    const titulo = document.getElementById('segScoreTitulo')?.textContent || '';
+    const an = labData?.anomalias || { total_72h: 0, criticas_72h: 0 };
+    const txt = `=== DIAGNÓSTICO GROW IA 360° (${new Date().toLocaleString('pt-BR')}) ===\n` +
+        `Score: ${score} — ${titulo}\n` +
+        `Firmware Placa: ${fwDataLab?.vFirmware || '--'} | Nuvem: ${fwDataLab?.vFirmwareNuvem || '--'}\n` +
+        `Anomalias 72h: ${an.total_72h} (${an.criticas_72h} críticas)\n` +
+        `Últimos eventos:\n` +
+        consoleLinhas.slice(-15).map(l => `[${l.hora}] ${l.msg}`).join('\n');
+    navigator.clipboard?.writeText(txt);
+}
+
 function renderConsoleLab() {
     const el = document.getElementById('labConsoleOut');
     if (!el) return;
+    const q = (document.getElementById('inpConsoleBusca')?.value || '').trim().toLowerCase();
     const filtradas = consoleLinhas.filter(l => {
-        if (consoleFiltro === 'acoes') return l.tipo === 'acao';
-        if (consoleFiltro === 'alertas') return l.tipo === 'alerta';
+        if (consoleFiltro === 'acoes' && l.tipo !== 'acao') return false;
+        if (consoleFiltro === 'alertas' && l.tipo !== 'alerta') return false;
+        if (q && !(`${l.hora} ${l.msg}`).toLowerCase().includes(q)) return false;
         return true;
     });
+    const lbl = document.getElementById('consoleCountLbl');
+    if (lbl) lbl.textContent = `${filtradas.length} linhas`;
     el.innerHTML = filtradas.length === 0
         ? '<div class="text-slate-500">Nenhum evento registrado neste filtro nos últimos 40 min.</div>'
         : filtradas.map(l => `<div><span class="text-slate-500">[${l.hora}]</span> <span class="${l.cor}">${l.msg}</span></div>`).join('');

@@ -17,6 +17,7 @@
     let ventoHelice, exaustHelice;
     let acVaneMat, acLedMat, acVanePivot;
     let espHeartbeatMat, relayLedMats = {};
+    let roomThermDisplay, tentThermDisplay;
     let frontWallGroup; // Parede frontal + porta (visível apenas no modo FPS)
     const mushrooms = []; // Cogumelos animados (pin -> crescimento -> flush -> reinício)
 
@@ -324,6 +325,11 @@
         });
         room.add(ctrlGroup);
 
+        // Termômetro digital de parede no quarto (entre a janela/AC e a estufa)
+        roomThermDisplay = createThermometerDisplay(0.48, 0.24);
+        roomThermDisplay.group.position.set(-1.62, 1.92, -2.07);
+        room.add(roomThermDisplay.group);
+
         // Cabo preto ligando o controlador ESP32 à estufa
         const wireCurve = new THREE.CatmullRomCurve3([
             new THREE.Vector3(rx - 0.47, 0.94, rz + 0.24),
@@ -412,6 +418,69 @@
         tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
         tex.repeat.set(4, 6);
         return tex;
+    }
+
+    function createThermometerDisplay(w, h) {
+        const canvas = document.createElement('canvas');
+        canvas.width = 256;
+        canvas.height = 128;
+        const ctx = canvas.getContext('2d');
+        const tex = new THREE.CanvasTexture(canvas);
+        const grp = new THREE.Group();
+
+        const caseMesh = new THREE.Mesh(
+            new THREE.BoxGeometry(w + 0.03, h + 0.03, 0.024),
+            new THREE.MeshStandardMaterial({ color: 0x1e293b, roughness: 0.4, metalness: 0.35 })
+        );
+        grp.add(caseMesh);
+
+        const screenMesh = new THREE.Mesh(
+            new THREE.PlaneGeometry(w, h),
+            new THREE.MeshBasicMaterial({ map: tex })
+        );
+        screenMesh.position.z = 0.013;
+        grp.add(screenMesh);
+
+        let lastKey = '';
+        function update(titulo, temp, subText) {
+            const key = `${titulo}|${temp.toFixed(1)}|${subText}`;
+            if (key === lastKey) return;
+            lastKey = key;
+
+            let cor = '#34d399';
+            let statusTxt = 'IDEAL';
+            if (temp <= 23.0) { cor = '#38bdf8'; statusTxt = 'FRIO'; }
+            else if (temp <= 26.8) { cor = '#34d399'; statusTxt = 'IDEAL'; }
+            else if (temp <= 28.2) { cor = '#facc15'; statusTxt = 'ATENÇÃO'; }
+            else { cor = '#fb7185'; statusTxt = 'CRÍTICO'; }
+
+            ctx.fillStyle = '#090f1d';
+            ctx.fillRect(0, 0, 256, 128);
+            ctx.strokeStyle = cor;
+            ctx.lineWidth = 5;
+            ctx.strokeRect(4, 4, 248, 120);
+
+            ctx.fillStyle = '#94a3b8';
+            ctx.font = 'bold 20px sans-serif';
+            ctx.fillText(titulo, 16, 30);
+
+            ctx.fillStyle = cor;
+            ctx.font = 'bold 17px sans-serif';
+            ctx.textAlign = 'right';
+            ctx.fillText(statusTxt, 240, 30);
+            ctx.textAlign = 'left';
+
+            ctx.fillStyle = cor;
+            ctx.font = 'bold 52px monospace';
+            ctx.fillText(`${temp.toFixed(1)}°C`, 16, 88);
+
+            ctx.fillStyle = '#cbd5e1';
+            ctx.font = 'bold 18px sans-serif';
+            ctx.fillText(subText, 16, 114);
+
+            tex.needsUpdate = true;
+        }
+        return { group: grp, update };
     }
 
     function buildTent() {
@@ -574,6 +643,12 @@
         const ledCone = new THREE.Mesh(new THREE.CylinderGeometry(0.14, 0.68, 1.35, 18, 1, true), ledConeMat);
         ledCone.position.set(-0.15, H - 0.82, -0.1);
         group.add(ledCone);
+
+        // Mini sensor digital na lateral interna da estufa
+        tentThermDisplay = createThermometerDisplay(0.30, 0.16);
+        tentThermDisplay.group.position.set(halfW - 0.04, 1.32, 0.28);
+        tentThermDisplay.group.rotation.y = -Math.PI / 2.6;
+        group.add(tentThermDisplay.group);
 
         // Ventilador Interno (canto superior direito)
         const fanHousing = new THREE.Mesh(new THREE.CylinderGeometry(0.13, 0.13, 0.07, 16), rackMat);
@@ -1121,6 +1196,8 @@
         if (relayLedMats.vento) relayLedMats.vento.color.setHex(state.vento ? 0x34d399 : 0x334155);
         if (relayLedMats.exaust) relayLedMats.exaust.color.setHex(state.exaust ? 0x22d3ee : 0x334155);
         if (relayLedMats.ar) relayLedMats.ar.color.setHex(state.ar ? 0x60a5fa : 0x334155);
+        if (roomThermDisplay) roomThermDisplay.update('QUARTO', state.tempExt, state.ar ? '❄️ AC Ligado' : '🌡️ Ambiente');
+        if (tentThermDisplay) tentThermDisplay.update('ESTUFA', state.tempInt, `💧 UR ${state.humInt.toFixed(0)}%`);
 
         if (state.vento && ventoHelice) ventoHelice.rotation.x += 0.42;
         if (state.exaust && exaustHelice) exaustHelice.rotation.y += 0.46;
