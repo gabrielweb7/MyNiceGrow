@@ -2,10 +2,10 @@
 //  GROW IA - Firmware Inteligente + Nuvem IoT
 //  Placa: ESP32-C3 SuperMini (Produção) / ESP32-S3 Dual-Core
 //  Autor: Gabriel + Antigravity AI
-//  Versão Atual: v450 (Faxina Segura de Código Morto & Logs Atualizados — VentoExt Reservado)
+//  Versão Atual: v451 (Sifão Exclusivo Pós-AC, FAE Protegido & Pré-AC Evap Sem Exaustão)
 // ============================================================
 
-#define FW_VERSION 450
+#define FW_VERSION 451
 
 #include <Arduino.h>
 #include <ArduinoJson.h>
@@ -1429,16 +1429,18 @@ void executarMotor(unsigned long agora) {
   releVentoInt = false;
   if (modoLuz == LUZ_AUTO) releLuz = false;
 
+  bool cicloAcAtivo = (modoRefrigeracaoAtivo || (modoAr == AR_FORCADA_ON)) && (modoAr != AR_FORCADA_OFF) && !corteCongelaAtivo;
+  bool acOperando = cicloAcAtivo || lastReleArCond;
+
   // 1. A Renovação de Ar Programada (FAE)
-  if (faeLigado) {
+  // Durante o ciclo de refrigeração do AC, pausa o FAE para não desestabilizar a temperatura nem desperdiçar energia
+  if (faeLigado && !acOperando) {
     releExaustExt = true;
   }
 
-  // 2. Sifão Térmico em Ondas (Durante AC e Janela Pós-AC configurável)
-  // Se o ar do quarto ainda estiver mais frio que o grow mesmo após o AC desligar,
-  // mantém o exaustor trabalhando em ondas até resfriar ao máximo (limitado por tempSifaoMin).
-  bool cicloAcAtivo = (modoRefrigeracaoAtivo || (modoAr == AR_FORCADA_ON)) && (modoAr != AR_FORCADA_OFF) && !corteCongelaAtivo;
-  bool acOperando = cicloAcAtivo || lastReleArCond;
+  // 2. Sifão Térmico em Ondas (EXCLUSIVAMENTE na Janela Pós-AC)
+  // O exaustor NÃO liga durante o funcionamento do AC para não derrubar a umidade nem brigar com o umidificador.
+  // Assim que o AC desliga e a sala estiver fria, a janela Pós-AC abre e aproveita o ar gelado residual da sala.
   if (cicloAcAtivoPrev && !acOperando && tempoSifaoPosAcMs > 0) {
     janelaSifaoPosAcAte = agora + tempoSifaoPosAcMs;
     Serial.printf("🌬️ SIFÃO PÓS-AC: Janela aberta por %lu min para aproveitar o ar frio da sala!\n", tempoSifaoPosAcMs / 60000UL);
@@ -1453,7 +1455,8 @@ void executarMotor(unsigned long agora) {
     janelaSifaoPosAcAte = 0;
     Serial.println("🌬️ SIFÃO PÓS-AC: Janela de aproveitamento encerrada.");
   }
-  bool aproveitandoArGelado = cicloAcAtivo || emJanelaSifaoPosAc;
+  // SIFÃO PURO PÓS-AC: Apenas quando o AC já desligou (!acOperando) e estamos na janela Pós-AC
+  bool aproveitandoArGelado = !acOperando && emJanelaSifaoPosAc;
 
   // Persiste na Flash NVS apenas em mudanças reais de estado com RTC válido (protege pós-AC/meta contra micro-reset)
   bool acAtivoDesejado = (modoRefrigeracaoAtivo && modoAr != AR_FORCADA_OFF && !corteCongelaAtivo);
@@ -1586,21 +1589,13 @@ void executarMotor(unsigned long agora) {
     releUmidific = false;
   }
 
-  // ONDAS DE PRÉ-RESFRIAMENTO EVAPORATIVO (antes do AC):
-  // Alterna onda seca (puxa ar menos úmido para evaporar) e onda úmida (névoa + ventilação interna para perda latente)
+  // PRÉ-RESFRIAMENTO EVAPORATIVO (antes do AC):
+  // Utiliza circulação interna vigorosa e névoa fresca para perda latente térmica dentro da estufa,
+  // SEM abrir o exaustor externo (evita esvaziar a umidade e elimina qualquer pulso espúrio de exaustão).
   if (evapAtivo && !acOperando) {
-    unsigned long evapFaseMs = (agora - evapInicioTs) % 120000UL;
-    if (evapFaseMs < 4000UL) {
-      evapOndaSecaAtual = (humInt >= 95.5f && humInt >= umidGuardaCorte);
-    }
-    if (evapFaseMs < 35000UL && evapOndaSecaAtual) {
-      releExaustExt = true;
-      releUmidific = false;
-    } else {
-      releVentoInt = true;
-      if (!releExaustExt && humInt < 98.5f) {
-        releUmidific = true;
-      }
+    releVentoInt = true;
+    if (humInt < 99.0f) {
+      releUmidific = true;
     }
   }
 
@@ -2135,8 +2130,7 @@ void loop() {
       PerfilClimatico pf = obterPerfil(faseAtual);
       String evtUmid = "Desligado", evtVento = "Desligado", evtExaust = "Desligado";
       if (releExaustExt) {
-        if (sifaoExaustAtivo) evtExaust = sifaoPosAcAtivo ? "Sifão Pós-AC (Ar Frio)" : "Sifão AC (Ar Frio)";
-        else if (evapPreAcAtivo) evtExaust = "Evaporação (Onda Seca)";
+        if (sifaoExaustAtivo) evtExaust = "Sifão Pós-AC (Ar Frio)";
         else evtExaust = faeLigado ? "Renovação Ar (FAE)" : "Secagem/Outro";
       }
       

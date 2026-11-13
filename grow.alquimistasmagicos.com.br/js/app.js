@@ -39,9 +39,9 @@ const [resDados, resFw] = await Promise.all(promises);
                 window.modoArNuvem = parseInt(fwData.modoAr);
             }
             if (fwData.gitHash && fwData.gitHash !== 'Desconhecido') {
-                document.getElementById('txtGitHash').textContent = `Versão: 1.5.0 (${fwData.gitHash})`;
+                document.getElementById('txtGitHash').textContent = `Versão: 1.6.9 (${fwData.gitHash})`;
             } else {
-                document.getElementById('txtGitHash').textContent = `Versão: 1.5.0`;
+                document.getElementById('txtGitHash').textContent = `Versão: 1.6.9`;
             }
             atualizarDadosViewConfig();
         }

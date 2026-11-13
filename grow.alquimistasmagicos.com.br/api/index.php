@@ -105,7 +105,12 @@ function garantirTabelaConfig($conn) {
             "2" => ["tX" => 29.0, "uA" => 92.0, "uN" => 92.0, "uX" => 92.0, "fO" => 2, "fF" => 25, "vO" => 1, "vF" => 2, "vU" => 1]
         ]);
         $t = time();
-        $conn->query("INSERT INTO config_sistema (chave, valor, atualizado_em) VALUES ('clima', '$padrao', $t)");
+        $stmtPadrao = $conn->prepare("INSERT INTO config_sistema (chave, valor, atualizado_em) VALUES ('clima', ?, ?)");
+        if ($stmtPadrao) {
+            $stmtPadrao->bind_param("si", $padrao, $t);
+            $stmtPadrao->execute();
+            $stmtPadrao->close();
+        }
     }
 }
 

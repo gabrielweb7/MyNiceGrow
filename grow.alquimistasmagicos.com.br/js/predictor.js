@@ -629,7 +629,7 @@ function calcularProjecaoTermica({
             simArPrev = simArOn;
 
             const simEmJanelaSifao = (simSifaoAteTs > 0 && t < simSifaoAteTs);
-            const simAproveitandoFrio = !!cfgProj && (simArOn || simEmJanelaSifao);
+            const simAproveitandoFrio = !!cfgProj && !simArOn && simEmJanelaSifao;
 
             // Pré-Resfriamento Evaporativo (Estágio 1 antes do AC)
             const tWetSalaSim = calculaBulboUmidoStull(tExtSim, hExtSim);
@@ -686,9 +686,9 @@ function calcularProjecaoTermica({
                 simGuardaUmidOk = true;
             }
 
-            // FAE programado + Sifão de Ar Frio + Ondas Evaporativas
+            // FAE programado (pausado durante o AC ativo) + Sifão de Ar Frio Pós-AC
             let isFaeProgOn = false;
-            if (cfgProj && cfgProj.fO > 0) {
+            if (cfgProj && cfgProj.fO > 0 && !simArOn) {
                 if (cfgProj.fF == 0) isFaeProgOn = true;
                 else {
                     const cFAE = (cfgProj.fO + cfgProj.fF) * 60000;
@@ -696,19 +696,9 @@ function calcularProjecaoTermica({
                 }
             }
             const isSifaoExaustOn = simAproveitandoFrio && simInjecaoTermoOk && simGuardaUmidOk;
-            let isEvapExaustOn = false;
-            let isEvapUmidOn = false;
-            if (simEvapAtivo) {
-                const cicloEvapMin = Math.floor((t - simEvapInicioTs) / 60000);
-                if (cicloEvapMin % 2 === 0) {
-                    simEvapOndaSeca = (simHumInt >= 95.5 && simHumInt >= uGuardaCorteSim);
-                    if (simEvapOndaSeca) isEvapExaustOn = true;
-                    else isEvapUmidOn = true;
-                } else {
-                    isEvapUmidOn = true;
-                }
-            }
-            const isExaustOn = isFaeProgOn || isSifaoExaustOn || isEvapExaustOn;
+            const isEvapExaustOn = false; // Pré-resfriamento evaporativo usa apenas vento interno e névoa fresca
+            let isEvapUmidOn = simEvapAtivo;
+            const isExaustOn = isFaeProgOn || isSifaoExaustOn;
             if (isFaeProgOn && !simPrevExaustOn && !simArOn && !simEmJanelaSifao) {
                 simFaeStartTs = t;
             }
@@ -853,7 +843,7 @@ function calcularProjecaoTermica({
                 if (tIntPlot > maxTempIntPrev) maxTempIntPrev = tIntPlot;
             }
 
-            const motivoExaust = isExaustOn ? (isSifaoExaustOn ? (simArOn ? 'Puxando Ar Frio (AC ON)' : 'Puxando Ar Frio (Pós-AC)') : (isEvapExaustOn ? 'Evaporação (Onda Seca)' : 'FAE Programado')) : null;
+            const motivoExaust = isExaustOn ? (isSifaoExaustOn ? 'Puxando Ar Frio (Pós-AC)' : 'FAE Programado') : null;
             const motivoUmid = isUmidOn ? ((simAproveitandoFrio && !simGuardaUmidOk) ? 'Reidratando (Pós-Frio)' : (isEvapUmidOn ? 'Evaporação (Névoa Fria)' : (simHumInt < uAlvoSim ? 'Recuperando Alvo' : 'Brisa c/ Névoa'))) : null;
 
             accLuz = accLuz || isLuzOn;

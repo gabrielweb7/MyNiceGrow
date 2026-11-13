@@ -19,22 +19,11 @@
     <meta name="mobile-web-app-capable" content="yes">
     <meta name="theme-color" content="#060913">
     <link rel="apple-touch-icon" href="icon.png">
-    <script src="https://cdn.tailwindcss.com"></script>
     <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
-    <script>
-        tailwind.config = {
-            theme: {
-                extend: {
-                    fontFamily: { sans: ['Inter', 'sans-serif'] },
-                    colors: {
-                        dark: { 50: '#f8fafc', 100: '#1e293b', 200: '#162032', 300: '#0f172a', 400: '#0b1120' }
-                    }
-                }
-            }
-        }
-    </script>
-    <link rel="stylesheet" href="css/custom.css?v=1.5.0">
+    <link rel="stylesheet" href="css/tailwind.min.css?v=1.6.9">
+    <link rel="stylesheet" href="css/custom.css?v=1.6.9">
 </head>
 <body class="min-h-screen text-slate-200 font-sans relative" style="overflow-x: clip;">
 
@@ -1016,19 +1005,16 @@
     <!-- FOOTER FIXO (SEMPRE PRESENTE NAS DUAS VIEWS) -->
     <footer class="text-center text-[10px] text-slate-500 pt-6 pb-24 sm:pb-6 border-t border-slate-800/40 space-y-1">
         <div>Grow do Txai — IoT Cloud System — Dados atualizados a cada 60 segundos</div>
-        <div id="txtGitHash" class="text-emerald-400 font-bold tracking-widest text-xs drop-shadow-[0_0_8px_rgba(52,211,153,0.7)]">Versão: 1.5.0</div>
+        <div id="txtGitHash" class="text-emerald-400 font-bold tracking-widest text-xs drop-shadow-[0_0_8px_rgba(52,211,153,0.7)]">Versão: 1.6.9</div>
     </footer>
-    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns@3.0.0/dist/chartjs-adapter-date-fns.bundle.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/hammerjs@2.0.8/hammer.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-zoom@2.0.1/dist/chartjs-plugin-zoom.min.js"></script>
+    <script src="js/vendor/charts-bundle.min.js?v=1.6.9" defer></script>
 
     <!-- Módulos da Aplicação (Organizados e Otimizados) -->
-    <script src="js/state-api.js?v=1.5.0"></script>
-    <script src="js/predictor.js?v=1.5.0"></script>
-    <script src="js/charts.js?v=1.5.0"></script>
-    <script src="js/config-clima.js?v=1.5.0"></script>
-    <script src="js/protocols-alerts.js?v=1.5.0"></script>
-    <script src="js/app.js?v=1.5.0"></script>
+    <script src="js/state-api.js?v=1.6.9" defer></script>
+    <script src="js/predictor.js?v=1.6.9" defer></script>
+    <script src="js/charts.js?v=1.6.9" defer></script>
+    <script src="js/config-clima.js?v=1.6.9" defer></script>
+    <script src="js/protocols-alerts.js?v=1.6.9" defer></script>
+    <script src="js/app.js?v=1.6.9" defer></script>
 </body>
 </html>

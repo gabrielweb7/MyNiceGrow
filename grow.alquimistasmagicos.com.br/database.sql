@@ -9,8 +9,16 @@ CREATE TABLE IF NOT EXISTS telemetria (
     rele_umid TINYINT(1),
     rele_vento TINYINT(1),
     rele_exaust TINYINT(1),
+    rele_ar TINYINT(1) DEFAULT 0,
+    rele_vento_ext TINYINT(1) DEFAULT 0,
     fase VARCHAR(30)
 );
 
--- Opcional: Adicionar um índice no timestamp para as consultas do gráfico ficarem super rápidas
+-- Índice no timestamp para acelerar consultas dos gráficos
 CREATE INDEX idx_timestamp ON telemetria(timestamp);
+
+CREATE TABLE IF NOT EXISTS config_sistema (
+    chave VARCHAR(50) PRIMARY KEY,
+    valor LONGTEXT,
+    atualizado_em INT
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;

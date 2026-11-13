@@ -72,7 +72,7 @@ Para gerar o binário de produção de forma rápida e precisa sem depender de c
 | **Relé 2 (Umidificador)** | Névoa Ultrassônica | **GPIO 1** | GPIO 1 | `LOW` = Ligado |
 | **Relé 3 (Vento Interno)** | Brisa / Circulação | **GPIO 3** | GPIO 3 | `LOW` = Ligado |
 | **Relé 4 (Exaustor)** | Troca de Ar (FAE) | **GPIO 6** | GPIO 6 | `LOW` = Ligado |
-| **Relé 5 (Ar Condicionado)** | Climatização HVAC | **GPIO 7** | GPIO 7 | `LOW` = Ligado *(Anti-Ciclo Curto de 3 min)* |
+| **Relé 5 (Ar Condicionado)** | Climatização HVAC | **GPIO 7** | GPIO 7 | `HIGH` = Ligado *(Jumper HIGH / Anti-Ciclo Curto 3 min)* |
 | **Botão Físico (BOOT)** | Factory Reset (5s) | **GPIO 9** | GPIO 0 | Pull-up Interno |
 
 ---
