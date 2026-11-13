@@ -500,10 +500,36 @@ function renderSeguranca360() {
         item(true, 'Guarda de Umidade Pós-AC', `${hv.uGuardaCorte ?? 88}% (Pós-AC: ${hv.tSifaoPosAc ?? 5} min)`)
     ].join('');
 
+    const itemExpandivel = (id, ok, label, val, linhasHtml) => {
+        if (ok || !linhasHtml) return item(ok, label, val);
+        return `
+        <div class="bg-slate-950/70 border border-slate-800/80 rounded-xl overflow-hidden">
+            <button type="button" onclick="toggleDetalheSeg('${id}')" class="w-full flex items-center justify-between gap-2 px-3 py-2 hover:bg-slate-900/70 transition text-left">
+                <span class="text-slate-300">⚠️ ${label}</span>
+                <span class="font-bold text-amber-300 flex items-center gap-1.5">${val} <span class="text-[10px] px-1.5 py-0.5 rounded bg-amber-500/15 border border-amber-500/30">Ver ▾</span></span>
+            </button>
+            <div id="${id}" class="hidden border-t border-slate-800/80 bg-black/50 px-3 py-2 space-y-1 max-h-44 overflow-y-auto text-[11px] font-mono">
+                ${linhasHtml}
+            </div>
+        </div>`;
+    };
+
+    const detExt = (seg.detalhes_ext_offline || []).map(d =>
+        `<div class="flex justify-between gap-2 text-slate-300"><span>${(d.timestamp || '').slice(5, 16)}</span><span class="text-amber-300">Ext: ${d.temp_ext ?? 'NULL'} | Int: ${d.temp_int}°C (${d.fase})</span></div>`
+    ).join('');
+
+    const detCalor = (seg.detalhes_calor_critico || []).map(d =>
+        `<div class="flex justify-between gap-2 text-slate-300"><span>${d.inicio} ➔ ${d.fim}</span><span class="text-rose-300">${d.minutos} min • Máx ${d.max_temp}°C (${d.fase})</span></div>`
+    ).join('');
+
+    const detShort = (seg.detalhes_ciclos_curtos_ac || []).map(d =>
+        `<div class="flex justify-between gap-2 text-slate-300"><span>${d.inicio} ➔ ${d.fim}</span><span class="text-amber-300">${d.duracao_min} min (${d.temp_inicio}°C ➔ ${d.temp_fim}°C • ${d.fase})</span></div>`
+    ).join('');
+
     document.getElementById('segListaHardware').innerHTML = [
-        item(extOff === 0, 'Leituras Sensor Quarto Offline', `${extOff} ocorrências`),
-        item(calorCrit === 0, 'Picos Críticos (≥ 30°C)', `${calorCrit} min no período`),
-        item(shortAc === 0, 'Ciclos Curtos AC (< 5 min / 72h)', `${shortAc} de ${seg.ciclos_ac_72h ?? 0} ciclos`),
+        itemExpandivel('detExtOff', extOff === 0, 'Leituras Sensor Quarto Offline', `${extOff} ocorrências`, detExt),
+        itemExpandivel('detCalorCrit', calorCrit === 0, 'Picos Críticos (≥ 30°C)', `${calorCrit} min no período`, detCalor),
+        itemExpandivel('detShortAc', shortAc === 0, 'Ciclos Curtos AC (< 5 min / 72h)', `${shortAc} de ${seg.ciclos_ac_72h ?? 0} ciclos`, detShort),
         item(!!ult.timestamp, 'Último Heartbeat da Placa', ult.timestamp ? ult.timestamp.slice(5, 16) : '--')
     ].join('');
 
@@ -511,6 +537,11 @@ function renderSeguranca360() {
     document.getElementById('segListaGaps').innerHTML = gaps.length === 0
         ? '<div class="text-emerald-300 bg-emerald-500/10 border border-emerald-500/20 rounded-xl p-3 font-semibold">✅ Nenhuma queda superior a 3 minutos nas últimas 72h!</div>'
         : gaps.map(g => `<div class="flex justify-between bg-slate-950/70 border border-rose-500/20 rounded-xl px-3 py-2"><span class="text-slate-300">${g.inicio} ➔ ${g.fim}</span><span class="font-bold text-rose-300">${g.minutos} min offline</span></div>`).join('');
+}
+
+function toggleDetalheSeg(id) {
+    const el = document.getElementById(id);
+    if (el) el.classList.toggle('hidden');
 }
 
 // ========================================================

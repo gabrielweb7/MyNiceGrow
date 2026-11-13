@@ -163,6 +163,7 @@ $stmt->close();
 
 $gaps = [];
 $anomalias = [];
+$ciclosCurtosDetalhes = [];
 $maiorGapMin = 0;
 $ciclosAc72h = 0;
 $ciclosCurtosAc = 0;
@@ -256,6 +257,14 @@ foreach ($rows72h as $r) {
         if ($durSec < 300) {
             $ciclosCurtosAc++;
             $durMin = round($durSec / 60, 1);
+            $ciclosCurtosDetalhes[] = [
+                'inicio' => date('d/m H:i', $arInicioTs),
+                'fim' => date('H:i', $ts),
+                'duracao_min' => $durMin,
+                'temp_inicio' => $arInicioTemp,
+                'temp_fim' => $tInt,
+                'fase' => $faseStr
+            ];
             $anomalias[] = [
                 'ts' => $ts,
                 'hora' => date('d/m H:i', $ts),
@@ -286,6 +295,65 @@ foreach ($rows72h as $r) {
 $ultimo = count($rows72h) > 0 ? $rows72h[count($rows72h) - 1] : null;
 $anomaliasRecentes = array_slice(array_reverse($anomalias), 0, 30);
 
+// Detalhes das ocorrências de Sensor Quarto Offline no período
+$sqlExtOff = "
+    SELECT timestamp, temp_ext, temp_int, fase
+    FROM telemetria
+    WHERE timestamp >= ? AND (temp_ext IS NULL OR temp_ext <= -40)
+    ORDER BY timestamp DESC
+    LIMIT 25
+";
+$stmt = $conn->prepare($sqlExtOff);
+$stmt->bind_param('s', $desde);
+$stmt->execute();
+$detalhesExtOffline = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
+$stmt->close();
+
+// Episódios agrupados de Picos Críticos (>= 30°C) no período
+$sqlCalor = "
+    SELECT UNIX_TIMESTAMP(timestamp) AS ts, temp_int, fase
+    FROM telemetria
+    WHERE timestamp >= ? AND temp_int >= 30.0
+    ORDER BY timestamp ASC
+";
+$stmt = $conn->prepare($sqlCalor);
+$stmt->bind_param('s', $desde);
+$stmt->execute();
+$rowsCalor = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
+$stmt->close();
+
+$detalhesCalorCritico = [];
+$epIni = null; $epFim = null; $epMax = 0; $epMin = 0; $epFase = '';
+foreach ($rowsCalor as $rc) {
+    $tsC = (int)$rc['ts'];
+    $tC = (float)$rc['temp_int'];
+    if ($epIni === null) {
+        $epIni = $tsC; $epFim = $tsC; $epMax = $tC; $epMin = 1; $epFase = $rc['fase'];
+    } elseif (($tsC - $epFim) <= 180) {
+        $epFim = $tsC;
+        $epMin++;
+        if ($tC > $epMax) $epMax = $tC;
+    } else {
+        $detalhesCalorCritico[] = [
+            'inicio' => date('d/m H:i', $epIni),
+            'fim' => date('d/m H:i', $epFim),
+            'minutos' => max(1, (int)round(($epFim - $epIni) / 60) ?: $epMin),
+            'max_temp' => round($epMax, 1),
+            'fase' => $epFase
+        ];
+        $epIni = $tsC; $epFim = $tsC; $epMax = $tC; $epMin = 1; $epFase = $rc['fase'];
+    }
+}
+if ($epIni !== null) {
+    $detalhesCalorCritico[] = [
+        'inicio' => date('d/m H:i', $epIni),
+        'fim' => date('d/m H:i', $epFim),
+        'minutos' => max(1, (int)round(($epFim - $epIni) / 60) ?: $epMin),
+        'max_temp' => round($epMax, 1),
+        'fase' => $epFase
+    ];
+}
+
 $conn->close();
 
 echo json_encode([
@@ -307,6 +375,9 @@ echo json_encode([
         'ultimos_gaps' => array_slice(array_reverse($gaps), 0, 10),
         'ciclos_ac_72h' => $ciclosAc72h,
         'ciclos_curtos_ac_72h' => $ciclosCurtosAc,
+        'detalhes_ciclos_curtos_ac' => array_reverse($ciclosCurtosDetalhes),
+        'detalhes_ext_offline' => $detalhesExtOffline,
+        'detalhes_calor_critico' => array_slice(array_reverse($detalhesCalorCritico), 0, 20),
         'ultimo' => $ultimo,
         'config_clima' => $configClima
     ]
