@@ -22,9 +22,10 @@
     let growPoints, growPos, growCol;
     const growParticles = [];
 
-    // Partículas persistentes NO QUARTO INTEIRO (física real de convecção, AC Split, janela e troca de ar)
+    // Partículas + Linhas de Fluxo CFD no QUARTO INTEIRO
     const ROOM_COUNT = 520;
     let roomPoints, roomPos, roomCol;
+    let roomLines, roomLinePos, roomLineCol;
     const roomParticles = [];
 
     const state = {
@@ -121,8 +122,8 @@
 
     function buildRoom() {
         const room = new THREE.Group();
-        const wallMat = new THREE.MeshStandardMaterial({ color: 0xdbe2ea, roughness: 0.85, metalness: 0.05 });
-        const floorMat = new THREE.MeshStandardMaterial({ map: createTileTexture(), roughness: 0.55, metalness: 0.1 });
+        const wallMat = new THREE.MeshStandardMaterial({ color: 0x94a3b8, roughness: 0.88, metalness: 0.05 });
+        const floorMat = new THREE.MeshStandardMaterial({ map: createTileTexture(), color: 0xb0bec5, roughness: 0.65, metalness: 0.08 });
 
         // Piso cerâmico
         const floor = new THREE.Mesh(new THREE.PlaneGeometry(7.2, 5.8), floorMat);
@@ -479,14 +480,27 @@
         rGeo.setAttribute('position', new THREE.BufferAttribute(roomPos, 3));
         rGeo.setAttribute('color', new THREE.BufferAttribute(roomCol, 3));
         roomPoints = new THREE.Points(rGeo, new THREE.PointsMaterial({
-            size: 0.16,
+            size: 0.13,
             map: tex,
             vertexColors: true,
             transparent: true,
-            opacity: 0.58,
+            opacity: 0.55,
             depthWrite: false
         }));
         scene.add(roomPoints);
+
+        // Linhas de fluxo CFD (mostram direção e velocidade real do ar no quarto!)
+        const lGeo = new THREE.BufferGeometry();
+        roomLinePos = new Float32Array(ROOM_COUNT * 6);
+        roomLineCol = new Float32Array(ROOM_COUNT * 6);
+        lGeo.setAttribute('position', new THREE.BufferAttribute(roomLinePos, 3));
+        lGeo.setAttribute('color', new THREE.BufferAttribute(roomLineCol, 3));
+        roomLines = new THREE.LineSegments(lGeo, new THREE.LineBasicMaterial({
+            vertexColors: true,
+            transparent: true,
+            opacity: 0.68
+        }));
+        scene.add(roomLines);
     }
 
     function stepFluidPhysics() {
@@ -586,13 +600,14 @@
         for (let i = 0; i < ROOM_COUNT; i++) {
             const p = roomParticles[i];
 
-            // 1. Turbulência curl 3D no volume do quarto
-            p.vx += Math.sin(p.y * 1.4 + simTime * 0.9) * Math.cos(p.z * 1.2 + simTime * 0.6) * 0.0011;
-            p.vy += Math.sin(p.x * 1.1 + simTime * 0.7) * 0.0007;
-            p.vz += Math.cos(p.y * 1.3 - simTime * 0.8) * Math.sin(p.x * 1.2 + simTime * 0.5) * 0.0011;
+            // 1. Turbulência curl 3D no volume do quarto (mantém o ar distribuído em 3D)
+            p.vx += Math.sin(p.y * 1.4 + simTime * 0.9) * Math.cos(p.z * 1.2 + simTime * 0.6) * 0.0014;
+            p.vy += Math.sin(p.x * 1.1 + simTime * 0.7) * Math.cos(p.z * 1.1 + simTime * 0.5) * 0.0011;
+            p.vz += Math.cos(p.y * 1.3 - simTime * 0.8) * Math.sin(p.x * 1.2 + simTime * 0.5) * 0.0014;
 
-            // 2. Empuxo térmico real (ar frio afunda, ar quente sobe para o teto)
-            p.vy += (p.temp - state.tempExt) * 0.00065;
+            // 2. Empuxo térmico relativo à média local (não cola tudo no chão!)
+            const refTempY = state.tempExt + (p.y / 3.4 - 0.5) * 0.4;
+            p.vy += (p.temp - refTempY) * 0.00045;
 
             // 3. Fonte térmica da janela (condução leve na parede esquerda)
             if (p.x < -2.0 && p.y > 0.8 && p.y < 2.3 && Math.abs(p.z + 0.35) < 0.9) {
@@ -688,9 +703,22 @@
             roomPos[i * 3] = p.x; roomPos[i * 3 + 1] = p.y; roomPos[i * 3 + 2] = p.z;
             const [r, g, b] = tempToRGB(p.temp, false);
             roomCol[i * 3] = r; roomCol[i * 3 + 1] = g; roomCol[i * 3 + 2] = b;
+
+            // Vetor de linha de fluxo (cauda proporcional à velocidade real)
+            const tail = 5.5;
+            roomLinePos[i * 6] = p.x;
+            roomLinePos[i * 6 + 1] = p.y;
+            roomLinePos[i * 6 + 2] = p.z;
+            roomLinePos[i * 6 + 3] = p.x - p.vx * tail;
+            roomLinePos[i * 6 + 4] = p.y - p.vy * tail;
+            roomLinePos[i * 6 + 5] = p.z - p.vz * tail;
+            roomLineCol[i * 6] = r; roomLineCol[i * 6 + 1] = g; roomLineCol[i * 6 + 2] = b;
+            roomLineCol[i * 6 + 3] = r * 0.5; roomLineCol[i * 6 + 4] = g * 0.5; roomLineCol[i * 6 + 5] = b * 0.5;
         }
         roomPoints.geometry.attributes.position.needsUpdate = true;
         roomPoints.geometry.attributes.color.needsUpdate = true;
+        roomLines.geometry.attributes.position.needsUpdate = true;
+        roomLines.geometry.attributes.color.needsUpdate = true;
     }
 
     function bindControls(el) {
