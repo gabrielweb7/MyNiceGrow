@@ -2,14 +2,25 @@
 <html lang="pt-BR">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <meta name="theme-color" content="#0b1120">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
     <title>🧬 Lab Nerd 360° — Grow de Cogumelos</title>
+    <meta name="description" content="Laboratório analítico 360°, Gêmeo Digital 3D e auditoria de segurança do Grow de Cogumelos.">
+    <meta property="og:title" content="🧬 Lab Nerd 360° — Grow de Cogumelos">
+    <meta property="og:description" content="Analytics semanal/mensal, Gêmeo Digital 3D em Time-Lapse e auditoria de segurança 360°.">
+    <meta property="og:image" content="https://grow.alquimistasmagicos.com.br/thumb.png">
+    <meta property="og:type" content="website">
     <link rel="icon" type="image/png" href="icon.png">
+    <link rel="manifest" href="manifest.json">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="Lab Nerd 360°">
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="theme-color" content="#060913">
+    <link rel="apple-touch-icon" href="icon.png">
     <link rel="stylesheet" href="css/tailwind.min.css?v=1.8.0">
     <link rel="stylesheet" href="css/custom.css?v=1.8.0">
 </head>
-<body class="bg-slate-950 text-slate-100 min-h-screen antialiased selection:bg-emerald-500/30">
+<body class="bg-slate-950 text-slate-100 min-h-screen antialiased selection:bg-emerald-500/30" style="overflow-x: clip;">
     <!-- Topbar -->
     <header class="sticky top-0 z-40 bg-slate-950/90 backdrop-blur-md border-b border-slate-800/80">
         <div class="max-w-7xl mx-auto px-4 py-3 flex flex-wrap items-center justify-between gap-3">
@@ -111,6 +122,7 @@
                     </div>
                 </div>
                 <div id="labHeatmapContainer" class="overflow-x-auto pb-1"></div>
+                <div id="labHeatmapInfo" class="text-[11px] text-cyan-300 bg-slate-950/70 border border-slate-800 rounded-xl px-3 py-2 min-h-[34px] flex items-center">Toque ou passe o mouse em qualquer hora do mapa acima para ver os detalhes.</div>
             </div>
         </section>
 
@@ -134,7 +146,7 @@
 
                 <div class="grid grid-cols-1 lg:grid-cols-[1fr_280px] gap-4 items-stretch">
                     <div class="relative rounded-2xl overflow-hidden border border-slate-800 bg-slate-950">
-                        <canvas id="canvasTwin3D" class="w-full h-[360px] sm:h-[420px] block cursor-grab active:cursor-grabbing"></canvas>
+                        <canvas id="canvasTwin3D" class="w-full h-[320px] sm:h-[420px] block cursor-grab active:cursor-grabbing touch-none"></canvas>
                         <div id="twinHudHora" class="absolute top-3 left-3 px-3 py-1.5 rounded-xl bg-slate-950/80 border border-slate-700/80 text-xs font-mono font-bold text-cyan-300">--:--</div>
                     </div>
 
@@ -220,3 +232,4 @@
     <script src="js/lab.js?v=1.8.0" defer></script>
 </body>
 </html>
+

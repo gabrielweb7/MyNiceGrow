@@ -212,7 +212,7 @@ function renderHeatmap() {
             else if (t > 28.5) cls = 'bg-rose-500/35 border-rose-500/50 text-rose-100';
             else if (t > 27.5) cls = 'bg-amber-500/30 border-amber-500/45 text-amber-100';
             const title = `${diasNome[d - 1]} ${String(h).padStart(2, '0')}h • Estufa: ${t.toFixed(1)}°C | Quarto: ${cell.temp_ext_med ?? '--'}°C | AC: ${ar.toFixed(0)}%`;
-            html += `<div title="${title}" class="h-6 rounded border text-[9px] font-mono flex items-center justify-center cursor-default ${cls}">${t.toFixed(0)}</div>`;
+            html += `<div title="${title}" onclick="document.getElementById('labHeatmapInfo').textContent='${title}'" class="h-6 rounded border text-[9px] font-mono flex items-center justify-center cursor-pointer ${cls}">${t.toFixed(0)}</div>`;
         }
         html += '</div>';
     }
@@ -297,6 +297,7 @@ function inicializarCanvasTwin() {
     if (!cv) return;
     cv.addEventListener('pointerdown', e => { twinDrag = true; twinLastX = e.clientX; twinLastY = e.clientY; });
     window.addEventListener('pointerup', () => { twinDrag = false; });
+    window.addEventListener('pointercancel', () => { twinDrag = false; });
     window.addEventListener('pointermove', e => {
         if (!twinDrag) return;
         twinYaw += (e.clientX - twinLastX) * 0.008;
@@ -325,7 +326,7 @@ function animarTwinLoop() {
     if (cv && !document.getElementById('secLabTwin').classList.contains('hidden')) {
         const dpr = window.devicePixelRatio || 1;
         const rect = cv.getBoundingClientRect();
-        if (cv.width !== Math.floor(rect.width * dpr)) {
+        if (rect.width > 0 && rect.height > 0 && (cv.width !== Math.floor(rect.width * dpr) || cv.height !== Math.floor(rect.height * dpr))) {
             cv.width = Math.floor(rect.width * dpr);
             cv.height = Math.floor(rect.height * dpr);
         }
@@ -451,3 +452,4 @@ function renderSeguranca360() {
         ? '<div class="text-emerald-300 bg-emerald-500/10 border border-emerald-500/20 rounded-xl p-3 font-semibold">✅ Nenhuma queda superior a 3 minutos nas últimas 72h!</div>'
         : gaps.map(g => `<div class="flex justify-between bg-slate-950/70 border border-rose-500/20 rounded-xl px-3 py-2"><span class="text-slate-300">${g.inicio} ➔ ${g.fim}</span><span class="font-bold text-rose-300">${g.minutos} min offline</span></div>`).join('');
 }
+

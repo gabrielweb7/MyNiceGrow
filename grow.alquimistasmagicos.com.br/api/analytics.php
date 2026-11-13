@@ -217,3 +217,4 @@ echo json_encode([
         'config_clima' => $configClima
     ]
 ]);
+
