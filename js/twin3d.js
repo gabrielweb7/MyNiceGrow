@@ -23,6 +23,8 @@
     let cabinRoofGroup; // Telhado e chaminé da casa da lagoa (visível no FPS ou zoom afastado)
     let roomDoorPivot, roomDoorOpen = false, roomDoorAngle = 0;
     let fpsHandsGroup, fpsHandL, fpsHandR;
+    let heldRock = null, grabAnim = 0;
+    const fallingRocks = [];
     let waterTexRef;
     const lakeMists = [];
     let streamlinesGroup, showStreamlines = false;
@@ -1653,31 +1655,29 @@
         world.add(pineInst2);
         world.add(pineInst3);
 
-        // Pedras naturais na margem da lagoa
-        const rockInst = new THREE.InstancedMesh(
-            new THREE.DodecahedronGeometry(0.65, 0),
-            new THREE.MeshStandardMaterial({ color: 0x64748b, roughness: 0.9 }),
-            80
-        );
+        // Pedras naturais pegáveis na península e margem da lagoa
+        const rockGeo = new THREE.DodecahedronGeometry(0.36, 0);
+        const rockMat = new THREE.MeshStandardMaterial({ color: 0x64748b, roughness: 0.88, metalness: 0.05 });
         let rockCount = 0;
-        for (let rIdx = 0; rIdx < 600 && rockCount < 80; rIdx++) {
-            const x = (rand() - 0.5) * 180;
-            const z = (rand() - 0.5) * 180;
-            if (x > -6 && x < 7 && z > -4 && z < 7) continue;
+        for (let rIdx = 0; rIdx < 700 && rockCount < 48; rIdx++) {
+            const x = (rand() - 0.5) * 140;
+            const z = (rand() - 0.5) * 140;
+            if (x > -11 && x < 12 && z > -10 && z < 13) continue;
             const y = terrainHeight(x, z);
-            if (y < -0.25 || y > 0.6) continue;
-            const rs = 0.5 + rand() * 1.1;
-            dummy.position.set(x, y + 0.12, z);
-            dummy.scale.set(rs * 1.3, rs * 0.7, rs);
-            dummy.rotation.set(rand(), rand() * 3, rand());
-            dummy.updateMatrix();
-            rockInst.setMatrixAt(rockCount++, dummy.matrix);
+            if (y < -0.15 || y > 2.8) continue;
+            const rs = 0.65 + rand() * 0.95;
+            const rock = new THREE.Mesh(rockGeo, rockMat);
+            rock.position.set(x, y + 0.18 * rs, z);
+            rock.scale.set(rs * 1.2, rs * 0.78, rs);
+            rock.rotation.set(rand() * 2, rand() * 3, rand() * 2);
+            rock.castShadow = true;
+            rock.receiveShadow = true;
+            rock.userData.isPickableRock = true;
+            rock.userData.halfH = 0.22 * rs;
+            world.add(rock);
+            interactiveMeshes.push(rock);
+            rockCount++;
         }
-        rockInst.count = rockCount;
-        rockInst.instanceMatrix.needsUpdate = true;
-        rockInst.castShadow = true;
-        rockInst.receiveShadow = true;
-        world.add(rockInst);
 
         // Névoa suave pairando sobre a lagoa ao amanhecer
         const mistMat = new THREE.MeshBasicMaterial({
@@ -1841,24 +1841,41 @@
             cam.dragging = false;
             if (!wasDragging || e.target !== el) return;
             const moved = Math.hypot(e.clientX - cam.downX, e.clientY - cam.downY);
-            if (moved < 6 && interactiveMeshes.length) {
-                const rect = el.getBoundingClientRect();
-                pointerNdc.x = cam.mode === 'fps' && document.pointerLockElement === el ? 0 : ((e.clientX - rect.left) / rect.width) * 2 - 1;
-                pointerNdc.y = cam.mode === 'fps' && document.pointerLockElement === el ? 0 : -((e.clientY - rect.top) / rect.height) * 2 + 1;
-                raycaster.setFromCamera(pointerNdc, camera);
-                const hits = raycaster.intersectObjects(interactiveMeshes, false);
-                if (hits.length && hits[0].object.userData.equipId) {
-                    const eqId = hits[0].object.userData.equipId;
-                    if (eqId === 'porta') {
-                        window.toggleTwinDoor();
-                        return;
-                    }
-                    if (cam.mode !== 'fps') {
-                        window.focusTwinEquipment(eqId);
-                        if (typeof window.onTwinEquipSelect === 'function') {
-                            window.onTwinEquipSelect(eqId);
+            if (moved < 6) {
+                if (cam.mode === 'fps' && heldRock) {
+                    heldRock.userData.velY = 0;
+                    fallingRocks.push(heldRock);
+                    heldRock = null;
+                    return;
+                }
+                if (interactiveMeshes.length) {
+                    const rect = el.getBoundingClientRect();
+                    pointerNdc.x = cam.mode === 'fps' && document.pointerLockElement === el ? 0 : ((e.clientX - rect.left) / rect.width) * 2 - 1;
+                    pointerNdc.y = cam.mode === 'fps' && document.pointerLockElement === el ? 0 : -((e.clientY - rect.top) / rect.height) * 2 + 1;
+                    raycaster.setFromCamera(pointerNdc, camera);
+                    const hits = raycaster.intersectObjects(interactiveMeshes, false);
+                    if (hits.length) {
+                        const hit = hits[0];
+                        if (cam.mode === 'fps' && hit.object.userData.isPickableRock && hit.distance < 7.5) {
+                            heldRock = hit.object;
+                            return;
+                        }
+                        const eqId = hit.object.userData.equipId;
+                        if (eqId === 'porta') {
+                            window.toggleTwinDoor();
+                            return;
+                        }
+                        if (cam.mode !== 'fps' && eqId) {
+                            window.focusTwinEquipment(eqId);
+                            if (typeof window.onTwinEquipSelect === 'function') {
+                                window.onTwinEquipSelect(eqId);
+                            }
+                            return;
                         }
                     }
+                }
+                if (cam.mode === 'fps') {
+                    grabAnim = 1.0;
                 }
             }
         });
@@ -2037,16 +2054,39 @@
                 cam.fpsZ + fwdZ * Math.cos(cam.fpsPitch)
             );
 
+            if (grabAnim > 0) grabAnim = Math.max(0, grabAnim - 0.08);
             if (fpsHandsGroup) {
                 fpsHandsGroup.visible = true;
                 const sw = walking ? Math.sin(simTime * bobFreq) : 0;
                 const swCos = walking ? Math.cos(simTime * bobFreq) : 0;
                 const airDip = cam.fpsGrounded ? 0 : Math.max(-0.06, Math.min(0.06, -cam.fpsVelY * 0.25));
                 const idleBreath = Math.sin(simTime * 2.2) * 0.005;
-                fpsHandL.position.set(-0.28 + swCos * 0.012, -0.24 + sw * 0.032 + idleBreath + airDip, -0.40 - sw * 0.055);
-                fpsHandL.rotation.x = -0.35 + sw * 0.28;
-                fpsHandR.position.set(0.28 - swCos * 0.012, -0.24 - sw * 0.032 + idleBreath + airDip, -0.40 + sw * 0.055);
-                fpsHandR.rotation.x = -0.35 - sw * 0.28;
+
+                if (heldRock) {
+                    // Mãozinhas estendidas apontando para o objeto flutuando à frente
+                    fpsHandL.position.set(-0.20, -0.14 + idleBreath, -0.48);
+                    fpsHandL.rotation.set(0.18, -0.28, 0);
+                    fpsHandR.position.set(0.20, -0.14 + idleBreath, -0.48);
+                    fpsHandR.rotation.set(0.18, 0.28, 0);
+                } else {
+                    const reach = Math.sin(grabAnim * Math.PI) * 0.20;
+                    fpsHandL.position.set(-0.28 + swCos * 0.012 + reach * 0.25, -0.24 + sw * 0.032 + idleBreath + airDip + reach * 0.25, -0.40 - sw * 0.055 - reach);
+                    fpsHandL.rotation.set(-0.35 + sw * 0.28 + reach * 1.4, -reach * 0.4, 0);
+                    fpsHandR.position.set(0.28 - swCos * 0.012 - reach * 0.25, -0.24 - sw * 0.032 + idleBreath + airDip + reach * 0.25, -0.40 + sw * 0.055 - reach);
+                    fpsHandR.rotation.set(-0.35 - sw * 0.28 + reach * 1.4, reach * 0.4, 0);
+                }
+            }
+
+            if (heldRock) {
+                const dir = new THREE.Vector3();
+                camera.getWorldDirection(dir);
+                const tx = camera.position.x + dir.x * 1.45;
+                const ty = camera.position.y + dir.y * 1.45 - 0.06 + Math.sin(simTime * 3.0) * 0.03;
+                const tz = camera.position.z + dir.z * 1.45;
+                heldRock.position.x += (tx - heldRock.position.x) * 0.28;
+                heldRock.position.y += (ty - heldRock.position.y) * 0.28;
+                heldRock.position.z += (tz - heldRock.position.z) * 0.28;
+                heldRock.rotation.y += 0.018;
             }
 
             if (typeof window.onTwinDoorHint === 'function') {
@@ -2073,6 +2113,19 @@
                 cam.lookZ + cam.radius * Math.sin(cam.phi) * Math.cos(cam.theta)
             );
             camera.lookAt(cam.lookX, cam.lookY, cam.lookZ);
+        }
+
+        // Física de queda das pedras soltas
+        for (let i = fallingRocks.length - 1; i >= 0; i--) {
+            const r = fallingRocks[i];
+            r.userData.velY = (r.userData.velY || 0) - 0.012;
+            r.position.y += r.userData.velY;
+            const floorY = Math.max(-0.26, getGroundHeight(r.position.x, r.position.z)) + (r.userData.halfH || 0.2);
+            if (r.position.y <= floorY) {
+                r.position.y = floorY;
+                r.userData.velY = 0;
+                fallingRocks.splice(i, 1);
+            }
         }
 
         // Animação suave da porta da casa + marolas da lagoa + névoa
