@@ -15,7 +15,8 @@
 
     let ledBarMat, ledLight, ambientLight;
     let ventoHelice, exaustHelice;
-    let acVaneMat, acLedMat;
+    let acVaneMat, acLedMat, acVanePivot;
+    let espHeartbeatMat, relayLedMats = {};
     let frontWallGroup; // Parede frontal + porta (visível apenas no modo FPS)
     const mushrooms = []; // Cogumelos animados (pin -> crescimento -> flush -> reinício)
     const mushrooms = []; // Cogumelos animados (pin -> crescimento -> flush -> reinício)
@@ -214,10 +215,13 @@
         acBody.position.set(-2.42, 2.75, -0.35);
         room.add(acBody);
 
-        acVaneMat = new THREE.MeshStandardMaterial({ color: 0x94a3b8, emissive: 0x38bdf8, emissiveIntensity: 0.05 });
-        const acVane = new THREE.Mesh(new THREE.BoxGeometry(0.08, 0.06, 1.06), acVaneMat);
-        acVane.position.set(-2.26, 2.60, -0.35);
-        room.add(acVane);
+        acVanePivot = new THREE.Group();
+        acVanePivot.position.set(-2.25, 2.61, -0.35);
+        acVaneMat = new THREE.MeshStandardMaterial({ color: 0xe2e8f0, emissive: 0x38bdf8, emissiveIntensity: 0.05, roughness: 0.3 });
+        const acVane = new THREE.Mesh(new THREE.BoxGeometry(0.08, 0.025, 1.06), acVaneMat);
+        acVane.position.set(0.02, -0.015, 0);
+        acVanePivot.add(acVane);
+        room.add(acVanePivot);
 
         acLedMat = new THREE.MeshBasicMaterial({ color: 0x38bdf8 });
         const acLed = new THREE.Mesh(new THREE.BoxGeometry(0.02, 0.03, 0.08), acLedMat);
@@ -268,6 +272,41 @@
             room.add(bottle);
         });
 
+        // Controlador ESP32-C3 + Régua de Relés preso na lateral esquerda da estante
+        const ctrlGroup = new THREE.Group();
+        ctrlGroup.position.set(rx - 0.47, 1.04, rz + 0.24);
+        const ctrlBox = new THREE.Mesh(
+            new THREE.BoxGeometry(0.06, 0.22, 0.15),
+            new THREE.MeshStandardMaterial({ color: 0xf8fafc, roughness: 0.4, metalness: 0.1 })
+        );
+        ctrlGroup.add(ctrlBox);
+        const ctrlPanel = new THREE.Mesh(
+            new THREE.BoxGeometry(0.01, 0.07, 0.11),
+            new THREE.MeshStandardMaterial({ color: 0x0f172a, roughness: 0.25, emissive: 0x0284c7, emissiveIntensity: 0.25 })
+        );
+        ctrlPanel.position.set(-0.032, 0.055, 0);
+        ctrlGroup.add(ctrlPanel);
+        // LED azul/ciano de heartbeat do ESP32 piscando
+        espHeartbeatMat = new THREE.MeshBasicMaterial({ color: 0x38bdf8 });
+        const espLed = new THREE.Mesh(new THREE.SphereGeometry(0.011, 8, 8), espHeartbeatMat);
+        espLed.position.set(-0.036, 0.082, 0.045);
+        ctrlGroup.add(espLed);
+        // 5 LEDs indicadores dos relés (Luz, Umid, Vento, Exaust, AC)
+        [
+            { key: 'luz', z: -0.044 },
+            { key: 'umid', z: -0.022 },
+            { key: 'vento', z: 0.0 },
+            { key: 'exaust', z: 0.022 },
+            { key: 'ar', z: 0.044 }
+        ].forEach(item => {
+            const mat = new THREE.MeshBasicMaterial({ color: 0x334155 });
+            relayLedMats[item.key] = mat;
+            const led = new THREE.Mesh(new THREE.SphereGeometry(0.0085, 8, 8), mat);
+            led.position.set(-0.035, -0.035, item.z);
+            ctrlGroup.add(led);
+        });
+        room.add(ctrlGroup);
+
         // Estante aramada de SPAWNS mais à direita (como na 3ª foto!)
         const sx = 2.35, sz = -0.85;
         const chromeMat = new THREE.MeshStandardMaterial({ color: 0xcbd5e1, metalness: 0.85, roughness: 0.25 });
@@ -294,12 +333,40 @@
         return room;
     }
 
+    function createMylarTexture() {
+        const c = document.createElement('canvas');
+        c.width = 128; c.height = 128;
+        const ctx = c.getContext('2d');
+        ctx.fillStyle = '#d8dee9';
+        ctx.fillRect(0, 0, 128, 128);
+        for (let y = 0; y < 128; y += 8) {
+            for (let x = 0; x < 128; x += 8) {
+                const v = 188 + Math.floor(Math.sin(x * 0.7 + y * 0.5) * 28 + Math.cos(x * 0.4 - y * 0.8) * 20);
+                ctx.fillStyle = `rgb(${v},${v + 4},${v + 10})`;
+                ctx.fillRect(x, y, 7, 7);
+            }
+        }
+        const tex = new THREE.CanvasTexture(c);
+        tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
+        tex.repeat.set(4, 6);
+        return tex;
+    }
+
     function buildTent() {
         const group = new THREE.Group();
         group.position.set(GX, 0, GZ);
 
         const blackMat = new THREE.MeshStandardMaterial({ color: 0x111827, roughness: 0.82, metalness: 0.1 });
-        const mylarMat = new THREE.MeshStandardMaterial({ color: 0xe2e8f0, roughness: 0.28, metalness: 0.78, side: THREE.FrontSide });
+        const mylarTex = createMylarTexture();
+        const mylarMat = new THREE.MeshStandardMaterial({
+            color: 0xf1f5f9,
+            map: mylarTex,
+            bumpMap: mylarTex,
+            bumpScale: 0.015,
+            roughness: 0.22,
+            metalness: 0.88,
+            side: THREE.FrontSide
+        });
         const greenMat = new THREE.MeshStandardMaterial({ color: 0x22c55e, roughness: 0.35, metalness: 0.3, emissive: 0x052e16, emissiveIntensity: 0.25 });
 
         function addWall(w, h, x, y, z, rx, ry) {
@@ -356,12 +423,25 @@
         roll.position.set(0, H - 0.10, halfD + 0.05);
         group.add(roll);
 
-        // Duto sanfonado prateado INFERIOR ESQUERDO (por onde o ar SAI para o quarto!)
-        const ductMat = new THREE.MeshStandardMaterial({ color: 0x94a3b8, roughness: 0.35, metalness: 0.7 });
-        const ductOut = new THREE.Mesh(new THREE.CylinderGeometry(0.11, 0.11, 0.42, 16), ductMat);
-        ductOut.rotation.z = Math.PI / 2;
-        ductOut.position.set(-halfW - 0.15, 0.16, 0.35);
+        // Duto sanfonado prateado INFERIOR ESQUERDO encostado no chão (por onde o ar SAI para o quarto!)
+        const ductMat = new THREE.MeshStandardMaterial({ color: 0xcbd5e1, roughness: 0.28, metalness: 0.82 });
+        const ductCurve = new THREE.CatmullRomCurve3([
+            new THREE.Vector3(-halfW + 0.04, 0.19, 0.35),
+            new THREE.Vector3(-halfW - 0.18, 0.14, 0.40),
+            new THREE.Vector3(-halfW - 0.38, 0.10, 0.48),
+            new THREE.Vector3(-halfW - 0.56, 0.10, 0.56)
+        ]);
+        const ductOut = new THREE.Mesh(new THREE.TubeGeometry(ductCurve, 20, 0.095, 14, false), ductMat);
         group.add(ductOut);
+        // Anéis metálicos dando efeito sanfonado real
+        for (let t = 0.08; t <= 0.96; t += 0.085) {
+            const pt = ductCurve.getPoint(t);
+            const tan = ductCurve.getTangent(t);
+            const ring = new THREE.Mesh(new THREE.TorusGeometry(0.102, 0.012, 8, 16), ductMat);
+            ring.position.copy(pt);
+            ring.quaternion.setFromUnitVectors(new THREE.Vector3(0, 0, 1), tan.normalize());
+            group.add(ring);
+        }
 
         // 2 estantes pretas internas com bolos marrons em bandejas e cogumelos crescendo em flush!
         const rackMat = new THREE.MeshStandardMaterial({ color: 0x1e293b, roughness: 0.7 });
@@ -898,6 +978,19 @@
         ambientLight.intensity = state.luz ? 0.95 : 0.72;
         acVaneMat.emissiveIntensity = state.ar ? 0.85 : 0.05;
         acLedMat.color.setHex(state.ar ? 0x38bdf8 : 0x475569);
+        if (acVanePivot) {
+            const targetAngle = state.ar ? (0.45 + Math.sin(simTime * 1.4) * 0.22) : 0.0;
+            acVanePivot.rotation.z += (targetAngle - acVanePivot.rotation.z) * 0.08;
+        }
+        if (espHeartbeatMat) {
+            const blink = ((simTime * 1.6) % 1.0) < 0.22;
+            espHeartbeatMat.color.setHex(blink ? 0x38bdf8 : 0x0f172a);
+        }
+        if (relayLedMats.luz) relayLedMats.luz.color.setHex(state.luz ? 0xfacc15 : 0x334155);
+        if (relayLedMats.umid) relayLedMats.umid.color.setHex(state.umid ? 0x38bdf8 : 0x334155);
+        if (relayLedMats.vento) relayLedMats.vento.color.setHex(state.vento ? 0x34d399 : 0x334155);
+        if (relayLedMats.exaust) relayLedMats.exaust.color.setHex(state.exaust ? 0x22d3ee : 0x334155);
+        if (relayLedMats.ar) relayLedMats.ar.color.setHex(state.ar ? 0x60a5fa : 0x334155);
 
         if (state.vento && ventoHelice) ventoHelice.rotation.x += 0.42;
         if (state.exaust && exaustHelice) exaustHelice.rotation.y += 0.46;
