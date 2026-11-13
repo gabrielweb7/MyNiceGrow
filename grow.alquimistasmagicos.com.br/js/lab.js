@@ -31,7 +31,86 @@ document.addEventListener('DOMContentLoaded', () => {
     carregarLab(30);
     atualizarConsoleAoVivo();
     setInterval(atualizarConsoleAoVivo, 10000);
+    iniciarMultiplayerTwin();
 });
+
+function iniciarMultiplayerTwin() {
+    let mpId = sessionStorage.getItem('twin_mp_id');
+    if (!mpId) {
+        mpId = 'mp_' + Math.random().toString(36).slice(2, 10);
+        sessionStorage.setItem('twin_mp_id', mpId);
+    }
+    const bodyColors = [0x38bdf8, 0x34d399, 0xfbbf24, 0xa78bfa, 0xf472b6, 0x22d3ee];
+    const hatColors = [0xe11d48, 0xd97706, 0x7c3aed, 0x0284c7, 0x059669, 0xdb2777];
+    let mpMeta = null;
+    try { mpMeta = JSON.parse(sessionStorage.getItem('twin_mp_meta') || 'null'); } catch (e) {}
+    if (!mpMeta) {
+        const idx = Math.floor(Math.random() * bodyColors.length);
+        const hIdx = Math.floor(Math.random() * hatColors.length);
+        mpMeta = {
+            name: 'Cogumelo #' + Math.floor(10 + Math.random() * 89),
+            color: bodyColors[idx],
+            hatColor: hatColors[hIdx]
+        };
+        sessionStorage.setItem('twin_mp_meta', JSON.stringify(mpMeta));
+    }
+
+    let mpBusy = false;
+    let lastSent = 0;
+
+    async function syncMp(force) {
+        if (mpBusy || !window.getTwinPlayerPose) return;
+        const pose = window.getTwinPlayerPose();
+        const now = Date.now();
+        const interval = pose.walking ? 250 : (pose.inFps ? 700 : 2200);
+        if (!force && (now - lastSent) < interval) return;
+        lastSent = now;
+        mpBusy = true;
+        try {
+            const res = await fetch('api/multiplayer.php', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    action: 'sync',
+                    id: mpId,
+                    name: mpMeta.name,
+                    color: mpMeta.color,
+                    hatColor: mpMeta.hatColor,
+                    x: pose.x,
+                    y: pose.y,
+                    z: pose.z,
+                    yaw: pose.yaw,
+                    walking: pose.walking,
+                    inFps: pose.inFps
+                })
+            });
+            const data = await res.json();
+            if (data && data.ok) {
+                if (window.updateMultiplayerPlayers) {
+                    window.updateMultiplayerPlayers(data.players || []);
+                }
+                const badge = document.getElementById('twinOnlineBadge');
+                if (badge) {
+                    const tot = Math.max(1, data.online || 1);
+                    badge.textContent = `👥 ${tot} online`;
+                }
+            }
+        } catch (e) { /* silencioso se offline */ }
+        mpBusy = false;
+    }
+
+    syncMp(true);
+    setInterval(() => syncMp(false), 260);
+
+    function sairMp() {
+        const payload = JSON.stringify({ action: 'leave', id: mpId });
+        if (navigator.sendBeacon) {
+            navigator.sendBeacon('api/multiplayer.php', payload);
+        }
+    }
+    window.addEventListener('pagehide', sairMp);
+    window.addEventListener('beforeunload', sairMp);
+}
 
 function trocarAbaLab(aba) {
     const mapa = {

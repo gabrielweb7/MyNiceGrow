@@ -160,10 +160,10 @@
         const wallMat = new THREE.MeshStandardMaterial({ color: 0x94a3b8, roughness: 0.88, metalness: 0.05 });
         const floorMat = new THREE.MeshStandardMaterial({ map: createTileTexture(), color: 0xb0bec5, roughness: 0.65, metalness: 0.08 });
 
-        // Piso cerâmico
+        // Piso cerâmico (elevado levemente acima do píer para nunca haver z-fighting)
         const floor = new THREE.Mesh(new THREE.PlaneGeometry(7.2, 5.8), floorMat);
         floor.rotation.x = -Math.PI / 2;
-        floor.position.set(0.3, 0, 0.3);
+        floor.position.set(0.3, 0.02, 0.3);
         floor.receiveShadow = true;
         room.add(floor);
 
@@ -833,11 +833,11 @@
         aGeo.setAttribute('position', new THREE.BufferAttribute(airPos, 3));
         aGeo.setAttribute('color', new THREE.BufferAttribute(airCol, 3));
         airPoints = new THREE.Points(aGeo, new THREE.PointsMaterial({
-            size: 0.19,
+            size: 0.11,
             map: tex,
             vertexColors: true,
             transparent: true,
-            opacity: 0.56,
+            opacity: 0.46,
             depthWrite: false
         }));
         scene.add(airPoints);
@@ -1151,22 +1151,119 @@
                 + Math.sin(r * 0.028) * 0.25;
             h = Math.max(h, mt * mt * (45 + ridge * 92));
         }
-        // Nivelamento suave perto do píer da casa
-        if (x > -6 && x < 10 && z > -6 && z < 8) {
-            h = Math.min(h, 0.05);
+        // Escava suavemente o terreno sob a fundação da casa/píer para nunca invadir o piso ou o deck
+        if (x > -5.5 && x < 5.6 && z > -3.4 && z < 6.2) {
+            return -0.55;
+        }
+        // Nivelamento suave na transição da ponte para a península
+        if (x >= 5.6 && x < 10.5 && z > -4 && z < 8) {
+            h = Math.min(h, 0.02);
         }
         return h;
     }
 
     function getGroundHeight(x, z) {
         // Piso da sala do grow e deck de madeira sobre o píer de pedra
-        if (x >= -4.4 && x <= 5.0 && z >= -2.3 && z <= 5.5) return 0.0;
+        if (x >= -4.4 && x <= 5.0 && z >= -2.3 && z <= 5.5) return 0.02;
         // Degraus de madeira saindo do deck para a península (lado direito do deck)
         if (x >= 4.8 && x <= 7.5 && z >= 2.2 && z <= 5.4) {
             const t = (x - 4.8) / 2.7;
-            return (1 - t) * 0.0 + t * Math.max(-0.05, terrainHeight(x, z));
+            return (1 - t) * 0.02 + t * Math.max(-0.04, terrainHeight(x, z));
         }
         return terrainHeight(x, z);
+    }
+
+    function createLogTexture() {
+        const c = document.createElement('canvas');
+        c.width = 256; c.height = 256;
+        const g = c.getContext('2d');
+        const logs = 8;
+        const lh = 256 / logs;
+        for (let i = 0; i < logs; i++) {
+            const y = i * lh;
+            const grad = g.createLinearGradient(0, y, 0, y + lh);
+            grad.addColorStop(0.0, '#3e2212');
+            grad.addColorStop(0.18, '#7a4626');
+            grad.addColorStop(0.55, '#8b522e');
+            grad.addColorStop(0.88, '#5a321a');
+            grad.addColorStop(1.0, '#2a160b');
+            g.fillStyle = grad;
+            g.fillRect(0, y, 256, lh);
+            for (let k = 0; k < 22; k++) {
+                g.fillStyle = k % 2 === 0 ? 'rgba(40,20,10,0.16)' : 'rgba(210,150,95,0.10)';
+                g.fillRect((k * 37) % 256, y + 4 + ((k * 13) % (lh - 8)), 28 + (k % 24), 2);
+            }
+        }
+        const tex = new THREE.CanvasTexture(c);
+        tex.wrapS = THREE.RepeatWrapping;
+        tex.wrapT = THREE.RepeatWrapping;
+        tex.repeat.set(3, 2);
+        return tex;
+    }
+
+    function createShingleTexture() {
+        const c = document.createElement('canvas');
+        c.width = 256; c.height = 256;
+        const g = c.getContext('2d');
+        g.fillStyle = '#334155';
+        g.fillRect(0, 0, 256, 256);
+        const rows = 8, cols = 6;
+        const rh = 256 / rows, cw = 256 / cols;
+        for (let r = 0; r < rows; r++) {
+            const off = (r % 2) * (cw * 0.5);
+            for (let col = -1; col <= cols; col++) {
+                const shade = 44 + ((r * 7 + col * 13) % 22);
+                g.fillStyle = `rgb(${shade}, ${shade + 10}, ${shade + 24})`;
+                g.fillRect(col * cw + off + 1, r * rh + 1, cw - 2, rh - 2);
+            }
+            g.fillStyle = 'rgba(15,23,42,0.45)';
+            g.fillRect(0, r * rh + rh - 2, 256, 2);
+        }
+        const tex = new THREE.CanvasTexture(c);
+        tex.wrapS = THREE.RepeatWrapping;
+        tex.wrapT = THREE.RepeatWrapping;
+        tex.repeat.set(4, 4);
+        return tex;
+    }
+
+    function createStoneTexture() {
+        const c = document.createElement('canvas');
+        c.width = 256; c.height = 256;
+        const g = c.getContext('2d');
+        g.fillStyle = '#475569';
+        g.fillRect(0, 0, 256, 256);
+        for (let r = 0; r < 8; r++) {
+            const off = (r % 2) * 20;
+            for (let col = -1; col < 7; col++) {
+                const v = 88 + ((r * 19 + col * 31) % 42);
+                g.fillStyle = `rgb(${v}, ${v + 4}, ${v + 10})`;
+                g.fillRect(col * 40 + off + 2, r * 32 + 2, 36, 28);
+            }
+        }
+        const tex = new THREE.CanvasTexture(c);
+        tex.wrapS = THREE.RepeatWrapping;
+        tex.wrapT = THREE.RepeatWrapping;
+        tex.repeat.set(3, 1);
+        return tex;
+    }
+
+    function createTerrainTexture() {
+        const c = document.createElement('canvas');
+        c.width = 256; c.height = 256;
+        const g = c.getContext('2d');
+        g.fillStyle = '#cbd5c0';
+        g.fillRect(0, 0, 256, 256);
+        for (let i = 0; i < 1400; i++) {
+            const x = (i * 73) % 256;
+            const y = (i * 137) % 256;
+            g.fillStyle = i % 3 === 0 ? 'rgba(34, 84, 48, 0.18)' : (i % 3 === 1 ? 'rgba(120, 113, 88, 0.14)' : 'rgba(255,255,255,0.08)');
+            g.fillRect(x, y, 4, 4);
+        }
+        const tex = new THREE.CanvasTexture(c);
+        tex.wrapS = THREE.RepeatWrapping;
+        tex.wrapT = THREE.RepeatWrapping;
+        tex.repeat.set(90, 90);
+        return tex;
     }
 
     function createWaterTexture() {
@@ -1207,16 +1304,29 @@
     function buildCabinExterior() {
         const cabin = new THREE.Group();
 
-        // Píer / fundação de pedra na lagoa (sempre visível)
-        const stoneMat = new THREE.MeshStandardMaterial({ color: 0x64748b, roughness: 0.92, metalness: 0.05 });
+        const stoneTex = createStoneTexture();
+        const stoneMat = new THREE.MeshStandardMaterial({
+            color: 0x94a3b8,
+            map: stoneTex,
+            bumpMap: stoneTex,
+            bumpScale: 0.04,
+            roughness: 0.92,
+            metalness: 0.05
+        });
         const pier = new THREE.Mesh(new THREE.BoxGeometry(9.6, 1.3, 8.2), stoneMat);
-        pier.position.set(0.3, -0.68, 1.5);
+        pier.position.set(0.3, -0.66, 1.5);
         pier.receiveShadow = true;
         pier.castShadow = true;
         cabin.add(pier);
 
-        // Deck de madeira na frente da casa olhando para a lagoa
-        const woodDeckMat = new THREE.MeshStandardMaterial({ color: 0x7c4a2d, roughness: 0.78 });
+        const logTex = createLogTexture();
+        const woodDeckMat = new THREE.MeshStandardMaterial({
+            color: 0x9a623c,
+            map: logTex,
+            bumpMap: logTex,
+            bumpScale: 0.02,
+            roughness: 0.78
+        });
         const deck = new THREE.Mesh(new THREE.BoxGeometry(9.2, 0.10, 3.2), woodDeckMat);
         deck.position.set(0.3, -0.04, 3.95);
         deck.receiveShadow = true;
@@ -1245,84 +1355,127 @@
         bridge.receiveShadow = true;
         cabin.add(bridge);
 
-        // Revestimento externo de toras de madeira da Casa da Lagoa
-        const logMat = new THREE.MeshStandardMaterial({ color: 0x6b3e23, roughness: 0.85 });
-        const roofMat = new THREE.MeshStandardMaterial({ color: 0x334155, roughness: 0.72, metalness: 0.15 });
+        // Revestimento externo em toras reais da Casa da Lagoa
+        const logMat = new THREE.MeshStandardMaterial({
+            color: 0xa16b42,
+            map: logTex,
+            bumpMap: logTex,
+            bumpScale: 0.045,
+            roughness: 0.84
+        });
+        const shingleTex = createShingleTexture();
+        const roofMat = new THREE.MeshStandardMaterial({
+            color: 0x64748b,
+            map: shingleTex,
+            bumpMap: shingleTex,
+            bumpScale: 0.035,
+            roughness: 0.72,
+            metalness: 0.18
+        });
         const trimMat = new THREE.MeshStandardMaterial({ color: 0x4a2815, roughness: 0.8 });
 
         cabinRoofGroup = new THREE.Group();
         cabinRoofGroup.visible = (cam.mode === 'fps');
 
-        // Paredes externas de toras (atrás e laterais por fora do quarto)
-        const logBack = new THREE.Mesh(new THREE.BoxGeometry(7.5, 3.7, 0.16), logMat);
-        logBack.position.set(0.3, 1.82, -2.22);
+        // Paredes externas de toras (fundo, laterais e frente com vão da porta!)
+        const logBack = new THREE.Mesh(new THREE.BoxGeometry(6.6, 3.65, 0.18), logMat);
+        logBack.position.set(0.45, 1.82, -2.22);
         logBack.castShadow = true;
+        logBack.receiveShadow = true;
         cabinRoofGroup.add(logBack);
 
-        const logLeft = new THREE.Mesh(new THREE.BoxGeometry(0.16, 3.7, 5.0), logMat);
-        logLeft.position.set(-2.72, 1.82, 0.25);
+        const logLeft = new THREE.Mesh(new THREE.BoxGeometry(0.18, 3.65, 4.9), logMat);
+        logLeft.position.set(-2.76, 1.82, 0.23);
         logLeft.castShadow = true;
+        logLeft.receiveShadow = true;
         cabinRoofGroup.add(logLeft);
 
-        const logRight = new THREE.Mesh(new THREE.BoxGeometry(0.16, 3.7, 5.0), logMat);
-        logRight.position.set(3.62, 1.82, 0.25);
+        const logRight = new THREE.Mesh(new THREE.BoxGeometry(0.18, 3.65, 4.9), logMat);
+        logRight.position.set(3.66, 1.82, 0.23);
         logRight.castShadow = true;
+        logRight.receiveShadow = true;
         cabinRoofGroup.add(logRight);
 
-        // Telhado inclinado estilo chalé alpino (duas águas)
-        const roofSlopeL = new THREE.Mesh(new THREE.BoxGeometry(5.6, 0.18, 7.8), roofMat);
-        roofSlopeL.position.set(-1.35, 4.75, 0.8);
-        roofSlopeL.rotation.z = 0.62;
+        // Fachada frontal de toras por fora da parede branca interna (com vão da porta x: 1.78..2.72)
+        const logFrontL = new THREE.Mesh(new THREE.BoxGeometry(4.64, 3.65, 0.14), logMat);
+        logFrontL.position.set(-0.54, 1.82, 2.55);
+        logFrontL.castShadow = true;
+        logFrontL.receiveShadow = true;
+        cabinRoofGroup.add(logFrontL);
+
+        const logFrontR = new THREE.Mesh(new THREE.BoxGeometry(1.04, 3.65, 0.14), logMat);
+        logFrontR.position.set(3.24, 1.82, 2.55);
+        logFrontR.castShadow = true;
+        logFrontR.receiveShadow = true;
+        cabinRoofGroup.add(logFrontR);
+
+        const logFrontTop = new THREE.Mesh(new THREE.BoxGeometry(0.96, 1.45, 0.14), logMat);
+        logFrontTop.position.set(2.25, 2.92, 2.55);
+        logFrontTop.castShadow = true;
+        cabinRoofGroup.add(logFrontTop);
+
+        // Telhado alpino em duas águas perfeitamente alinhadas na cumeeira (x = 0.45)
+        const roofSlopeL = new THREE.Mesh(new THREE.BoxGeometry(4.85, 0.18, 7.6), roofMat);
+        roofSlopeL.position.set(-1.35, 4.55, 0.65);
+        roofSlopeL.rotation.z = 0.56;
         roofSlopeL.castShadow = true;
+        roofSlopeL.receiveShadow = true;
         cabinRoofGroup.add(roofSlopeL);
 
-        const roofSlopeR = new THREE.Mesh(new THREE.BoxGeometry(5.6, 0.18, 7.8), roofMat);
-        roofSlopeR.position.set(2.25, 4.75, 0.8);
-        roofSlopeR.rotation.z = -0.62;
+        const roofSlopeR = new THREE.Mesh(new THREE.BoxGeometry(4.85, 0.18, 7.6), roofMat);
+        roofSlopeR.position.set(2.25, 4.55, 0.65);
+        roofSlopeR.rotation.z = -0.56;
         roofSlopeR.castShadow = true;
+        roofSlopeR.receiveShadow = true;
         cabinRoofGroup.add(roofSlopeR);
 
-        // Frontão triangular da frente + janela iluminada quente do sótão
+        const ridgeBeam = new THREE.Mesh(new THREE.BoxGeometry(0.24, 0.24, 7.7), trimMat);
+        ridgeBeam.position.set(0.45, 5.66, 0.65);
+        cabinRoofGroup.add(ridgeBeam);
+
+        // Frontão triangular da frente + janela emoldurada sem z-fighting
         const gableShape = new THREE.Shape();
-        gableShape.moveTo(-3.4, 0);
-        gableShape.lineTo(3.4, 0);
-        gableShape.lineTo(0, 2.45);
+        gableShape.moveTo(-3.35, 0);
+        gableShape.lineTo(3.35, 0);
+        gableShape.lineTo(0, 2.15);
         gableShape.closePath();
-        const gableGeo = new THREE.ExtrudeGeometry(gableShape, { depth: 0.18, bevelEnabled: false });
+        const gableGeo = new THREE.ExtrudeGeometry(gableShape, { depth: 0.16, bevelEnabled: false });
         const gableFront = new THREE.Mesh(gableGeo, logMat);
-        gableFront.position.set(0.45, 3.55, 2.42);
+        gableFront.position.set(0.45, 3.56, 2.48);
         cabinRoofGroup.add(gableFront);
         const gableBack = new THREE.Mesh(gableGeo, logMat);
-        gableBack.position.set(0.45, 3.55, -2.25);
+        gableBack.position.set(0.45, 3.56, -2.30);
         cabinRoofGroup.add(gableBack);
 
+        const atticFrame = new THREE.Mesh(new THREE.BoxGeometry(1.42, 1.06, 0.08), trimMat);
+        atticFrame.position.set(0.45, 4.35, 2.66);
+        cabinRoofGroup.add(atticFrame);
         const atticWin = new THREE.Mesh(
-            new THREE.BoxGeometry(1.3, 1.0, 0.24),
-            new THREE.MeshBasicMaterial({ color: 0xfde68a })
+            new THREE.BoxGeometry(1.24, 0.88, 0.04),
+            new THREE.MeshBasicMaterial({ color: 0xfef08a })
         );
-        atticWin.position.set(0.45, 4.45, 2.48);
+        atticWin.position.set(0.45, 4.35, 2.70);
         cabinRoofGroup.add(atticWin);
 
         // Chaminé de pedra
-        const chimney = new THREE.Mesh(new THREE.BoxGeometry(0.75, 2.6, 0.75), stoneMat);
-        chimney.position.set(0.45, 5.7, 0.2);
+        const chimney = new THREE.Mesh(new THREE.BoxGeometry(0.75, 2.5, 0.75), stoneMat);
+        chimney.position.set(0.45, 5.5, 0.2);
         chimney.castShadow = true;
         cabinRoofGroup.add(chimney);
 
         // Lanternas quentes na varanda
-        [-2.2, 1.4, 3.2].forEach(lx => {
+        [-2.0, 1.2, 3.2].forEach(lx => {
             const lantern = new THREE.Mesh(
                 new THREE.BoxGeometry(0.14, 0.22, 0.14),
                 new THREE.MeshBasicMaterial({ color: 0xfef08a })
             );
-            lantern.position.set(lx, 2.45, 2.58);
+            lantern.position.set(lx, 2.45, 2.68);
             cabinRoofGroup.add(lantern);
         });
-        const porchLight = new THREE.PointLight(0xfde68a, 0.85, 11, 1.6);
+        const porchLight = new THREE.PointLight(0xfde68a, 0.9, 12, 1.6);
         porchLight.position.set(0.5, 2.5, 3.6);
         cabinRoofGroup.add(porchLight);
 
-        // Viga de madeira decorativa na varanda (sempre visível no deck)
         const beam = new THREE.Mesh(new THREE.BoxGeometry(0.14, 0.14, 3.0), trimMat);
         beam.position.set(-4.15, 0.45, 3.95);
         cabin.add(beam);
@@ -1413,31 +1566,35 @@
         tGeo.setAttribute('color', new THREE.BufferAttribute(colors, 3));
         tGeo.computeVertexNormals();
 
+        const terrainTex = createTerrainTexture();
         const terrain = new THREE.Mesh(
             tGeo,
-            new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.92, metalness: 0.02 })
+            new THREE.MeshStandardMaterial({ map: terrainTex, vertexColors: true, roughness: 0.94, metalness: 0.02 })
         );
         terrain.receiveShadow = true;
         world.add(terrain);
 
-        // Floresta de Pinheiros via InstancedMesh (~900 árvores a 60 FPS!)
+        // Floresta de Pinheiros em 3 camadas via InstancedMesh (~900 árvores + pedras na margem)
         const MAX_TREES = 900;
-        const trunkGeo = new THREE.CylinderGeometry(0.14, 0.24, 2.2, 6);
+        const trunkGeo = new THREE.CylinderGeometry(0.13, 0.24, 2.3, 6);
         const trunkMat = new THREE.MeshStandardMaterial({ color: 0x4a2e1b, roughness: 0.9 });
-        const pineGeo1 = new THREE.ConeGeometry(1.55, 4.2, 7);
-        const pineGeo2 = new THREE.ConeGeometry(1.15, 3.6, 7);
-        const pineMat = new THREE.MeshStandardMaterial({ color: 0x1c452d, roughness: 0.85 });
+        const pineGeo1 = new THREE.ConeGeometry(1.65, 3.4, 8);
+        const pineGeo2 = new THREE.ConeGeometry(1.30, 3.1, 8);
+        const pineGeo3 = new THREE.ConeGeometry(0.92, 2.7, 8);
+        const pineMat = new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.86 });
 
         const trunkInst = new THREE.InstancedMesh(trunkGeo, trunkMat, MAX_TREES);
         const pineInst1 = new THREE.InstancedMesh(pineGeo1, pineMat, MAX_TREES);
         const pineInst2 = new THREE.InstancedMesh(pineGeo2, pineMat, MAX_TREES);
+        const pineInst3 = new THREE.InstancedMesh(pineGeo3, pineMat, MAX_TREES);
         trunkInst.castShadow = true;
         pineInst1.castShadow = true;
         pineInst2.castShadow = true;
+        pineInst3.castShadow = true;
 
         const dummy = new THREE.Object3D();
+        const treeCol = new THREE.Color();
         let treeCount = 0;
-        // Pseudo-random determinístico para floresta bonita sempre no mesmo lugar
         let seed = 42;
         function rand() {
             seed = (seed * 1664525 + 1013904223) % 4294967296;
@@ -1446,37 +1603,77 @@
         for (let attempt = 0; attempt < 4200 && treeCount < MAX_TREES; attempt++) {
             const x = (rand() - 0.5) * 520;
             const z = (rand() - 0.5) * 520;
-            // Não colocar árvore dentro ou colado na casa da lagoa
             if (x > -8 && x < 10 && z > -7 && z < 9) continue;
             const y = terrainHeight(x, z);
             if (y < 0.15 || y > 34) continue;
 
-            const sc = 0.75 + rand() * 0.95;
+            const sc = 0.78 + rand() * 0.95;
             dummy.position.set(x, y + 1.0 * sc, z);
             dummy.scale.set(sc, sc, sc);
             dummy.rotation.y = rand() * Math.PI * 2;
             dummy.updateMatrix();
             trunkInst.setMatrixAt(treeCount, dummy.matrix);
 
-            dummy.position.set(x, y + 3.4 * sc, z);
+            dummy.position.set(x, y + 2.9 * sc, z);
             dummy.updateMatrix();
             pineInst1.setMatrixAt(treeCount, dummy.matrix);
 
-            dummy.position.set(x, y + 5.3 * sc, z);
+            dummy.position.set(x, y + 4.4 * sc, z);
             dummy.updateMatrix();
             pineInst2.setMatrixAt(treeCount, dummy.matrix);
+
+            dummy.position.set(x, y + 5.8 * sc, z);
+            dummy.updateMatrix();
+            pineInst3.setMatrixAt(treeCount, dummy.matrix);
+
+            treeCol.setHSL(0.36 + (rand() - 0.5) * 0.05, 0.44 + rand() * 0.14, 0.16 + rand() * 0.09);
+            pineInst1.setColorAt(treeCount, treeCol);
+            pineInst2.setColorAt(treeCount, treeCol);
+            pineInst3.setColorAt(treeCount, treeCol);
 
             treeCount++;
         }
         trunkInst.count = treeCount;
         pineInst1.count = treeCount;
         pineInst2.count = treeCount;
+        pineInst3.count = treeCount;
         trunkInst.instanceMatrix.needsUpdate = true;
         pineInst1.instanceMatrix.needsUpdate = true;
         pineInst2.instanceMatrix.needsUpdate = true;
+        pineInst3.instanceMatrix.needsUpdate = true;
+        if (pineInst1.instanceColor) pineInst1.instanceColor.needsUpdate = true;
+        if (pineInst2.instanceColor) pineInst2.instanceColor.needsUpdate = true;
+        if (pineInst3.instanceColor) pineInst3.instanceColor.needsUpdate = true;
         world.add(trunkInst);
         world.add(pineInst1);
         world.add(pineInst2);
+        world.add(pineInst3);
+
+        // Pedras naturais na margem da lagoa
+        const rockInst = new THREE.InstancedMesh(
+            new THREE.DodecahedronGeometry(0.65, 0),
+            new THREE.MeshStandardMaterial({ color: 0x64748b, roughness: 0.9 }),
+            80
+        );
+        let rockCount = 0;
+        for (let rIdx = 0; rIdx < 600 && rockCount < 80; rIdx++) {
+            const x = (rand() - 0.5) * 180;
+            const z = (rand() - 0.5) * 180;
+            if (x > -6 && x < 7 && z > -4 && z < 7) continue;
+            const y = terrainHeight(x, z);
+            if (y < -0.25 || y > 0.6) continue;
+            const rs = 0.5 + rand() * 1.1;
+            dummy.position.set(x, y + 0.12, z);
+            dummy.scale.set(rs * 1.3, rs * 0.7, rs);
+            dummy.rotation.set(rand(), rand() * 3, rand());
+            dummy.updateMatrix();
+            rockInst.setMatrixAt(rockCount++, dummy.matrix);
+        }
+        rockInst.count = rockCount;
+        rockInst.instanceMatrix.needsUpdate = true;
+        rockInst.castShadow = true;
+        rockInst.receiveShadow = true;
+        world.add(rockInst);
 
         // Névoa suave pairando sobre a lagoa ao amanhecer
         const mistMat = new THREE.MeshBasicMaterial({
@@ -1900,8 +2097,161 @@
             }
         }
 
+        if (airPoints && airPoints.material) {
+            airPoints.material.size = cam.mode === 'fps' ? 0.08 : 0.11;
+            airPoints.material.opacity = cam.mode === 'fps' ? 0.36 : 0.48;
+        }
+        stepMultiplayerAvatars();
         stepFluidPhysics();
         renderer.render(scene, camera);
+    }
+
+    const remotePlayers = {};
+
+    function createNameTagSprite(text) {
+        const c = document.createElement('canvas');
+        c.width = 256; c.height = 64;
+        const g = c.getContext('2d');
+        g.fillStyle = 'rgba(15, 23, 42, 0.82)';
+        g.beginPath();
+        g.roundRect(16, 10, 224, 42, 18);
+        g.fill();
+        g.strokeStyle = 'rgba(52, 211, 153, 0.65)';
+        g.lineWidth = 3;
+        g.stroke();
+        g.fillStyle = '#f8fafc';
+        g.font = 'bold 24px sans-serif';
+        g.textAlign = 'center';
+        g.textBaseline = 'middle';
+        g.fillText(text, 128, 32);
+        const tex = new THREE.CanvasTexture(c);
+        const mat = new THREE.SpriteMaterial({ map: tex, transparent: true, depthTest: false });
+        const sp = new THREE.Sprite(mat);
+        sp.scale.set(1.15, 0.28, 1);
+        return sp;
+    }
+
+    function buildCuteAvatar(colorHex, hatHex, name) {
+        const g = new THREE.Group();
+        const bodyMat = new THREE.MeshStandardMaterial({ color: colorHex, roughness: 0.65 });
+        const skinMat = new THREE.MeshStandardMaterial({ color: 0xfde6d8, roughness: 0.7 });
+        const hatMat = new THREE.MeshStandardMaterial({ color: hatHex, roughness: 0.55 });
+        const whiteMat = new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.5 });
+        const darkMat = new THREE.MeshBasicMaterial({ color: 0x0f172a });
+        const blushMat = new THREE.MeshBasicMaterial({ color: 0xfb7185 });
+
+        // Perninhas
+        const legGeo = new THREE.CylinderGeometry(0.065, 0.06, 0.42, 10);
+        const legL = new THREE.Group();
+        legL.position.set(-0.09, 0.42, 0);
+        const legLM = new THREE.Mesh(legGeo, darkMat);
+        legLM.position.y = -0.21;
+        legL.add(legLM);
+        g.add(legL);
+
+        const legR = new THREE.Group();
+        legR.position.set(0.09, 0.42, 0);
+        const legRM = new THREE.Mesh(legGeo, darkMat);
+        legRM.position.y = -0.21;
+        legR.add(legRM);
+        g.add(legR);
+
+        // Corpinho fofinho (moletom)
+        const torso = new THREE.Mesh(new THREE.CylinderGeometry(0.17, 0.22, 0.48, 14), bodyMat);
+        torso.position.y = 0.66;
+        torso.castShadow = true;
+        g.add(torso);
+
+        // Bracinhos
+        const armGeo = new THREE.CylinderGeometry(0.055, 0.05, 0.36, 10);
+        const armL = new THREE.Group();
+        armL.position.set(-0.23, 0.84, 0);
+        const armLM = new THREE.Mesh(armGeo, bodyMat);
+        armLM.position.y = -0.15;
+        armL.add(armLM);
+        g.add(armL);
+
+        const armR = new THREE.Group();
+        armR.position.set(0.23, 0.84, 0);
+        const armRM = new THREE.Mesh(armGeo, bodyMat);
+        armRM.position.y = -0.15;
+        armR.add(armRM);
+        g.add(armR);
+
+        // Cabeça chibi redondinha
+        const head = new THREE.Mesh(new THREE.SphereGeometry(0.21, 16, 14), skinMat);
+        head.position.y = 1.10;
+        head.castShadow = true;
+        g.add(head);
+
+        // Olhinhos e bochechas rosadas (frente em -Z para combinar com yaw do FPS)
+        [-0.075, 0.075].forEach(ex => {
+            const eye = new THREE.Mesh(new THREE.SphereGeometry(0.026, 8, 8), darkMat);
+            eye.position.set(ex, 1.11, -0.185);
+            g.add(eye);
+            const cheek = new THREE.Mesh(new THREE.SphereGeometry(0.028, 8, 8), blushMat);
+            cheek.position.set(ex * 1.45, 1.06, -0.175);
+            cheek.scale.set(1.2, 0.7, 0.5);
+            g.add(cheek);
+        });
+
+        // Chapéu fofo de cogumelo com pintinhas brancas!
+        const cap = new THREE.Mesh(
+            new THREE.SphereGeometry(0.30, 16, 10, 0, Math.PI * 2, 0, Math.PI * 0.55),
+            hatMat
+        );
+        cap.position.y = 1.22;
+        cap.castShadow = true;
+        g.add(cap);
+        [
+            [0.14, 1.38, -0.12],
+            [-0.15, 1.36, -0.10],
+            [0.0, 1.43, 0.14],
+            [-0.12, 1.35, 0.16],
+            [0.16, 1.34, 0.12]
+        ].forEach(([sx, sy, sz]) => {
+            const spot = new THREE.Mesh(new THREE.SphereGeometry(0.042, 8, 8), whiteMat);
+            spot.position.set(sx, sy, sz);
+            g.add(spot);
+        });
+
+        // Tag com nome flutuante
+        const tag = createNameTagSprite(name || 'Visitante');
+        tag.position.y = 1.72;
+        g.add(tag);
+
+        return { group: g, armL, armR, legL, legR, phase: Math.random() * 6 };
+    }
+
+    function stepMultiplayerAvatars() {
+        if (!scene) return;
+        const keys = Object.keys(remotePlayers);
+        for (let i = 0; i < keys.length; i++) {
+            const rp = remotePlayers[keys[i]];
+            rp.group.position.x += (rp.tx - rp.group.position.x) * 0.18;
+            rp.group.position.y += (rp.ty - rp.group.position.y) * 0.18;
+            rp.group.position.z += (rp.tz - rp.group.position.z) * 0.18;
+
+            // Interpolação angular suave
+            let dy = rp.tyaw - rp.group.rotation.y;
+            while (dy > Math.PI) dy -= Math.PI * 2;
+            while (dy < -Math.PI) dy += Math.PI * 2;
+            rp.group.rotation.y += dy * 0.2;
+
+            if (rp.walking) {
+                const sw = Math.sin(simTime * 9.5 + rp.phase) * 0.65;
+                rp.legL.rotation.x = sw;
+                rp.legR.rotation.x = -sw;
+                rp.armL.rotation.x = -sw * 0.7;
+                rp.armR.rotation.x = sw * 0.7;
+                rp.group.position.y += Math.abs(Math.sin(simTime * 9.5 + rp.phase)) * 0.04;
+            } else {
+                rp.legL.rotation.x *= 0.8;
+                rp.legR.rotation.x *= 0.8;
+                rp.armL.rotation.x *= 0.8;
+                rp.armR.rotation.x *= 0.8;
+            }
+        }
     }
 
     window.initTwin3D = function (containerEl) {
@@ -2058,5 +2408,58 @@
 
     window.resetTwinCamera = function () {
         window.setTwinCameraPreset('default');
+    };
+
+    window.getTwinPlayerPose = function () {
+        const walking = cam.mode === 'fps' && (cam.keys.w || cam.keys.s || cam.keys.a || cam.keys.d);
+        if (cam.mode === 'fps') {
+            return {
+                x: cam.fpsX,
+                y: Math.max(0, getGroundHeight(cam.fpsX, cam.fpsZ)),
+                z: cam.fpsZ,
+                yaw: cam.fpsYaw,
+                walking,
+                inFps: true
+            };
+        }
+        return { x: 1.15, y: 0.02, z: 3.45, yaw: 0.25, walking: false, inFps: false };
+    };
+
+    window.updateMultiplayerPlayers = function (list) {
+        if (!scene || !Array.isArray(list)) return;
+        const activeIds = {};
+        for (let i = 0; i < list.length; i++) {
+            const p = list[i];
+            if (!p || !p.id) continue;
+            activeIds[p.id] = true;
+            if (!remotePlayers[p.id]) {
+                const av = buildCuteAvatar(p.color || 0x38bdf8, p.hatColor || 0xe11d48, p.name || 'Visitante');
+                av.group.position.set(p.x || 1.15, p.y || 0.02, p.z || 3.45);
+                av.group.rotation.y = p.yaw || 0;
+                scene.add(av.group);
+                remotePlayers[p.id] = {
+                    ...av,
+                    tx: p.x || 1.15,
+                    ty: p.y || 0.02,
+                    tz: p.z || 3.45,
+                    tyaw: p.yaw || 0,
+                    walking: !!p.walking
+                };
+            } else {
+                const rp = remotePlayers[p.id];
+                rp.tx = p.x;
+                rp.ty = p.y;
+                rp.tz = p.z;
+                rp.tyaw = p.yaw;
+                rp.walking = !!p.walking;
+            }
+        }
+        // Remove imediatamente quem deslogou ou ficou inativo
+        Object.keys(remotePlayers).forEach(id => {
+            if (!activeIds[id]) {
+                scene.remove(remotePlayers[id].group);
+                delete remotePlayers[id];
+            }
+        });
     };
 })();
