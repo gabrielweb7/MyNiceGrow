@@ -5,7 +5,7 @@
 //  Versão Atual: v451 (Sifão Exclusivo Pós-AC, FAE Protegido & Pré-AC Evap Sem Exaustão)
 // ============================================================
 
-#define FW_VERSION 452
+#define FW_VERSION 453
 
 #include <Arduino.h>
 #include <ArduinoJson.h>
@@ -1176,6 +1176,12 @@ void executarMotor(unsigned long agora) {
   static float evapTempInicio = 0.0f;
   static unsigned long evapCooldownAte = 0;
   static bool evapOndaSecaAtual = false;
+  static bool acCicloMonitorado = false;
+  static float acTempIntInicio = 0.0f;
+  static float acTempExtInicio = 0.0f;
+  static bool acTeveQuedaReal = false;
+  static bool acFalhaObjetivo = false;
+  static bool acAvisoSemResfriarEmitido = false;
 
   time_t rtcAgoraSec = 0;
   time(&rtcAgoraSec);
@@ -1367,6 +1373,26 @@ void executarMotor(unsigned long agora) {
   // Quando atinge a meta de desligamento (metaDesligaAr), mantém ligado pelo tempo extra configurado
   // para estabilizar e fixar a climatização do ambiente antes de desligar.
   unsigned long runArAtualMs = acElapsedPreBootMs + ((lastReleArCond && compressorUltimaPartida > 0) ? (agora - compressorUltimaPartida) : 0UL);
+  if (lastReleArCond) {
+    if (!acCicloMonitorado) {
+      acCicloMonitorado = true;
+      acTempIntInicio = tempInt;
+      acTempExtInicio = tempExt;
+      acTeveQuedaReal = false;
+      acFalhaObjetivo = false;
+      acAvisoSemResfriarEmitido = false;
+    } else {
+      if ((sensorIntOk && tempInt <= (acTempIntInicio - 0.2f)) ||
+          (sensorExtOk && tempExt <= (acTempExtInicio - 0.3f))) {
+        acTeveQuedaReal = true;
+      }
+      if (runArAtualMs >= 15UL * 60UL * 1000UL && !acTeveQuedaReal && !acAvisoSemResfriarEmitido) {
+        acAvisoSemResfriarEmitido = true;
+        acFalhaObjetivo = true;
+        Serial.println("⚠️ ALERTA AC: Ar Condicionado ligado há 15+ min sem queda de temperatura!");
+      }
+    }
+  }
   if (corteCongelaAtivo) {
     // Encerra completamente o ciclo automático para não religar cedo após AC_MIN_REST_MS
     modoRefrigeracaoAtivo = false;
@@ -1382,7 +1408,8 @@ void executarMotor(unsigned long agora) {
     evapPreAcAtivo = false;
   } else if (modoRefrigeracaoAtivo && (lastReleArCond || acElapsedPreBootMs > 0) && runArAtualMs >= maxRunContinuoArMs) {
     // Limite contínuo checado em TODA a faixa térmica ativa (mesmo abaixo de pf.tempMax durante a descida)
-    Serial.printf("⏳ SEGURANÇA: Ar Condicionado atingiu limite contínuo de %lu min. Pausa preventiva de 10 min de descanso...\n", maxRunContinuoArMs / 60000UL);
+    Serial.printf("⏳ SEGURANÇA: Ar Condicionado atingiu limite contínuo de %lu min sem bater a meta. Pausa preventiva de 10 min...\n", maxRunContinuoArMs / 60000UL);
+    acFalhaObjetivo = true;
     descansoPreventivoAte = agora + (10UL * 60UL * 1000UL);
     modoRefrigeracaoAtivo = false;
     tempoAlvoAtingido = 0;
@@ -1446,8 +1473,20 @@ void executarMotor(unsigned long agora) {
   // O exaustor NÃO liga durante o funcionamento do AC para não derrubar a umidade nem brigar com o umidificador.
   // Assim que o AC desliga e a sala estiver fria, a janela Pós-AC abre e aproveita o ar gelado residual da sala.
   if (cicloAcAtivoPrev && !acOperando && tempoSifaoPosAcMs > 0) {
-    janelaSifaoPosAcAte = agora + tempoSifaoPosAcMs;
-    Serial.printf("🌬️ SIFÃO PÓS-AC: Janela aberta por %lu min para aproveitar o ar frio da sala!\n", tempoSifaoPosAcMs / 60000UL);
+    bool acFuncionouDeFato = acCicloMonitorado && !acFalhaObjetivo && (acTeveQuedaReal || (sensorIntOk && tempInt < (pf.tempMax - 0.3f)));
+    if (acFuncionouDeFato) {
+      janelaSifaoPosAcAte = agora + tempoSifaoPosAcMs;
+      Serial.printf("🌬️ SIFÃO PÓS-AC: Janela aberta por %lu min para aproveitar o ar frio da sala!\n", tempoSifaoPosAcMs / 60000UL);
+    } else {
+      janelaSifaoPosAcAte = 0;
+      Serial.println("🚫 SIFÃO PÓS-AC: Não iniciado porque o AC não resfriou / não atingiu a meta.");
+    }
+  }
+  if (!acOperando) {
+    acCicloMonitorado = false;
+    acTeveQuedaReal = false;
+    acFalhaObjetivo = false;
+    acAvisoSemResfriarEmitido = false;
   }
   if (acOperando) {
     janelaSifaoPosAcAte = 0;

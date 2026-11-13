@@ -322,19 +322,11 @@ function carregarFormClima() {
     if (document.getElementById('cfgTPosMeta')) document.getElementById('cfgTPosMeta').value = hv.tPosMeta !== undefined ? hv.tPosMeta : 5;
     if (document.getElementById('cfgTMaxRun')) document.getElementById('cfgTMaxRun').value = hv.tMaxRun !== undefined ? hv.tMaxRun : 45;
     if (document.getElementById('cfgTCorteLuz')) document.getElementById('cfgTCorteLuz').value = hv.tCorteLuz !== undefined ? hv.tCorteLuz : 34.0;
-    if (document.getElementById('cfgTDeltaExt')) document.getElementById('cfgTDeltaExt').value = hv.tDeltaExt !== undefined ? hv.tDeltaExt : 0.4;
-    if (document.getElementById('cfgTDeltaSaida')) document.getElementById('cfgTDeltaSaida').value = hv.tDeltaSaida !== undefined ? hv.tDeltaSaida : 0.1;
     if (document.getElementById('cfgTSifaoPosAc')) document.getElementById('cfgTSifaoPosAc').value = hv.tSifaoPosAc !== undefined ? hv.tSifaoPosAc : 15;
-    if (document.getElementById('cfgTSifaoTempMin')) document.getElementById('cfgTSifaoTempMin').value = hv.tSifaoTempMin !== undefined ? hv.tSifaoTempMin : 22.0;
-    if (document.getElementById('cfgUGuardaCorte')) document.getElementById('cfgUGuardaCorte').value = hv.uGuardaCorte !== undefined ? hv.uGuardaCorte : 90.0;
-    if (document.getElementById('cfgURetornoAlvo')) document.getElementById('cfgURetornoAlvo').checked = (hv.uRetornoAlvo === undefined || parseInt(hv.uRetornoAlvo, 10) !== 0);
-    if (document.getElementById('cfgUGuardaRetorno')) document.getElementById('cfgUGuardaRetorno').value = hv.uGuardaRetorno !== undefined ? hv.uGuardaRetorno : 99.0;
     if (document.getElementById('cfgTEvapPre')) document.getElementById('cfgTEvapPre').value = hv.tEvapPre !== undefined ? hv.tEvapPre : 4;
     if (document.getElementById('cfgTEvapAnt')) document.getElementById('cfgTEvapAnt').value = hv.tEvapAnt !== undefined ? hv.tEvapAnt : 0.3;
     if (document.getElementById('cfgTEvapCool')) document.getElementById('cfgTEvapCool').value = hv.tEvapCool !== undefined ? hv.tEvapCool : 45;
-    sincronizarUiSifaoRetorno();
     sincronizarUiMetaAr();
-    sincronizarUiSifaoDelta();
     sincronizarUiEvap();
 }
 
@@ -363,15 +355,13 @@ async function salvarFormClima() {
     let tPosMetaVal = Math.round(clampVal(document.getElementById('cfgTPosMeta') ? document.getElementById('cfgTPosMeta').value : 5, 0, 60, 5));
     let tMaxRunVal = Math.round(clampVal(document.getElementById('cfgTMaxRun') ? document.getElementById('cfgTMaxRun').value : 45, 10, 180, 45));
     let tCorteLuzVal = Math.round(clampVal(document.getElementById('cfgTCorteLuz') ? document.getElementById('cfgTCorteLuz').value : 34.0, 25.0, 45.0, 34.0) * 10) / 10;
-    let tDeltaExtVal = Math.round(clampVal(document.getElementById('cfgTDeltaExt') ? document.getElementById('cfgTDeltaExt').value : 0.4, 0.1, 5.0, 0.4) * 10) / 10;
-    let tDeltaSaidaVal = Math.round(clampVal(document.getElementById('cfgTDeltaSaida') ? document.getElementById('cfgTDeltaSaida').value : 0.1, 0.0, 2.0, 0.1) * 10) / 10;
-    if (tDeltaSaidaVal > tDeltaExtVal) tDeltaSaidaVal = tDeltaExtVal;
+    let tDeltaExtVal = 0.3;
+    let tDeltaSaidaVal = 0.1;
     let tSifaoPosAcVal = Math.round(clampVal(document.getElementById('cfgTSifaoPosAc') ? document.getElementById('cfgTSifaoPosAc').value : 15, 0, 60, 15));
-    let tSifaoTempMinVal = Math.round(clampVal(document.getElementById('cfgTSifaoTempMin') ? document.getElementById('cfgTSifaoTempMin').value : 22.0, 15.0, 30.0, 22.0) * 10) / 10;
-    let uGuardaCorteVal = Math.round(clampVal(document.getElementById('cfgUGuardaCorte') ? document.getElementById('cfgUGuardaCorte').value : 90.0, 80.0, 100.0, 90.0) * 10) / 10;
-    let uRetornoAlvoVal = (document.getElementById('cfgURetornoAlvo') && !document.getElementById('cfgURetornoAlvo').checked) ? 0 : 1;
-    let uGuardaRetornoVal = Math.round(clampVal(document.getElementById('cfgUGuardaRetorno') ? document.getElementById('cfgUGuardaRetorno').value : uAlvoVal, 80.0, 100.0, uAlvoVal) * 10) / 10;
-    if (uGuardaRetornoVal < uGuardaCorteVal) uGuardaRetornoVal = uGuardaCorteVal;
+    let tSifaoTempMinVal = 20.0;
+    let uGuardaCorteVal = 88.0;
+    let uRetornoAlvoVal = 1;
+    let uGuardaRetornoVal = uAlvoVal;
     let tEvapPreVal = Math.round(clampVal(document.getElementById('cfgTEvapPre') ? document.getElementById('cfgTEvapPre').value : 4, 0, 15, 4));
     let tEvapAntVal = Math.round(clampVal(document.getElementById('cfgTEvapAnt') ? document.getElementById('cfgTEvapAnt').value : 0.3, 0.0, 1.5, 0.3) * 10) / 10;
     let tEvapCoolVal = Math.round(clampVal(document.getElementById('cfgTEvapCool') ? document.getElementById('cfgTEvapCool').value : 45, 10, 180, 45));
@@ -388,19 +378,11 @@ async function salvarFormClima() {
     if (document.getElementById('cfgTPosMeta')) document.getElementById('cfgTPosMeta').value = tPosMetaVal;
     if (document.getElementById('cfgTMaxRun')) document.getElementById('cfgTMaxRun').value = tMaxRunVal;
     if (document.getElementById('cfgTCorteLuz')) document.getElementById('cfgTCorteLuz').value = tCorteLuzVal;
-    if (document.getElementById('cfgTDeltaExt')) document.getElementById('cfgTDeltaExt').value = tDeltaExtVal;
-    if (document.getElementById('cfgTDeltaSaida')) document.getElementById('cfgTDeltaSaida').value = tDeltaSaidaVal;
     if (document.getElementById('cfgTSifaoPosAc')) document.getElementById('cfgTSifaoPosAc').value = tSifaoPosAcVal;
-    if (document.getElementById('cfgTSifaoTempMin')) document.getElementById('cfgTSifaoTempMin').value = tSifaoTempMinVal;
-    if (document.getElementById('cfgUGuardaCorte')) document.getElementById('cfgUGuardaCorte').value = uGuardaCorteVal;
-    if (document.getElementById('cfgURetornoAlvo')) document.getElementById('cfgURetornoAlvo').checked = (uRetornoAlvoVal === 1);
-    if (document.getElementById('cfgUGuardaRetorno')) document.getElementById('cfgUGuardaRetorno').value = uGuardaRetornoVal;
     if (document.getElementById('cfgTEvapPre')) document.getElementById('cfgTEvapPre').value = tEvapPreVal;
     if (document.getElementById('cfgTEvapAnt')) document.getElementById('cfgTEvapAnt').value = tEvapAntVal;
     if (document.getElementById('cfgTEvapCool')) document.getElementById('cfgTEvapCool').value = tEvapCoolVal;
-    sincronizarUiSifaoRetorno();
     sincronizarUiMetaAr();
-    sincronizarUiSifaoDelta();
     sincronizarUiEvap();
 
     configClima[f].tX = tXVal;

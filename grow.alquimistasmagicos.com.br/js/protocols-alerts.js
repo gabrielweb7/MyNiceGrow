@@ -1,6 +1,75 @@
-﻿// ========================================================
+// ========================================================
 // PROTOCOLOS BIOLÓGICOS, TIMERS, VPD, RESUMO, CSV E ALERTAS
 // ========================================================
+
+function diagnosticarCicloAcRecente(ultimo, tempMax, hvac) {
+    const hist = window.dadosTelemetriaAtuais;
+    if (!Array.isArray(hist) || hist.length < 3 || !ultimo) return null;
+
+    const getTs = (d) => (d && d.unix_ts ? Number(d.unix_ts) * 1000 : (d && d.timestamp ? new Date(String(d.timestamp).replace(' ', 'T')).getTime() : 0));
+    const tsAgora = getTs(ultimo) || Date.now();
+    const rArAtual = parseInt(ultimo.rele_ar || 0, 10) === 1;
+    const tI = parseFloat(ultimo.temp_int);
+    const tE = parseFloat(ultimo.temp_ext);
+    const hI = parseFloat(ultimo.hum_int);
+
+    const tCongela = hvac && hvac.tCongela !== undefined ? parseFloat(hvac.tCongela) : 20.0;
+    const tHist = hvac && hvac.tHistereseAr !== undefined ? parseFloat(hvac.tHistereseAr) : 1.0;
+    const metaDesliga = Math.max(tCongela + 0.2, tempMax - tHist);
+    const tSifaoPosAc = hvac && hvac.tSifaoPosAc !== undefined ? parseInt(hvac.tSifaoPosAc, 10) : 15;
+    const tDeltaExt = hvac && hvac.tDeltaExt !== undefined ? parseFloat(hvac.tDeltaExt) : 0.3;
+    const uGuardaCorte = hvac && hvac.uGuardaCorte !== undefined ? parseFloat(hvac.uGuardaCorte) : 88.0;
+
+    if (rArAtual) {
+        let idxIni = hist.length - 1;
+        while (idxIni > 0 && parseInt(hist[idxIni - 1].rele_ar || 0, 10) === 1) idxIni--;
+        const tsIni = getTs(hist[idxIni]);
+        const minLigado = tsIni > 0 ? Math.floor((tsAgora - tsIni) / 60000) : 0;
+        const tIni = parseFloat(hist[idxIni].temp_int);
+        if (minLigado >= 15 && !isNaN(tI) && !isNaN(tIni) && tI > (tIni - 0.2)) {
+            return {
+                tipo: 'ac_sem_resfriar',
+                msg: `AC ligado há ${minLigado} min sem queda de temperatura (${tIni.toFixed(1)}°C ➔ ${tI.toFixed(1)}°C). Verifique o aparelho.`
+            };
+        }
+        return null;
+    }
+
+    // Procura o desligamento mais recente do AC (últimos 25 min ou janela pós-AC)
+    const janelaDiagMs = Math.max(20, tSifaoPosAc) * 60000;
+    let idxFim = -1;
+    for (let i = hist.length - 1; i >= 1; i--) {
+        if (parseInt(hist[i].rele_ar || 0, 10) === 0 && parseInt(hist[i - 1].rele_ar || 0, 10) === 1) {
+            idxFim = i - 1;
+            break;
+        }
+    }
+    if (idxFim < 0) return null;
+    const tsFim = getTs(hist[idxFim]);
+    if (!tsFim || (tsAgora - tsFim) > janelaDiagMs) return null;
+
+    let idxIni = idxFim;
+    while (idxIni > 0 && parseInt(hist[idxIni - 1].rele_ar || 0, 10) === 1) idxIni--;
+    const tIni = parseFloat(hist[idxIni].temp_int);
+    const tFim = parseFloat(hist[idxFim].temp_int);
+    const naoEsfriou = !isNaN(tIni) && !isNaN(tFim) && (tFim >= tIni - 0.15) && (tFim > metaDesliga + 0.3);
+
+    if (naoEsfriou) {
+        return {
+            tipo: 'ac_nao_atingiu',
+            msg: `AC desligou em ${tFim.toFixed(1)}°C sem atingir a meta (${metaDesliga.toFixed(1)}°C); Exaustor Pós-AC não foi ligado.`
+        };
+    }
+    if (tSifaoPosAc > 0 && (tsAgora - tsFim) <= tSifaoPosAc * 60000) {
+        if (!isNaN(hI) && hI < uGuardaCorte) {
+            return { tipo: 'pos_ac_pausado', msg: `Exaustor Pós-AC pausado: umidade (${hI.toFixed(1)}%) abaixo de ${uGuardaCorte.toFixed(0)}%.` };
+        }
+        if (!isNaN(tE) && !isNaN(tI) && tE > (tI - tDeltaExt)) {
+            return { tipo: 'pos_ac_pausado', msg: `Exaustor Pós-AC não ligado: quarto (${tE.toFixed(1)}°C) não está mais frio que a estufa (${tI.toFixed(1)}°C).` };
+        }
+    }
+    return null;
+}
 
 function atualizarStatusProtocolos(ultimo) {
     let status = "✅ Clima Estabilizado";
@@ -46,9 +115,16 @@ function atualizarStatusProtocolos(ultimo) {
             desc = "Ar Condicionado refrigerando a sala; exaustor puxando ar frio com proteção contínua de umidade.";
             cor = "text-cyan-300";
         } else {
-            status = "❄️ Refrigeração da Sala em Andamento";
-            desc = "Ar Condicionado ligado para abaixar a temperatura ambiente antes da injeção.";
-            cor = "text-cyan-400";
+            const diagAc = diagnosticarCicloAcRecente(ultimo, tempMax, hvac);
+            if (diagAc && diagAc.tipo === 'ac_sem_resfriar') {
+                status = "⚠️ AC Ligado Sem Resfriar";
+                desc = diagAc.msg;
+                cor = "text-amber-400";
+            } else {
+                status = "❄️ Refrigeração da Sala em Andamento";
+                desc = "Ar Condicionado ligado para abaixar a temperatura ambiente antes da injeção.";
+                cor = "text-cyan-400";
+            }
         }
     } else if (rExaust === 1) {
         const fOnM = cfg && cfg.fO !== undefined ? parseInt(cfg.fO, 10) : 2;
@@ -91,13 +167,27 @@ function atualizarStatusProtocolos(ultimo) {
         cor = "text-blue-300";
     } else {
         if (tI >= tempMax) {
-            status = "🌡️ Temperatura Acima do Alvo";
-            desc = `Temperatura interna (${tI.toFixed(1)}°C) no limite programado (${tempMax}°C). Climatização em espera / anti-ciclo curto.`;
-            cor = "text-amber-400";
+            const diagAc = diagnosticarCicloAcRecente(ultimo, tempMax, hvac);
+            if (diagAc && diagAc.tipo === 'ac_nao_atingiu') {
+                status = "⚠️ AC Não Atingiu a Meta";
+                desc = diagAc.msg;
+                cor = "text-amber-400";
+            } else {
+                status = "🌡️ Temperatura Acima do Alvo";
+                desc = `Temperatura interna (${tI.toFixed(1)}°C) no limite programado (${tempMax}°C). Climatização em espera / anti-ciclo curto.`;
+                cor = "text-amber-400";
+            }
         } else {
-            status = "✅ Clima Estabilizado";
-            desc = "Todos os parâmetros estão dentro da meta para a fase atual.";
-            cor = "text-emerald-400";
+            const diagAc = diagnosticarCicloAcRecente(ultimo, tempMax, hvac);
+            if (diagAc && diagAc.tipo === 'ac_nao_atingiu') {
+                status = "⚠️ AC Não Atingiu a Meta";
+                desc = diagAc.msg;
+                cor = "text-amber-400";
+            } else {
+                status = "✅ Clima Estabilizado";
+                desc = (diagAc && diagAc.msg) ? diagAc.msg : "Todos os parâmetros estão dentro da meta para a fase atual.";
+                cor = "text-emerald-400";
+            }
         }
     }
 

@@ -630,68 +630,20 @@
                                 </p>
                             </div>
 
-                            <!-- Bloco 1: Puxar Ar Frio do Quarto & Proteção de Umidade -->
+                            <!-- Bloco 1: Puxar Ar Frio do Quarto (Pós-AC) & Proteção Automática -->
                             <div class="bg-slate-800/40 p-5 rounded-xl border border-cyan-500/30 space-y-4">
                                 <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
-                                    <span class="text-xs font-bold uppercase tracking-wider text-cyan-300 flex items-center gap-2"><span>🌬️</span> Puxar Ar Frio do Quarto (AC + Pós-AC) &amp; Umidade</span>
-                                    <span id="badgeSifaoDeltaExemplo" class="text-[11px] text-sky-300 bg-sky-500/10 border border-sky-500/20 px-2.5 py-0.5 rounded-full font-semibold">Estufa 27.0°C: Liga se sala ≤ 26.6°C ➔ Desliga ≥ 26.9°C</span>
+                                    <span class="text-xs font-bold uppercase tracking-wider text-cyan-300 flex items-center gap-2"><span>🌬️</span> Exaustor Pós-AC &amp; Proteção Automática</span>
+                                    <span class="text-[11px] text-sky-300 bg-sky-500/10 border border-sky-500/20 px-2.5 py-0.5 rounded-full font-semibold">Trava automática: quarto ≤ estufa − 0,3°C e umidade ≥ 88%</span>
                                 </div>
-                                <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                                    <div class="bg-slate-900/70 p-3.5 rounded-xl border border-slate-700/60 space-y-1.5">
-                                        <label for="cfgUGuardaCorte" class="text-xs font-semibold text-cyan-300 block">Pausar Exaustor Abaixo de</label>
-                                        <div class="relative">
-                                            <input type="number" step="0.1" min="80" max="100" id="cfgUGuardaCorte" value="90.0" class="w-full bg-slate-950/90 text-cyan-300 text-lg font-extrabold border border-slate-700 rounded-xl p-2.5 pr-8 text-center outline-none focus:border-cyan-500 transition">
-                                            <span class="absolute right-3 top-3 text-xs text-slate-500 font-bold">%</span>
-                                        </div>
-                                        <p class="text-[11px] text-slate-400 leading-snug">Pausa o exaustor e força névoa quando cair abaixo disso (ex: 90%).</p>
+                                <div class="bg-slate-900/70 p-4 rounded-xl border border-slate-700/60 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                                    <div class="space-y-1">
+                                        <label for="cfgTSifaoPosAc" class="text-sm font-semibold text-sky-300 block">Exaustor Pós-AC (min)</label>
+                                        <p class="text-[11px] text-slate-400 leading-snug">Minutos após o AC desligar puxando o ar frio do quarto (0 = desativa). Pausa automaticamente se o quarto esquentar ou a umidade cair abaixo de 88%.</p>
                                     </div>
-                                    <div class="bg-slate-900/70 p-3.5 rounded-xl border border-slate-700/60 space-y-2">
-                                        <div class="flex items-center justify-between gap-2">
-                                            <label for="cfgUGuardaRetorno" class="text-xs font-semibold text-emerald-300 block">Retoma Exaustor em</label>
-                                            <span id="badgeSifaoUmidadeAlvo" class="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-500/15 text-emerald-300 border border-emerald-500/30">Alvo: 99%</span>
-                                        </div>
-                                        <div class="relative">
-                                            <input type="number" step="0.1" min="80" max="100" id="cfgUGuardaRetorno" value="99.0" class="w-full bg-slate-950/90 text-emerald-300 text-lg font-extrabold border border-slate-700 rounded-xl p-2.5 pr-8 text-center outline-none focus:border-emerald-500 transition disabled:opacity-55 disabled:cursor-not-allowed">
-                                            <span class="absolute right-3 top-3 text-xs text-slate-500 font-bold">%</span>
-                                        </div>
-                                        <label class="flex items-center gap-2 text-[11px] text-slate-300 cursor-pointer select-none">
-                                            <input type="checkbox" id="cfgURetornoAlvo" checked onchange="sincronizarUiSifaoRetorno()" class="w-3.5 h-3.5 rounded border-slate-600 bg-slate-950 text-emerald-500 focus:ring-0">
-                                            <span>Seguir Umidade Alvo da Fase</span>
-                                        </label>
-                                    </div>
-                                    <div class="bg-slate-900/70 p-3.5 rounded-xl border border-slate-700/60 space-y-1.5">
-                                        <label for="cfgTSifaoPosAc" class="text-xs font-semibold text-sky-300 block">Tempo Aproveitando Pós-AC</label>
-                                        <div class="relative">
-                                            <input type="number" step="1" min="0" max="60" id="cfgTSifaoPosAc" value="15" class="w-full bg-slate-950/90 text-sky-300 text-lg font-extrabold border border-slate-700 rounded-xl p-2.5 pr-10 text-center outline-none focus:border-sky-500 transition">
-                                            <span class="absolute right-3 top-3 text-xs text-slate-500 font-bold">min</span>
-                                        </div>
-                                        <p class="text-[11px] text-slate-400 leading-snug">Minutos após o AC desligar ainda puxando o frio do quarto (0 = desativa).</p>
-                                    </div>
-                                </div>
-                                <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                                    <div class="bg-slate-900/70 p-3.5 rounded-xl border border-slate-700/60 space-y-1.5">
-                                        <label for="cfgTDeltaExt" class="text-xs font-semibold text-blue-300 block">Diferença p/ Ligar Exaustor</label>
-                                        <div class="relative">
-                                            <input type="number" step="0.1" min="0.1" max="5.0" id="cfgTDeltaExt" value="0.4" oninput="sincronizarUiSifaoDelta()" class="w-full bg-slate-950/90 text-blue-300 text-lg font-extrabold border border-slate-700 rounded-xl p-2.5 pr-8 text-center outline-none focus:border-blue-500 transition">
-                                            <span class="absolute right-3 top-3 text-xs text-slate-500 font-bold">°C</span>
-                                        </div>
-                                        <p class="text-[11px] text-slate-400 leading-snug">Quarto precisa estar ao menos este valor mais frio que a estufa.</p>
-                                    </div>
-                                    <div class="bg-slate-900/70 p-3.5 rounded-xl border border-slate-700/60 space-y-1.5">
-                                        <label for="cfgTDeltaSaida" class="text-xs font-semibold text-indigo-300 block">Diferença p/ Desligar Exaustor</label>
-                                        <div class="relative">
-                                            <input type="number" step="0.1" min="0.0" max="2.0" id="cfgTDeltaSaida" value="0.1" oninput="sincronizarUiSifaoDelta()" class="w-full bg-slate-950/90 text-indigo-300 text-lg font-extrabold border border-slate-700 rounded-xl p-2.5 pr-8 text-center outline-none focus:border-indigo-500 transition">
-                                            <span class="absolute right-3 top-3 text-xs text-slate-500 font-bold">°C</span>
-                                        </div>
-                                        <p class="text-[11px] text-slate-400 leading-snug">Continua puxando até sobrar só esta diferença (≤ Ligar).</p>
-                                    </div>
-                                    <div class="bg-slate-900/70 p-3.5 rounded-xl border border-slate-700/60 space-y-1.5">
-                                        <label for="cfgTSifaoTempMin" class="text-xs font-semibold text-teal-300 block">Temp. Mín. p/ Parar Exaustor</label>
-                                        <div class="relative">
-                                            <input type="number" step="0.5" min="15.0" max="30.0" id="cfgTSifaoTempMin" value="22.0" class="w-full bg-slate-950/90 text-teal-300 text-lg font-extrabold border border-slate-700 rounded-xl p-2.5 pr-8 text-center outline-none focus:border-teal-500 transition">
-                                            <span class="absolute right-3 top-3 text-xs text-slate-500 font-bold">°C</span>
-                                        </div>
-                                        <p class="text-[11px] text-slate-400 leading-snug">Para de puxar ar frio se a estufa já esfriar até esta temperatura.</p>
+                                    <div class="relative w-full sm:w-40 shrink-0">
+                                        <input type="number" step="1" min="0" max="60" id="cfgTSifaoPosAc" value="15" class="w-full bg-slate-950/90 text-sky-300 text-lg font-extrabold border border-slate-700 rounded-xl p-2.5 pr-11 text-center outline-none focus:border-sky-500 transition">
+                                        <span class="absolute right-3 top-3 text-xs text-slate-500 font-bold">min</span>
                                     </div>
                                 </div>
                             </div>
@@ -1013,8 +965,8 @@
     <script src="js/state-api.js?v=1.6.9" defer></script>
     <script src="js/predictor.js?v=1.7.4" defer></script>
     <script src="js/charts.js?v=1.7.0" defer></script>
-    <script src="js/config-clima.js?v=1.6.9" defer></script>
-    <script src="js/protocols-alerts.js?v=1.7.4" defer></script>
+    <script src="js/config-clima.js?v=1.7.5" defer></script>
+    <script src="js/protocols-alerts.js?v=1.7.5" defer></script>
     <script src="js/app.js?v=1.7.0" defer></script>
 </body>
 </html>
