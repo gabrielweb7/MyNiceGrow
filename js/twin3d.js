@@ -39,12 +39,20 @@
     };
 
     const cam = {
+        mode: 'orbit', // 'orbit' | 'fps'
         theta: 0.35,
         phi: 1.15,
         radius: 6.4,
         targetTheta: 0.35,
         targetPhi: 1.15,
         targetRadius: 6.4,
+        // Estado FPS (primeira pessoa dentro do quarto)
+        fpsX: 0.45,
+        fpsY: 1.65,
+        fpsZ: 1.65,
+        fpsYaw: 0.12,
+        fpsPitch: -0.06,
+        keys: { w: false, s: false, a: false, d: false },
         dragging: false,
         lastX: 0,
         lastY: 0,
@@ -132,6 +140,40 @@
         leftWall.rotation.y = Math.PI / 2;
         leftWall.position.set(-2.6, 1.8, 0.3);
         room.add(leftWall);
+
+        // Parede direita (fecha o quarto para o modo FPS)
+        const rightWall = new THREE.Mesh(new THREE.PlaneGeometry(5.8, 3.6), wallMat);
+        rightWall.rotation.y = -Math.PI / 2;
+        rightWall.position.set(3.5, 1.8, 0.3);
+        room.add(rightWall);
+
+        // Parede frontal (atrás da câmera no modo órbita, visível no FPS) + Teto
+        const frontWallMat = new THREE.MeshStandardMaterial({ color: 0xdbe2ea, roughness: 0.85, side: THREE.FrontSide });
+        const frontWall = new THREE.Mesh(new THREE.PlaneGeometry(7.2, 3.6), frontWallMat);
+        frontWall.rotation.y = Math.PI;
+        frontWall.position.set(0.3, 1.8, 2.45);
+        room.add(frontWall);
+
+        const ceiling = new THREE.Mesh(new THREE.PlaneGeometry(7.2, 5.8), new THREE.MeshStandardMaterial({ color: 0xe2e8f0, roughness: 0.9, side: THREE.FrontSide }));
+        ceiling.rotation.x = Math.PI / 2;
+        ceiling.position.set(0.3, 3.48, 0.3);
+        room.add(ceiling);
+
+        // Porta do quarto na parede frontal direita
+        const doorFrame = new THREE.Mesh(new THREE.BoxGeometry(1.02, 2.22, 0.08), new THREE.MeshStandardMaterial({ color: 0x334155, roughness: 0.5 }));
+        doorFrame.position.set(2.25, 1.11, 2.42);
+        room.add(doorFrame);
+        const doorLeaf = new THREE.Mesh(new THREE.BoxGeometry(0.90, 2.12, 0.06), new THREE.MeshStandardMaterial({ color: 0x78350f, roughness: 0.6 }));
+        doorLeaf.position.set(2.25, 1.07, 2.39);
+        room.add(doorLeaf);
+        const doorHandle = new THREE.Mesh(new THREE.SphereGeometry(0.035, 10, 10), new THREE.MeshStandardMaterial({ color: 0xe2e8f0, metalness: 0.8, roughness: 0.2 }));
+        doorHandle.position.set(1.88, 1.05, 2.34);
+        room.add(doorHandle);
+
+        // Luminária no teto do quarto
+        const ceilLamp = new THREE.Mesh(new THREE.CylinderGeometry(0.22, 0.22, 0.05, 16), new THREE.MeshStandardMaterial({ color: 0xfef9c3, emissive: 0xfef08a, emissiveIntensity: 0.6 }));
+        ceilLamp.position.set(0.35, 3.44, 0.15);
+        room.add(ceilLamp);
 
         // Janela com persiana na parede esquerda
         const frameMat = new THREE.MeshStandardMaterial({ color: 0x334155, roughness: 0.4, metalness: 0.5 });
@@ -657,11 +699,34 @@
         });
         window.addEventListener('pointermove', (e) => {
             if (!cam.dragging) return;
-            cam.targetTheta -= (e.clientX - cam.lastX) * 0.008;
-            cam.targetPhi = Math.max(0.35, Math.min(1.50, cam.targetPhi - (e.clientY - cam.lastY) * 0.006));
+            const dx = e.clientX - cam.lastX;
+            const dy = e.clientY - cam.lastY;
+            if (cam.mode === 'fps') {
+                cam.fpsYaw -= dx * 0.0055;
+                cam.fpsPitch = Math.max(-1.1, Math.min(1.1, cam.fpsPitch - dy * 0.005));
+            } else {
+                cam.targetTheta -= dx * 0.008;
+                cam.targetPhi = Math.max(0.35, Math.min(1.50, cam.targetPhi - dy * 0.006));
+            }
             cam.lastX = e.clientX; cam.lastY = e.clientY;
         });
         window.addEventListener('pointerup', () => { cam.dragging = false; });
+
+        window.addEventListener('keydown', (e) => {
+            if (cam.mode !== 'fps') return;
+            const k = e.key.toLowerCase();
+            if (k === 'w' || e.key === 'ArrowUp') { cam.keys.w = true; e.preventDefault(); }
+            if (k === 's' || e.key === 'ArrowDown') { cam.keys.s = true; e.preventDefault(); }
+            if (k === 'a' || e.key === 'ArrowLeft') { cam.keys.a = true; e.preventDefault(); }
+            if (k === 'd' || e.key === 'ArrowRight') { cam.keys.d = true; e.preventDefault(); }
+        });
+        window.addEventListener('keyup', (e) => {
+            const k = e.key.toLowerCase();
+            if (k === 'w' || e.key === 'ArrowUp') cam.keys.w = false;
+            if (k === 's' || e.key === 'ArrowDown') cam.keys.s = false;
+            if (k === 'a' || e.key === 'ArrowLeft') cam.keys.a = false;
+            if (k === 'd' || e.key === 'ArrowRight') cam.keys.d = false;
+        });
 
         el.addEventListener('wheel', (e) => {
             e.preventDefault();
@@ -697,18 +762,53 @@
             }
         }
 
-        if (cam.autoRotate && !cam.dragging) cam.targetTheta += 0.003;
-        cam.theta += (cam.targetTheta - cam.theta) * 0.12;
-        cam.phi += (cam.targetPhi - cam.phi) * 0.12;
-        cam.radius += (cam.targetRadius - cam.radius) * 0.12;
+        if (cam.mode === 'fps') {
+            const speed = 0.048;
+            const fwdX = -Math.sin(cam.fpsYaw);
+            const fwdZ = -Math.cos(cam.fpsYaw);
+            const rightX = Math.cos(cam.fpsYaw);
+            const rightZ = -Math.sin(cam.fpsYaw);
+            let mx = 0, mz = 0;
+            if (cam.keys.w) { mx += fwdX * speed; mz += fwdZ * speed; }
+            if (cam.keys.s) { mx -= fwdX * speed; mz -= fwdZ * speed; }
+            if (cam.keys.d) { mx += rightX * speed; mz += rightZ * speed; }
+            if (cam.keys.a) { mx -= rightX * speed; mz -= rightZ * speed; }
 
-        const lookX = 0.15, lookY = 1.22, lookZ = -0.35;
-        camera.position.set(
-            lookX + cam.radius * Math.sin(cam.phi) * Math.sin(cam.theta),
-            lookY + cam.radius * Math.cos(cam.phi),
-            lookZ + cam.radius * Math.sin(cam.phi) * Math.cos(cam.theta)
-        );
-        camera.lookAt(lookX, lookY, lookZ);
+            let nx = Math.max(-2.35, Math.min(3.25, cam.fpsX + mx));
+            let nz = Math.max(-1.85, Math.min(2.18, cam.fpsZ + mz));
+
+            // Colisão leve apenas com as paredes laterais/fundo da estufa (permite chegar na porta aberta!)
+            const inTentX = nx > GX - halfW - 0.18 && nx < GX + halfW + 0.18;
+            const inTentZ = nz > GZ - halfD - 0.18 && nz < GZ + halfD - 0.05;
+            if (inTentX && inTentZ) {
+                nx = cam.fpsX;
+                nz = cam.fpsZ;
+            }
+            cam.fpsX = nx;
+            cam.fpsZ = nz;
+            const walking = (mx !== 0 || mz !== 0);
+            const bob = walking ? Math.sin(simTime * 6.5) * 0.025 : 0;
+
+            camera.position.set(cam.fpsX, cam.fpsY + bob, cam.fpsZ);
+            camera.lookAt(
+                cam.fpsX + fwdX * Math.cos(cam.fpsPitch),
+                cam.fpsY + bob + Math.sin(cam.fpsPitch),
+                cam.fpsZ + fwdZ * Math.cos(cam.fpsPitch)
+            );
+        } else {
+            if (cam.autoRotate && !cam.dragging) cam.targetTheta += 0.003;
+            cam.theta += (cam.targetTheta - cam.theta) * 0.12;
+            cam.phi += (cam.targetPhi - cam.phi) * 0.12;
+            cam.radius += (cam.targetRadius - cam.radius) * 0.12;
+
+            const lookX = 0.15, lookY = 1.22, lookZ = -0.35;
+            camera.position.set(
+                lookX + cam.radius * Math.sin(cam.phi) * Math.sin(cam.theta),
+                lookY + cam.radius * Math.cos(cam.phi),
+                lookZ + cam.radius * Math.sin(cam.phi) * Math.cos(cam.theta)
+            );
+            camera.lookAt(lookX, lookY, lookZ);
+        }
 
         ledLight.intensity += ((state.luz ? 1.85 : 0.0) - ledLight.intensity) * 0.12;
         ledBarMat.emissiveIntensity = state.luz ? 1.4 : 0.05;
@@ -777,10 +877,24 @@
     };
 
     window.setTwinCameraPreset = function (preset) {
+        cam.mode = 'orbit';
         if (preset === 'frente') { cam.targetTheta = 0.05; cam.targetPhi = 1.22; cam.targetRadius = 5.4; }
         else if (preset === 'topo') { cam.targetTheta = 0.35; cam.targetPhi = 0.55; cam.targetRadius = 6.2; }
         else if (preset === 'interior') { cam.targetTheta = -0.05; cam.targetPhi = 1.30; cam.targetRadius = 3.2; }
         else { cam.targetTheta = 0.35; cam.targetPhi = 1.15; cam.targetRadius = 6.4; }
+    };
+
+    window.setTwinFpsMode = function (ativo) {
+        cam.mode = ativo ? 'fps' : 'orbit';
+        if (ativo) {
+            cam.fpsX = 0.45; cam.fpsY = 1.65; cam.fpsZ = 1.65;
+            cam.fpsYaw = 0.22; cam.fpsPitch = -0.06;
+        }
+        return cam.mode === 'fps';
+    };
+
+    window.setTwinFpsKey = function (k, pressed) {
+        if (k in cam.keys) cam.keys[k] = !!pressed;
     };
 
     window.toggleTwinAutoRotate = function () {

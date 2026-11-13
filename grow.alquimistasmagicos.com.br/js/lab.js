@@ -326,6 +326,27 @@ function toggleSimRele(k) {
     else atualizarHudTwin();
 }
 
+let twinFpsAtivo = false;
+
+function toggleTwinFpsUI() {
+    twinFpsAtivo = !twinFpsAtivo;
+    if (window.setTwinFpsMode) window.setTwinFpsMode(twinFpsAtivo);
+    const btn = document.getElementById('btnTwinFps');
+    const pad = document.getElementById('twinFpsPad');
+    if (btn) {
+        btn.textContent = twinFpsAtivo ? '🚶 FPS Ativo (WASD)' : '🚶 Modo FPS';
+        btn.className = twinFpsAtivo
+            ? 'px-2.5 py-1 rounded-lg bg-cyan-500/25 border border-cyan-400/60 text-[10px] font-bold text-cyan-200'
+            : 'px-2.5 py-1 rounded-lg bg-slate-950/85 hover:bg-slate-800 border border-cyan-500/40 text-[10px] font-bold text-cyan-300';
+    }
+    if (pad) pad.classList.toggle('hidden', !twinFpsAtivo);
+}
+
+function desativarFpsSetPreset(preset) {
+    if (twinFpsAtivo) toggleTwinFpsUI();
+    if (window.setTwinCameraPreset) window.setTwinCameraPreset(preset);
+}
+
 function toggleAutoRotUI() {
     if (!window.toggleTwinAutoRotate) return;
     const on = window.toggleTwinAutoRotate();

@@ -99,11 +99,21 @@
                         <div id="twin3dContainer" class="w-full h-[360px] sm:h-[460px] cursor-grab active:cursor-grabbing touch-none"></div>
                         <div id="twinHudHora" class="absolute top-3 left-3 px-3 py-1.5 rounded-xl bg-slate-950/85 border border-slate-700/80 text-xs font-mono font-bold text-cyan-300 pointer-events-none">--:--</div>
                         <div class="absolute bottom-3 left-3 right-3 flex flex-wrap items-center justify-between gap-2 pointer-events-none">
-                            <div class="flex items-center gap-1.5 pointer-events-auto">
-                                <button onclick="setTwinCameraPreset('frente')" class="px-2 py-1 rounded-lg bg-slate-950/85 hover:bg-slate-800 border border-slate-700 text-[10px] font-bold text-slate-300">Frente</button>
-                                <button onclick="setTwinCameraPreset('interior')" class="px-2 py-1 rounded-lg bg-slate-950/85 hover:bg-slate-800 border border-slate-700 text-[10px] font-bold text-slate-300">Interior</button>
-                                <button onclick="setTwinCameraPreset('topo')" class="px-2 py-1 rounded-lg bg-slate-950/85 hover:bg-slate-800 border border-slate-700 text-[10px] font-bold text-slate-300">Topo</button>
+                            <div class="flex items-center gap-1.5 pointer-events-auto flex-wrap">
+                                <button onclick="desativarFpsSetPreset('frente')" class="px-2 py-1 rounded-lg bg-slate-950/85 hover:bg-slate-800 border border-slate-700 text-[10px] font-bold text-slate-300">Frente</button>
+                                <button onclick="desativarFpsSetPreset('interior')" class="px-2 py-1 rounded-lg bg-slate-950/85 hover:bg-slate-800 border border-slate-700 text-[10px] font-bold text-slate-300">Interior</button>
+                                <button onclick="desativarFpsSetPreset('topo')" class="px-2 py-1 rounded-lg bg-slate-950/85 hover:bg-slate-800 border border-slate-700 text-[10px] font-bold text-slate-300">Topo</button>
                                 <button id="btnTwinAutoRot" onclick="toggleAutoRotUI()" class="px-2 py-1 rounded-lg bg-slate-950/85 hover:bg-slate-800 border border-slate-700 text-[10px] font-bold text-slate-300">🔄 360°</button>
+                                <button id="btnTwinFps" onclick="toggleTwinFpsUI()" class="px-2.5 py-1 rounded-lg bg-slate-950/85 hover:bg-slate-800 border border-cyan-500/40 text-[10px] font-bold text-cyan-300">🚶 Modo FPS</button>
+                            </div>
+                            <!-- D-Pad virtual para andar no celular quando Modo FPS estiver ativo -->
+                            <div id="twinFpsPad" class="hidden pointer-events-auto grid grid-cols-3 gap-1 bg-slate-950/80 p-1.5 rounded-xl border border-slate-700/80 select-none">
+                                <div></div>
+                                <button onpointerdown="setTwinFpsKey('w',true)" onpointerup="setTwinFpsKey('w',false)" onpointerleave="setTwinFpsKey('w',false)" class="w-8 h-8 rounded-lg bg-slate-800 active:bg-emerald-500/40 text-xs font-bold text-white">▲</button>
+                                <div></div>
+                                <button onpointerdown="setTwinFpsKey('a',true)" onpointerup="setTwinFpsKey('a',false)" onpointerleave="setTwinFpsKey('a',false)" class="w-8 h-8 rounded-lg bg-slate-800 active:bg-emerald-500/40 text-xs font-bold text-white">◄</button>
+                                <button onpointerdown="setTwinFpsKey('s',true)" onpointerup="setTwinFpsKey('s',false)" onpointerleave="setTwinFpsKey('s',false)" class="w-8 h-8 rounded-lg bg-slate-800 active:bg-emerald-500/40 text-xs font-bold text-white">▼</button>
+                                <button onpointerdown="setTwinFpsKey('d',true)" onpointerup="setTwinFpsKey('d',false)" onpointerleave="setTwinFpsKey('d',false)" class="w-8 h-8 rounded-lg bg-slate-800 active:bg-emerald-500/40 text-xs font-bold text-white">►</button>
                             </div>
                         </div>
                     </div>
@@ -282,7 +292,7 @@
 
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js" defer></script>
     <script src="js/vendor/charts-bundle.min.js?v=1.8.0" defer></script>
-    <script src="js/twin3d.js?v=1.9.2" defer></script>
-    <script src="js/lab.js?v=1.9.0" defer></script>
+    <script src="js/twin3d.js?v=1.9.3" defer></script>
+    <script src="js/lab.js?v=1.9.3" defer></script>
 </body>
 </html>
