@@ -78,20 +78,31 @@ if ($wfp) {
     $wdata = $wc ? json_decode($wc, true) : [];
     if (!is_array($wdata)) $wdata = [];
     if (!isset($wdata['rocks']) || !is_array($wdata['rocks'])) $wdata['rocks'] = [];
+    $saveItems = [];
     if (!empty($input['droppedRock']) && is_array($input['droppedRock'])) {
-        $dr = $input['droppedRock'];
-        $rid = (int)($dr['id'] ?? -1);
-        if ($rid >= 0 && $rid < 64 && isset($dr['x'], $dr['y'], $dr['z'])) {
-            $wdata['rocks'][(string)$rid] = [
-                round((float)$dr['x'], 3),
-                round((float)$dr['y'], 3),
-                round((float)$dr['z'], 3)
-            ];
-            ftruncate($wfp, 0);
-            rewind($wfp);
-            fwrite($wfp, json_encode($wdata));
-            fflush($wfp);
+        $saveItems[] = $input['droppedRock'];
+    }
+    if (!empty($input['droppedItems']) && is_array($input['droppedItems'])) {
+        foreach ($input['droppedItems'] as $di) {
+            if (is_array($di)) $saveItems[] = $di;
         }
+    }
+    if (!empty($saveItems)) {
+        foreach ($saveItems as $dr) {
+            $rid = (int)($dr['id'] ?? -1);
+            if ($rid >= 0 && $rid < 256 && isset($dr['x'], $dr['y'], $dr['z'])) {
+                $wdata['rocks'][(string)$rid] = [
+                    round((float)$dr['x'], 3),
+                    round((float)$dr['y'], 3),
+                    round((float)$dr['z'], 3),
+                    round((float)($dr['ry'] ?? 0), 3)
+                ];
+            }
+        }
+        ftruncate($wfp, 0);
+        rewind($wfp);
+        fwrite($wfp, json_encode($wdata));
+        fflush($wfp);
     }
     $worldRocks = $wdata['rocks'];
     flock($wfp, LOCK_UN);

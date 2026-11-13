@@ -125,7 +125,7 @@ function iniciarMultiplayerTwin() {
         if (mpBusy || !window.getTwinPlayerPose) return;
         const pose = window.getTwinPlayerPose();
         const now = Date.now();
-        const interval = (mpOnlineCount > 1 || pose.inFps || pose.droppedRock)
+        const interval = (mpOnlineCount > 1 || pose.inFps || pose.droppedItems)
             ? (pose.walking ? 120 : 180)
             : 1600;
         if (!force && (now - lastSent) < interval) return;
@@ -147,14 +147,14 @@ function iniciarMultiplayerTwin() {
                     yaw: pose.yaw,
                     pitch: pose.pitch || 0,
                     holdingRock: typeof pose.holdingRock === 'number' ? pose.holdingRock : -1,
-                    droppedRock: pose.droppedRock || null,
+                    droppedItems: pose.droppedItems || null,
                     walking: pose.walking,
                     inFps: pose.inFps
                 })
             });
             const data = await res.json();
             if (data && data.ok) {
-                if (pose.droppedRock && window.consumeTwinDroppedRock) {
+                if (pose.droppedItems && window.consumeTwinDroppedRock) {
                     window.consumeTwinDroppedRock();
                 }
                 mpOnlineCount = Math.max(1, data.online || 1);

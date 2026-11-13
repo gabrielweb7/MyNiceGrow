@@ -31,6 +31,7 @@
     let snapPreviewMesh = null;
     let lastSnapTarget = null;
     let pendingDroppedRock = null;
+    const pendingDroppedItems = [];
     let waterTexRef;
     const lakeMists = [];
     let streamlinesGroup, showStreamlines = false;
@@ -125,7 +126,10 @@
                 if (interactiveMeshes.indexOf(child) === -1) interactiveMeshes.push(child);
             }
         });
-        if (pickableItems.indexOf(obj) === -1) pickableItems.push(obj);
+        if (pickableItems.indexOf(obj) === -1) {
+            obj.userData.itemIndex = pickableItems.length;
+            pickableItems.push(obj);
+        }
         if (obj.userData.isShelf && shelfUnits.indexOf(obj) === -1) shelfUnits.push(obj);
         return obj;
     }
@@ -2056,13 +2060,14 @@
                             // Alinha estante em ângulos suaves de 45° para encaixar certinho na parede
                             heldRock.rotation.y = Math.round(cam.fpsYaw / (Math.PI / 4)) * (Math.PI / 4);
                         }
-                        if (typeof heldRock.userData.rockIndex === 'number') {
-                            pendingDroppedRock = {
-                                id: heldRock.userData.rockIndex,
+                        if (typeof heldRock.userData.itemIndex === 'number') {
+                            pendingDroppedItems.push({
+                                id: heldRock.userData.itemIndex,
                                 x: heldRock.position.x,
                                 y: heldRock.position.y,
-                                z: heldRock.position.z
-                            };
+                                z: heldRock.position.z,
+                                ry: heldRock.rotation.y
+                            });
                         }
                     } else {
                         heldRock.userData.supportedBy = null;
@@ -2420,13 +2425,14 @@
                 r.position.y = floorY;
                 r.userData.velY = 0;
                 r.userData.supportedBy = landedShelf;
-                if (typeof r.userData.rockIndex === 'number') {
-                    pendingDroppedRock = {
-                        id: r.userData.rockIndex,
+                if (typeof r.userData.itemIndex === 'number') {
+                    pendingDroppedItems.push({
+                        id: r.userData.itemIndex,
                         x: r.position.x,
                         y: r.position.y,
-                        z: r.position.z
-                    };
+                        z: r.position.z,
+                        ry: r.rotation.y
+                    });
                 }
                 fallingRocks.splice(i, 1);
             }
@@ -2684,7 +2690,7 @@
                 rp.headPivot.rotation.x += (targetPitch - rp.headPivot.rotation.x) * 0.20;
             }
 
-            const holding = typeof rp.holdingRock === 'number' && rp.holdingRock >= 0 && pickableRocks[rp.holdingRock];
+            const holding = typeof rp.holdingRock === 'number' && rp.holdingRock >= 0 && pickableItems[rp.holdingRock];
             const isActuallyMoving = rp.walking || distErr > 0.045;
             if (isActuallyMoving) {
                 const sw = Math.sin(simTime * 8.5 + rp.phase) * 0.62;
@@ -2710,17 +2716,22 @@
                 rp.armL.rotation.z += (-0.18 - rp.armL.rotation.z) * 0.25;
                 rp.armR.rotation.z += (0.18 - rp.armR.rotation.z) * 0.25;
 
-                const rr = pickableRocks[rp.holdingRock];
+                const rr = pickableItems[rp.holdingRock];
                 if (rr && rr !== heldRock) {
                     const fwdX = -Math.sin(rp.group.rotation.y);
                     const fwdZ = -Math.cos(rp.group.rotation.y);
-                    const rx = rp.group.position.x + fwdX * 1.05;
-                    const ry = rp.group.position.y + 0.98 + Math.sin(simTime * 3.0 + rp.phase) * 0.03;
-                    const rz = rp.group.position.z + fwdZ * 1.05;
+                    const distF = rr.userData.holdDist ? Math.min(1.75, rr.userData.holdDist * 0.85) : 1.05;
+                    const rx = rp.group.position.x + fwdX * distF;
+                    const ry = rp.group.position.y + 0.94 + Math.sin(simTime * 3.0 + rp.phase) * 0.03;
+                    const rz = rp.group.position.z + fwdZ * distF;
                     rr.position.x += (rx - rr.position.x) * 0.28;
                     rr.position.y += (ry - rr.position.y) * 0.28;
                     rr.position.z += (rz - rr.position.z) * 0.28;
-                    rr.rotation.y += 0.018;
+                    if (rr.userData.isPickableRock) {
+                        rr.rotation.y += 0.018;
+                    } else {
+                        rr.rotation.y = rp.group.rotation.y;
+                    }
                 }
             } else {
                 rp.armL.rotation.z *= 0.82;
@@ -2946,11 +2957,13 @@
 
     window.consumeTwinDroppedRock = function () {
         pendingDroppedRock = null;
+        pendingDroppedItems.length = 0;
     };
 
     window.getTwinPlayerPose = function () {
         const walking = cam.mode === 'fps' && !!cam.fpsMoving;
-        const holdingRock = (heldRock && typeof heldRock.userData.rockIndex === 'number') ? heldRock.userData.rockIndex : -1;
+        const holdingRock = (heldRock && typeof heldRock.userData.itemIndex === 'number') ? heldRock.userData.itemIndex : -1;
+        const droppedItems = pendingDroppedItems.length ? pendingDroppedItems.slice() : null;
         if (cam.mode === 'fps') {
             return {
                 x: cam.fpsX,
@@ -2959,12 +2972,12 @@
                 yaw: cam.fpsYaw,
                 pitch: cam.fpsPitch,
                 holdingRock,
-                droppedRock: pendingDroppedRock,
+                droppedItems,
                 walking,
                 inFps: true
             };
         }
-        return { x: 1.15, y: 0.02, z: 3.45, yaw: 0.25, pitch: 0, holdingRock: -1, droppedRock: pendingDroppedRock, walking: false, inFps: false };
+        return { x: 1.15, y: 0.02, z: 3.45, yaw: 0.25, pitch: 0, holdingRock: -1, droppedItems, walking: false, inFps: false };
     };
 
     window.updateMultiplayerPlayers = function (list, worldRocks) {
@@ -3008,16 +3021,19 @@
                 rp.walking = !!p.walking;
             }
         }
-        // Sincroniza pedras soltas no mapa que não estão na mão de ninguém
+        // Sincroniza itens e pedras soltas no mapa que não estão na mão de ninguém
         if (worldRocks && typeof worldRocks === 'object') {
             Object.keys(worldRocks).forEach(k => {
                 const idx = parseInt(k, 10);
                 const pos = worldRocks[k];
-                const rr = pickableRocks[idx];
+                const rr = pickableItems[idx];
                 if (!rr || !Array.isArray(pos) || pos.length < 3) return;
                 if (rr === heldRock || heldByOthers[idx] || fallingRocks.indexOf(rr) !== -1) return;
-                if (Math.hypot(rr.position.x - pos[0], rr.position.z - pos[2]) > 0.05) {
+                if (Math.hypot(rr.position.x - pos[0], rr.position.z - pos[2]) > 0.05 || Math.abs(rr.position.y - pos[1]) > 0.05) {
                     rr.position.set(pos[0], pos[1], pos[2]);
+                    if (typeof pos[3] === 'number' && !rr.userData.isPickableRock) {
+                        rr.rotation.y = pos[3];
+                    }
                 }
             });
         }
