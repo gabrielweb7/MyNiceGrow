@@ -815,13 +815,13 @@
             p.vx += Math.sin(p.y * 1.4 + roomTime * 0.9) * Math.cos(p.z * 1.2 + roomTime * 0.6) * roomCurl;
             p.vy += Math.sin(p.x * 1.1 + roomTime * 0.7) * Math.cos(p.z * 1.1 + roomTime * 0.5) * (roomCurl * 0.75);
             p.vz += Math.cos(p.y * 1.3 - roomTime * 0.8) * Math.sin(p.x * 1.2 + roomTime * 0.5) * roomCurl;
-            p.vx += (p.homeX - p.x) * (roomActive ? 0.00025 : 0.00012);
-            p.vy += (p.homeY - p.y) * (roomActive ? 0.00025 : 0.00012);
-            p.vz += (p.homeZ - p.z) * (roomActive ? 0.00025 : 0.00012);
+            p.vx += (p.homeX - p.x) * (roomActive ? 0.00030 : 0.00014);
+            p.vy += (p.homeY - p.y) * (roomActive ? 0.00055 : 0.00018);
+            p.vz += (p.homeZ - p.z) * (roomActive ? 0.00030 : 0.00014);
 
-            // 2. Empuxo térmico relativo à temperatura real do quarto
-            const refTempY = state.tempExt + (p.y / 3.4 - 0.5) * 0.35;
-            p.vy += (p.temp - refTempY) * (roomActive ? 0.00035 : 0.00008);
+            // 2. Empuxo térmico suave relativo à temperatura média do quarto (sem colapsar no piso)
+            const refTempY = (state.ar ? state.tempExt - 2.6 : state.tempExt) + (p.y / 3.4 - 0.5) * 0.35;
+            p.vy += (p.temp - refTempY) * (roomActive ? 0.00004 : 0.00003);
 
             // 3. Fonte térmica da janela (condução leve na parede esquerda)
             if (p.x < -2.0 && p.y > 0.8 && p.y < 2.3 && Math.abs(p.z + 0.35) < 0.9) {
@@ -830,37 +830,39 @@
 
             // 4. Ar-Condicionado Split Inverter (acima da janela: x=-2.26, y=2.60, z=-0.35)
             if (state.ar) {
-                // Jato frio saindo da aleta inferior do Split e preenchendo o quarto
-                const jetCenterY = 2.60 - Math.max(0, p.x + 2.26) * 0.42;
-                if (p.x > -2.35 && p.x < 2.2 && Math.abs(p.y - jetCenterY) < 0.72 && Math.abs(p.z + 0.35) < 1.35) {
-                    const distJet = Math.max(0.2, p.x + 2.35);
-                    const force = 0.0125 / (0.45 + distJet * 0.55);
-                    p.vx += force;
-                    p.vy -= force * 0.36;
-                    p.vz += (Math.sin(p.x * 1.3 + simTime) * 0.0012);
-                    p.temp += (acColdTemp - p.temp) * 0.16;
+                // Emissão contínua e suave de ar gelado azul-ciano pela aleta frontal do Split (igual ao umidificador)
+                if (Math.random() < 0.012) {
+                    p.x = -2.18;
+                    p.y = 2.56 + (Math.random() - 0.5) * 0.06;
+                    p.z = -0.35 + (Math.random() - 0.5) * 0.90;
+                    p.vx = 0.016 + Math.random() * 0.008;
+                    p.vy = -(0.0035 + Math.random() * 0.0025);
+                    p.vz = (Math.random() - 0.5) * 0.003;
+                    p.temp = acColdTemp;
                 }
-                // Circulação global do ar frio pelo quarto inteiro (desce à direita, retorna por baixo/topo)
-                p.vx += (p.y > 1.55 ? 0.00085 : -0.00055);
-                p.vy += (p.x > 0.8 ? -0.00045 : 0.00020);
+                // Jato frio saindo da aleta inferior do Split e preenchendo o quarto suavemente
+                const jetCenterY = 2.56 - Math.max(0, p.x + 2.20) * 0.30;
+                if (p.x > -2.30 && p.x < 1.8 && Math.abs(p.y - jetCenterY) < 0.65 && Math.abs(p.z + 0.35) < 1.15) {
+                    const distJet = Math.max(0.2, p.x + 2.30);
+                    const force = 0.0052 / (0.65 + distJet * 0.65);
+                    p.vx += force;
+                    p.vy -= force * 0.22;
+                    p.vz += Math.sin(p.x * 1.3 + simTime) * 0.0006;
+                    p.temp += (acColdTemp - p.temp) * 0.12;
+                }
+                // Circulação 3D suave pelo quarto inteiro (sobe ao retornar para manter o ambiente preenchido)
+                p.vx += (p.y > 1.65 ? 0.00045 : -0.00035);
+                if (p.y < 0.65) p.vy += 0.00038;
                 // Sucção de retorno no topo do Split (fecha a célula de convecção do quarto!)
                 const rx = -2.30 - p.x;
                 const ry = 2.95 - p.y;
                 const rz = -0.35 - p.z;
                 const dRet = Math.hypot(rx, ry, rz) + 0.3;
-                if (dRet < 2.8 && p.y > 2.1) {
-                    const pull = 0.0050 / (0.5 + dRet);
+                if (dRet < 2.6 && p.y > 2.2) {
+                    const pull = 0.0032 / (0.6 + dRet);
                     p.vx += (rx / dRet) * pull;
                     p.vy += (ry / dRet) * pull;
                     p.vz += (rz / dRet) * pull;
-                }
-                // Ar que passa muito perto do retorno do AC é resfriado e soprado pela aleta
-                if (p.x < -2.10 && p.y > 2.70 && Math.abs(p.z + 0.35) < 0.65) {
-                    p.y = 2.58;
-                    p.x = -2.22;
-                    p.vx = 0.044;
-                    p.vy = -0.018;
-                    p.temp = acColdTemp;
                 }
             }
 
