@@ -16,6 +16,7 @@
     let ledBarMat, ledLight, ambientLight;
     let ventoHelice, exaustHelice;
     let acVaneMat, acLedMat;
+    let frontWallGroup; // Parede frontal + porta (visível apenas no modo FPS)
     const mushrooms = []; // Cogumelos animados (pin -> crescimento -> flush -> reinício)
 
     // Partículas persistentes DENTRO da estufa (homogêneas em todas as prateleiras)
@@ -153,12 +154,15 @@
         rightWall.position.set(3.5, 1.8, 0.3);
         room.add(rightWall);
 
-        // Parede frontal (atrás da câmera no modo órbita, visível no FPS) + Teto
+        // Parede frontal + Porta (visíveis apenas no modo FPS para não obstruir a câmera 360°)
+        frontWallGroup = new THREE.Group();
+        frontWallGroup.visible = (cam.mode === 'fps');
+
         const frontWallMat = new THREE.MeshStandardMaterial({ color: 0xdbe2ea, roughness: 0.85, side: THREE.FrontSide });
         const frontWall = new THREE.Mesh(new THREE.PlaneGeometry(7.2, 3.6), frontWallMat);
         frontWall.rotation.y = Math.PI;
         frontWall.position.set(0.3, 1.8, 2.45);
-        room.add(frontWall);
+        frontWallGroup.add(frontWall);
 
         const ceiling = new THREE.Mesh(new THREE.PlaneGeometry(7.2, 5.8), new THREE.MeshStandardMaterial({ color: 0xe2e8f0, roughness: 0.9, side: THREE.FrontSide }));
         ceiling.rotation.x = Math.PI / 2;
@@ -168,13 +172,14 @@
         // Porta do quarto na parede frontal direita
         const doorFrame = new THREE.Mesh(new THREE.BoxGeometry(1.02, 2.22, 0.08), new THREE.MeshStandardMaterial({ color: 0x334155, roughness: 0.5 }));
         doorFrame.position.set(2.25, 1.11, 2.42);
-        room.add(doorFrame);
+        frontWallGroup.add(doorFrame);
         const doorLeaf = new THREE.Mesh(new THREE.BoxGeometry(0.90, 2.12, 0.06), new THREE.MeshStandardMaterial({ color: 0x78350f, roughness: 0.6 }));
         doorLeaf.position.set(2.25, 1.07, 2.39);
-        room.add(doorLeaf);
+        frontWallGroup.add(doorLeaf);
         const doorHandle = new THREE.Mesh(new THREE.SphereGeometry(0.035, 10, 10), new THREE.MeshStandardMaterial({ color: 0xe2e8f0, metalness: 0.8, roughness: 0.2 }));
         doorHandle.position.set(1.88, 1.05, 2.34);
-        room.add(doorHandle);
+        frontWallGroup.add(doorHandle);
+        room.add(frontWallGroup);
 
         // Luminária no teto do quarto
         const ceilLamp = new THREE.Mesh(new THREE.CylinderGeometry(0.22, 0.22, 0.05, 16), new THREE.MeshStandardMaterial({ color: 0xfef9c3, emissive: 0xfef08a, emissiveIntensity: 0.6 }));
@@ -967,6 +972,7 @@
 
     window.setTwinCameraPreset = function (preset) {
         cam.mode = 'orbit';
+        if (frontWallGroup) frontWallGroup.visible = false;
         if (preset === 'frente') { cam.targetTheta = 0.05; cam.targetPhi = 1.22; cam.targetRadius = 5.4; }
         else if (preset === 'topo') { cam.targetTheta = 0.35; cam.targetPhi = 0.55; cam.targetRadius = 6.2; }
         else if (preset === 'interior') { cam.targetTheta = -0.05; cam.targetPhi = 1.30; cam.targetRadius = 3.2; }
@@ -975,6 +981,7 @@
 
     window.setTwinFpsMode = function (ativo) {
         cam.mode = ativo ? 'fps' : 'orbit';
+        if (frontWallGroup) frontWallGroup.visible = !!ativo;
         if (ativo) {
             cam.fpsX = 0.45; cam.fpsY = 1.65; cam.fpsZ = 1.65;
             cam.fpsYaw = 0.22; cam.fpsPitch = -0.06;
