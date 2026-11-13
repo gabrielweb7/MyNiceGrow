@@ -2240,7 +2240,10 @@
             }
         }, { passive: true });
         el.addEventListener('touchcancel', () => { lookTouchId = null; }, { passive: true });
-        el.addEventListener('dblclick', () => window.resetTwinCamera());
+        el.addEventListener('dblclick', () => {
+            if (cam.mode === 'fps') return;
+            window.resetTwinCamera();
+        });
 
         function clearInputs() {
             cam.keys = { w: false, s: false, a: false, d: false, shift: false, lookL: false, lookR: false, lookU: false, lookD: false };
