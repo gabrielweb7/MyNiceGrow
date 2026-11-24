@@ -31,7 +31,7 @@ $arquivo_comando = __DIR__ . '/comando_pendente.json';
 // Nota: Usa $_SERVER porque apache_request_headers() crasha no FastCGI da HostGator
 $apiKey = isset($_SERVER['HTTP_X_API_KEY']) ? $_SERVER['HTTP_X_API_KEY'] : '';
 $adminKeyEsperada = defined('ADMIN_KEY') ? ADMIN_KEY : '';
-if (empty($adminKeyEsperada) || $apiKey !== $adminKeyEsperada) {
+if (empty($adminKeyEsperada) || !hash_equals($adminKeyEsperada, $apiKey)) {
     usleep(500000); // Atraso de 0.5s anti-força bruta
     http_response_code(401);
     echo json_encode(["error" => "Acesso negado. Chave invalida."]);
@@ -92,7 +92,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
     if (isset($_POST['ota'])) $cmd['ota'] = 1;
     if (isset($_POST['rollback'])) $cmd['rollback'] = 1;
-    if (isset($_POST['url_ota'])) $cmd['url_ota'] = trim($_POST['url_ota']);
+    if (isset($_POST['url_ota'])) {
+        $urlOta = trim($_POST['url_ota']);
+        if (preg_match('#^https?://#i', $urlOta)) {
+            $cmd['url_ota'] = $urlOta;
+        }
+    }
 
     // Salva configurações climáticas no Banco de Dados MySQL (com validação e clamp seguro)
     if (isset($_POST['config'])) {
@@ -193,53 +198,58 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $conn->close();
     }
 
-    // Persiste na fila do MySQL com janela de validade de 15s (evita comandos velhos acumulados ou repetidos)
+    // Persiste na fila apenas se houver comando novo (evita apagar comandos pendentes ao salvar somente config climática)
     $cmdMerged = $cmd;
-    if (!empty($cmd) && defined('DB_HOST')) {
-        $connCmd = @new mysqli(DB_HOST, DB_USER, DB_PASS, DB_NAME);
-        if (!$connCmd->connect_error) {
-            $connCmd->set_charset('utf8mb4');
-            $connCmd->query("CREATE TABLE IF NOT EXISTS config_sistema (
-                chave VARCHAR(50) PRIMARY KEY,
-                valor LONGTEXT,
-                atualizado_em INT
-            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
-            $resExist = $connCmd->query("SELECT valor, atualizado_em FROM config_sistema WHERE chave = 'comando_pendente'");
-            if ($resExist && $rEx = $resExist->fetch_assoc()) {
-                $idadeCmd = time() - (int)$rEx['atualizado_em'];
-                $ant = json_decode($rEx['valor'], true);
-                if (is_array($ant) && $idadeCmd <= 15) {
-                    $cmdMerged = array_merge($ant, $cmd);
+    if (!empty($cmd)) {
+        if (defined('DB_HOST')) {
+            $connCmd = @new mysqli(DB_HOST, DB_USER, DB_PASS, DB_NAME);
+            if (!$connCmd->connect_error) {
+                $connCmd->set_charset('utf8mb4');
+                $connCmd->query("CREATE TABLE IF NOT EXISTS config_sistema (
+                    chave VARCHAR(50) PRIMARY KEY,
+                    valor LONGTEXT,
+                    atualizado_em INT
+                ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
+                $resExist = $connCmd->query("SELECT valor, atualizado_em FROM config_sistema WHERE chave = 'comando_pendente'");
+                if ($resExist && $rEx = $resExist->fetch_assoc()) {
+                    $idadeCmd = time() - (int)$rEx['atualizado_em'];
+                    $ant = json_decode($rEx['valor'], true);
+                    if (is_array($ant) && $idadeCmd <= 15) {
+                        $cmdMerged = array_merge($ant, $cmd);
+                    }
                 }
+                $jsonCmdDb = json_encode($cmdMerged);
+                $nowCmd = time();
+                $stmtCmd = $connCmd->prepare("REPLACE INTO config_sistema (chave, valor, atualizado_em) VALUES ('comando_pendente', ?, ?)");
+                if ($stmtCmd) {
+                    $stmtCmd->bind_param("si", $jsonCmdDb, $nowCmd);
+                    $stmtCmd->execute();
+                    $stmtCmd->close();
+                }
+                $connCmd->close();
             }
-            $jsonCmdDb = json_encode($cmdMerged);
-            $nowCmd = time();
-            $stmtCmd = $connCmd->prepare("REPLACE INTO config_sistema (chave, valor, atualizado_em) VALUES ('comando_pendente', ?, ?)");
-            if ($stmtCmd) {
-                $stmtCmd->bind_param("si", $jsonCmdDb, $nowCmd);
-                $stmtCmd->execute();
-                $stmtCmd->close();
-            }
-            $connCmd->close();
         }
-    }
 
-    // Grava o JSON consolidado com lock exclusivo e espelha em todas as pastas
-    ftruncate($fp, 0);
-    fseek($fp, 0);
-    fwrite($fp, json_encode($cmdMerged));
-    fflush($fp);
-    flock($fp, LOCK_UN);
-    fclose($fp);
+        // Grava o JSON consolidado com lock exclusivo e espelha em todas as pastas
+        ftruncate($fp, 0);
+        fseek($fp, 0);
+        fwrite($fp, json_encode($cmdMerged));
+        fflush($fp);
+        flock($fp, LOCK_UN);
+        fclose($fp);
 
-    $espelhos_cmd = [
-        __DIR__ . '/comando_pendente.json',
-        __DIR__ . '/../../api/comando_pendente.json',
-        __DIR__ . '/../api/comando_pendente.json',
-        __DIR__ . '/../grow.alquimistasmagicos.com.br/api/comando_pendente.json'
-    ];
-    foreach ($espelhos_cmd as $eCmd) {
-        if (is_dir(dirname($eCmd))) @file_put_contents($eCmd, json_encode($cmdMerged));
+        $espelhos_cmd = [
+            __DIR__ . '/comando_pendente.json',
+            __DIR__ . '/../../api/comando_pendente.json',
+            __DIR__ . '/../api/comando_pendente.json',
+            __DIR__ . '/../grow.alquimistasmagicos.com.br/api/comando_pendente.json'
+        ];
+        foreach ($espelhos_cmd as $eCmd) {
+            if (is_dir(dirname($eCmd))) @file_put_contents($eCmd, json_encode($cmdMerged));
+        }
+    } else {
+        flock($fp, LOCK_UN);
+        fclose($fp);
     }
 
     echo json_encode(["status" => "Comando salvo na fila e no Banco de Dados!", "cmd" => $cmdMerged]);

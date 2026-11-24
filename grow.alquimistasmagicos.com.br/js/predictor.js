@@ -832,7 +832,8 @@ function calcularProjecaoTermica({
                         tIntBase += dNaturalStep;
                     }
                     tIntPlot = tIntBase + faeOffset;
-                    if (!simEvapAtivo && (t >= simDescansoPreventivoAteTs) && (t - simArUltimoDesligTs >= 3 * 60000) && (tIntPlot >= tMeta) && (tIntPlot > tCongelaSim)) {
+                    const tempRefAcLiga = !isNaN(tExtSim) ? tExtSim : tIntPlot;
+                    if (!simEvapAtivo && (t >= simDescansoPreventivoAteTs) && (t - simArUltimoDesligTs >= 3 * 60000) && (tempRefAcLiga >= tMeta) && (tIntPlot > tCongelaSim)) {
                         simArOn = true;
                         simArFalhouCiclo = false;
                         simArInicioTs = t;

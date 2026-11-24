@@ -478,8 +478,11 @@ void enviarNuvem(unsigned long agora) {
       bulk += "]";
 
       // Se houver mais linhas acumuladas, guarda temporariamente o restante
+      bool temRestante = false;
+      bool tmpCriado = false;
       File tmp = LittleFS.open("/offline.tmp", "w");
       if (tmp) {
+        tmpCriado = true;
         char buffer[512];
         while (f.available()) {
           int len = f.readBytesUntil('\n', buffer, sizeof(buffer) - 1);
@@ -489,11 +492,12 @@ void enviarNuvem(unsigned long agora) {
             if (len > 0 && buffer[len-1] == '\r') buffer[len-1] = '\0';
             if (strlen(buffer) > 5) {
               tmp.println(buffer);
+              temRestante = true;
             }
           }
         }
+        tmp.close();
       }
-      if (tmp) tmp.close();
       f.close();
 
       if (count == 0) {
@@ -531,16 +535,20 @@ void enviarNuvem(unsigned long agora) {
           }
 
           if (loteConfirmado) {
-            LittleFS.remove("/offline.log");
-            if (LittleFS.exists("/offline.tmp")) {
-              File checkTmp = LittleFS.open("/offline.tmp", "r");
-              if (checkTmp && checkTmp.size() > 10) {
-                checkTmp.close();
-                LittleFS.rename("/offline.tmp", "/offline.log");
-              } else {
-                if (checkTmp) checkTmp.close();
-                LittleFS.remove("/offline.tmp");
+            if (!temRestante || tmpCriado) {
+              LittleFS.remove("/offline.log");
+              if (LittleFS.exists("/offline.tmp")) {
+                File checkTmp = LittleFS.open("/offline.tmp", "r");
+                if (checkTmp && checkTmp.size() > 10) {
+                  checkTmp.close();
+                  LittleFS.rename("/offline.tmp", "/offline.log");
+                } else {
+                  if (checkTmp) checkTmp.close();
+                  LittleFS.remove("/offline.tmp");
+                }
               }
+            } else {
+              LittleFS.remove("/offline.tmp");
             }
             if (qtdInseridos > 0) {
               Serial.printf("[NUVEM] Lote offline (%d/%d registros) sincronizado com sucesso!\n", qtdInseridos, count);
@@ -645,6 +653,7 @@ void enviarNuvem(unsigned long agora) {
 
               if (perfis[i].faeOnMs != fO * 60000UL || perfis[i].faeOffMs != fF * 60000UL ||
                   perfis[i].ventoOnMs != vO * 60000UL || perfis[i].ventoOffMs != vF * 60000UL ||
+                  perfis[i].exaustOnMs != eO * 60000UL || perfis[i].exaustOffMs != eF * 60000UL ||
                   perfis[i].ventoComUmid != vU) {
                 perfis[i].faeOnMs = fO * 60000UL;
                 perfis[i].faeOffMs = fF * 60000UL;
@@ -1385,7 +1394,8 @@ void executarMotor(unsigned long agora) {
           (sensorExtOk && tempExt <= (acTempExtInicio - 0.3f))) {
         acTeveQuedaReal = true;
       }
-      if (runArAtualMs >= 15UL * 60UL * 1000UL && !acTeveQuedaReal && !acAvisoSemResfriarEmitido) {
+      unsigned long runSessaoAtualMs = (compressorUltimaPartida > 0) ? (agora - compressorUltimaPartida) : 0UL;
+      if (runSessaoAtualMs >= 15UL * 60UL * 1000UL && !acTeveQuedaReal && !acAvisoSemResfriarEmitido) {
         acAvisoSemResfriarEmitido = true;
         acFalhaObjetivo = true;
         Serial.println("⚠️ ALERTA AC: Ar Condicionado ligado há 15+ min sem queda de temperatura!");
@@ -1541,8 +1551,6 @@ void executarMotor(unsigned long agora) {
     prefs.end();
   }
 
-  float deltaEntrada = tempDeltaArExt;
-  float deltaSaida = min(tempDeltaArExt, tempDeltaSaidaExt);
   bool sensoresFrioOk = (sensorExtOk && tempExt > -40.0f);
 
   if (!sensoresFrioOk || !aproveitandoArGelado || tempInt <= tempSifaoMin) {

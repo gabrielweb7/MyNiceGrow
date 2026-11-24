@@ -528,8 +528,24 @@ async function mudarFase(f) {
         if (txtProt) txtProt.textContent = "Modo Standby (Sincronizando ⚡)";
     }
 
-    if (await enviarComando({fase: f})) {
+    const ok = await enviarComando({fase: f});
+    if (ok) {
         setTimeout(() => loopDados(1200), 600);
+    } else {
+        fasePendenteTempo = 0;
+        fasePendenteAlvo = null;
+        if (window.ultimoRegistroRecebido) {
+            const fReal = window.ultimoRegistroRecebido.fase || '--';
+            if (valFaseEl) valFaseEl.textContent = fReal;
+            const fLimpa = fReal.replace(' (DHT OFFLINE)', '').replace('ALERTA: SHT30 OFFLINE', 'Standby');
+            atualizarBotoesFase(fLimpa, false);
+            setRele('releUmid', 'releUmidStatus', parseInt(window.ultimoRegistroRecebido.rele_umid));
+            setRele('releVento', 'releVentoStatus', parseInt(window.ultimoRegistroRecebido.rele_vento));
+            setRele('releExaust', 'releExaustStatus', parseInt(window.ultimoRegistroRecebido.rele_exaust));
+            setRele('releLuz', 'releLuzStatus', parseInt(window.ultimoRegistroRecebido.rele_luz));
+            setRele('releAr', 'releArStatus', parseInt(window.ultimoRegistroRecebido.rele_ar || 0));
+            atualizarStatusProtocolos(window.ultimoRegistroRecebido);
+        }
     }
 }
 
@@ -552,6 +568,7 @@ function atualizarBotoesAr(modo) {
 }
 
 async function mudarAr(modoDesejado = null) {
+    const prevAr = arState;
     let proxAr = (modoDesejado !== null) ? modoDesejado : ((arState + 1) % 3);
     arState = proxAr;
     arPendenteTempo = Date.now();
@@ -565,6 +582,10 @@ async function mudarAr(modoDesejado = null) {
 
     if (await enviarComando({ar: proxAr})) {
         setTimeout(() => loopDados(1200), 600);
+    } else {
+        arState = prevAr;
+        arPendenteTempo = 0;
+        setRele('releAr', 'releArStatus', window.ultimoRegistroRecebido ? parseInt(window.ultimoRegistroRecebido.rele_ar || 0) : 0);
     }
 }
 
@@ -576,6 +597,7 @@ function atualizarBotoesLuz(modo) {
 }
 
 async function mudarLuz(modoDesejado = null) {
+    const prevLuz = luzState;
     let proxLuz = (modoDesejado !== null) ? modoDesejado : ((luzState + 1) % 3);
     luzState = proxLuz;
     luzPendenteTempo = Date.now();
@@ -590,6 +612,11 @@ async function mudarLuz(modoDesejado = null) {
 
     if (await enviarComando({luz: proxLuz})) {
         setTimeout(() => loopDados(1200), 600);
+    } else {
+        luzState = prevLuz;
+        luzPendenteTempo = 0;
+        setRele('releLuz', 'releLuzStatus', window.ultimoRegistroRecebido ? parseInt(window.ultimoRegistroRecebido.rele_luz || 0) : 0);
+        atualizarDadosViewConfig();
     }
 }
 

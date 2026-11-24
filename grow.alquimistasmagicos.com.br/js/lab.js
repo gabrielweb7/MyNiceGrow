@@ -222,6 +222,13 @@ function trocarAbaLab(aba) {
             if (btn) btn.className = 'px-3.5 py-1.5 rounded-xl text-xs font-bold text-slate-400 hover:text-white bg-slate-900/60 border border-slate-800 shrink-0 transition';
         }
     });
+    if (aba === 'analytics') {
+        requestAnimationFrame(() => {
+            if (chartDiario) chartDiario.resize();
+            if (chartScatter) chartScatter.resize();
+            if (chartHorario) chartHorario.resize();
+        });
+    }
 }
 
 async function carregarLab(dias) {
@@ -343,11 +350,15 @@ function exportarCsvLab() {
     const rows = labData.diario.map(d =>
         `${d.dia},${d.temp_int_med ?? ''},${d.temp_ext_med ?? ''},${d.min_ar ?? 0},${d.min_umid ?? 0},${d.min_exaust ?? 0}`
     ).join('\n');
-    const blob = new Blob([header + rows], { type: 'text/csv;charset=utf-8;' });
+    const blob = new Blob(['\uFEFF' + header + rows], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
-    a.href = URL.createObjectURL(blob);
+    a.href = url;
     a.download = `grow-analytics-${new Date().toISOString().slice(0, 10)}.csv`;
+    document.body.appendChild(a);
     a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
 }
 
 const idealZonePlugin = {
@@ -393,7 +404,11 @@ function renderAnomalias() {
         ? 'text-xs font-bold px-3 py-1 rounded-full bg-rose-500/20 text-rose-300 border border-rose-500/40'
         : 'text-xs font-bold px-3 py-1 rounded-full bg-amber-500/20 text-amber-300 border border-amber-500/40';
 
-    const filtrados = (an.itens || []).filter(a => anomFiltro === 'todas' || a.severidade === anomFiltro);
+    const filtrados = (an.itens || []).filter(a => {
+        if (anomFiltro === 'todas') return true;
+        if (anomFiltro === 'alerta') return a.severidade === 'atencao' || a.severidade === 'alerta';
+        return a.severidade === anomFiltro;
+    });
     lista.innerHTML = filtrados.length === 0
         ? '<div class="md:col-span-2 text-slate-400 p-3">Nenhuma anomalia neste filtro.</div>'
         : filtrados.map(a => {
@@ -1064,18 +1079,19 @@ function renderSeguranca360() {
             <span class="font-bold ${ok ? 'text-emerald-300' : 'text-amber-300'}">${val}</span>
         </div>`;
 
+    const temChaveAdmin = !!(localStorage.getItem('adminPass') || localStorage.getItem('grow_admin_key'));
     document.getElementById('segListaInfra').innerHTML = [
         item(fw.error !== '1', 'Firmware em Execução', `${fw.vFirmware || '--'} (${fw.board || 'ESP32'})`),
         item(fw.canRollback === 1, 'Slot Rollback OTA', fw.canRollback === 1 ? 'Ativo' : 'Indisponível'),
         item(window.location.protocol === 'https:', 'Conexão HTTPS', window.location.protocol === 'https:' ? 'Criptografada' : 'HTTP'),
-        item(!!localStorage.getItem('grow_admin_key'), 'Chave Admin Salva', localStorage.getItem('grow_admin_key') ? 'Configurada' : 'Não salva neste navegador')
+        item(temChaveAdmin, 'Chave Admin Salva', temChaveAdmin ? 'Configurada' : 'Não salva neste navegador')
     ].join('');
 
     document.getElementById('segListaTravas').innerHTML = [
-        item(true, 'Corte Anti-Congelamento', `${hv.tCongela ?? '--'}°C`),
-        item(true, 'Corte de Luz por Calor', `${hv.tCorteLuz ?? '--'}°C`),
-        item(true, 'Limite Contínuo do AC', `${hv.tMaxRun ?? '--'} min`),
-        item(true, 'Guarda de Umidade Pós-AC', `${hv.uGuardaCorte ?? 88}% (Pós-AC: ${hv.tSifaoPosAc ?? 5} min)`)
+        item(true, 'Corte Anti-Congelamento', `${hv.tCongela ?? 15.0}°C`),
+        item(true, 'Corte de Luz por Calor', `${hv.tCorteLuz ?? 34.0}°C`),
+        item(true, 'Limite Contínuo do AC', `${hv.tMaxRun ?? 45} min`),
+        item(true, 'Guarda de Umidade Pós-AC', `${hv.uGuardaCorte ?? 88}% (Pós-AC: ${hv.tSifaoPosAc ?? 15} min)`)
     ].join('');
 
     const itemExpandivel = (id, ok, label, val, linhasHtml) => {
@@ -1216,11 +1232,14 @@ async function atualizarConsoleAoVivo() {
 
         const ult = rows[rows.length - 1];
         const hUlt = (ult.timestamp || '').slice(11, 19) || '--:--:--';
+        const tiUlt = parseFloat(ult.temp_int);
+        const hiUlt = parseFloat(ult.hum_int);
+        const teUlt = ult.temp_ext !== null && ult.temp_ext !== undefined ? parseFloat(ult.temp_ext) : NaN;
         logs.push({
             hora: hUlt,
             tipo: 'info',
             cor: 'text-emerald-300',
-            msg: `HEARTBEAT OK • Estufa: ${parseFloat(ult.temp_int).toFixed(1)}°C / ${parseFloat(ult.hum_int).toFixed(1)}% | Quarto: ${parseFloat(ult.temp_ext).toFixed(1)}°C | Fase: ${ult.fase || '--'}`
+            msg: `HEARTBEAT OK • Estufa: ${Number.isFinite(tiUlt) ? tiUlt.toFixed(1) : '--'}°C / ${Number.isFinite(hiUlt) ? hiUlt.toFixed(1) : '--'}% | Quarto: ${Number.isFinite(teUlt) ? teUlt.toFixed(1) : '--'}°C | Fase: ${ult.fase || '--'}`
         });
 
         consoleLinhas = logs.slice(-60).reverse();
@@ -1239,7 +1258,7 @@ function copiarDiagnosticoLab() {
         `Firmware Placa: ${fwDataLab?.vFirmware || '--'} | Nuvem: ${fwDataLab?.vFirmwareNuvem || '--'}\n` +
         `Anomalias 72h: ${an.total_72h} (${an.criticas_72h} críticas)\n` +
         `Últimos eventos:\n` +
-        consoleLinhas.slice(-15).map(l => `[${l.hora}] ${l.msg}`).join('\n');
+        consoleLinhas.slice(0, 15).map(l => `[${l.hora}] ${l.msg}`).join('\n');
     navigator.clipboard?.writeText(txt);
 }
 

@@ -548,7 +548,7 @@ function exportarCSV() {
         alert("Nenhum dado disponível no momento para exportar.");
         return;
     }
-    const cabecalho = ["Data/Hora", "Temp Interna (C)", "Umid Interna (%)", "VPD (kPa)", "Temp Externa (C)", "Umid Externa (%)", "Luz", "Umidificador", "Ventilador", "Exaustor", "Fase"];
+    const cabecalho = ["Data/Hora", "Temp Interna (C)", "Umid Interna (%)", "VPD (kPa)", "Temp Externa (C)", "Umid Externa (%)", "Luz", "Umidificador", "Ventilador", "Exaustor", "Ar Condicionado", "Fase"];
     const linhas = [cabecalho.join(";")];
     dados.forEach(r => {
         const ti = parseFloat(r.temp_int);
@@ -568,6 +568,7 @@ function exportarCSV() {
             r.rele_umid,
             r.rele_vento,
             r.rele_exaust,
+            r.rele_ar ?? 0,
             `"${(r.fase || '').replace(/"/g, '""')}"`
         ].join(";"));
     });

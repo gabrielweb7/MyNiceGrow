@@ -59,6 +59,7 @@ foreach ($gitCandidatos as $g) {
 
 $modoLuz = (int)lerTxtStatus("modo_luz.txt", "0");
 $modoAr = (int)lerTxtStatus("modo_ar.txt", "0");
+$modoVentoExt = (int)lerTxtStatus("modo_vento_ext.txt", "0");
 $vFirmware = lerTxtStatus("vFirmware.txt", "--");
 $canRollback = (int)lerTxtStatus("can_rollback.txt", "0");
 
@@ -105,6 +106,7 @@ echo json_encode([
     "gitHash" => $gitHash,
     "modoLuz" => $modoLuz,
     "modoAr" => $modoAr,
+    "modoVentoExt" => $modoVentoExt,
     "vFirmware" => $vFirmware,
     "board" => $board,
     "canRollback" => $canRollback,

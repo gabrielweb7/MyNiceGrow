@@ -1,12 +1,12 @@
 # Bloqueia acesso direto a arquivos sensíveis
-<FilesMatch "\.(ino|sql|zip|log|ini|bak|old)$">
+<FilesMatch "\.(ino|sql|zip|log|ini|bak|bak_mono|old)$">
     Require all denied
 </FilesMatch>
 
-# Bloqueia config.php de leitura direta (inclusive backups tipo config.php.bak)
-<Files "config.php">
+# Bloqueia arquivos de configuração de leitura direta
+<FilesMatch "^config(\.local|\.example)?\.php$">
     Require all denied
-</Files>
+</FilesMatch>
 
 # Bloqueia visualizacao de diretorios
 Options -Indexes

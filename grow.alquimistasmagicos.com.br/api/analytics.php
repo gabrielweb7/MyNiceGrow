@@ -1,9 +1,26 @@
 <?php
+date_default_timezone_set('America/Sao_Paulo');
 header('Content-Type: application/json; charset=utf-8');
 header('Access-Control-Allow-Origin: *');
 header('Cache-Control: no-store, no-cache, must-revalidate, max-age=0');
 
-require_once __DIR__ . '/../config.php';
+$candidatos_cfg = [
+    __DIR__ . '/../config.local.php',
+    __DIR__ . '/../config.php',
+    __DIR__ . '/../../config.local.php',
+    __DIR__ . '/../../config.php'
+];
+foreach ($candidatos_cfg as $c) {
+    if (file_exists($c)) {
+        require_once $c;
+        if (defined('DB_HOST')) break;
+    }
+}
+if (!defined('DB_HOST')) {
+    http_response_code(500);
+    echo json_encode(['status' => 'error', 'message' => 'Configuracao do servidor ausente']);
+    exit;
+}
 
 $conn = new mysqli(DB_HOST, DB_USER, DB_PASS, DB_NAME);
 if ($conn->connect_error) {
@@ -25,10 +42,10 @@ $sqlResumo = "
         COUNT(*) AS total_registros,
         MIN(timestamp) AS min_ts,
         MAX(timestamp) AS max_ts,
-        ROUND(AVG(NULLIF(temp_int, 0)), 2) AS media_temp_int,
+        ROUND(AVG(CASE WHEN temp_int > -20 AND temp_int < 80 THEN temp_int END), 2) AS media_temp_int,
         ROUND(MIN(CASE WHEN temp_int > -20 THEN temp_int END), 2) AS min_temp_int,
         ROUND(MAX(CASE WHEN temp_int < 80 THEN temp_int END), 2) AS max_temp_int,
-        ROUND(AVG(NULLIF(hum_int, 0)), 2) AS media_hum_int,
+        ROUND(AVG(CASE WHEN hum_int > 0 AND hum_int <= 100 THEN hum_int END), 2) AS media_hum_int,
         ROUND(MIN(CASE WHEN hum_int > 0 THEN hum_int END), 2) AS min_hum_int,
         ROUND(AVG(CASE WHEN temp_ext > -20 AND temp_ext < 80 THEN temp_ext END), 2) AS media_temp_ext,
         ROUND(AVG(CASE WHEN hum_ext > 0 THEN hum_ext END), 2) AS media_hum_ext,
@@ -180,7 +197,7 @@ foreach ($rows72h as $r) {
     $tInt = (float)$r['temp_int'];
     $hInt = (float)$r['hum_int'];
     $faseStr = (string)$r['fase'];
-    $faseIdx = ($faseStr === 'Pinagem') ? '1' : (($faseStr === 'Frutificacao') ? '2' : '0');
+    $faseIdx = (stripos($faseStr, 'Pinag') !== false) ? '1' : ((stripos($faseStr, 'Frutific') !== false) ? '2' : '0');
     $tMaxFase = ($configClima && isset($configClima[$faseIdx]['tX'])) ? (float)$configClima[$faseIdx]['tX'] : 28.0;
 
     if ($prevTs !== null) {

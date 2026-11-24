@@ -144,7 +144,7 @@ if ($method === 'POST') {
     // Proteção de Rota (Compatível com FastCGI da HostGator)
     $apiKey = isset($_SERVER['HTTP_X_API_KEY']) ? $_SERVER['HTTP_X_API_KEY'] : '';
     
-    if ($apiKey !== API_KEY) {
+    if (!hash_equals(API_KEY, $apiKey)) {
         http_response_code(401);
         die(json_encode(["error" => "Não autorizado. Chave API inválida."]));
     }
@@ -260,6 +260,7 @@ if ($method === 'POST') {
                 if (isset($ultimoStatusRow['canRollback'])) escreverSeMudou($pDir . '/can_rollback.txt', (string)(int)$ultimoStatusRow['canRollback']);
                 if (isset($ultimoStatusRow['modoLuz'])) escreverSeMudou($pDir . '/modo_luz.txt', (string)(int)$ultimoStatusRow['modoLuz']);
                 if (isset($ultimoStatusRow['modoAr'])) escreverSeMudou($pDir . '/modo_ar.txt', (string)(int)$ultimoStatusRow['modoAr']);
+                if (isset($ultimoStatusRow['modoVentoExt'])) escreverSeMudou($pDir . '/modo_vento_ext.txt', (string)(int)$ultimoStatusRow['modoVentoExt']);
                 if (isset($ultimoStatusRow['otaError'])) {
                     if ($ultimoStatusRow['otaError'] == 1) escreverSeMudou($pDir . '/fw_error.txt', '1');
                     elseif (file_exists($pDir . '/fw_error.txt')) @unlink($pDir . '/fw_error.txt');
@@ -271,7 +272,13 @@ if ($method === 'POST') {
     // AUTO-LIMPEZA DO BANCO DE DADOS (Anti-Crash de Disco HostGator)
     // Executa a limpeza com 1% de chance em cada requisição mantendo DIAS_RETENCAO_TELEMETRIA dias de histórico
     if (mt_rand(1, 100) === 1) {
-        $conn->query("DELETE FROM telemetria WHERE timestamp < DATE_SUB(NOW(), INTERVAL " . (int)DIAS_RETENCAO_TELEMETRIA . " DAY)");
+        $limiteRetencao = date('Y-m-d H:i:s', time() - (DIAS_RETENCAO_TELEMETRIA * 86400));
+        $stmtPurge = $conn->prepare("DELETE FROM telemetria WHERE timestamp < ?");
+        if ($stmtPurge) {
+            $stmtPurge->bind_param("s", $limiteRetencao);
+            $stmtPurge->execute();
+            $stmtPurge->close();
+        }
     }
     
     $resposta = ["status" => "ok", "inseridos" => $successCount];
@@ -352,7 +359,7 @@ if ($method === 'POST') {
 // =======================================================
 elseif ($method === 'GET') {
     // Ação administrativa para limpar ruídos e picos de interferência
-    if (isset($_GET['limpar_ruido']) && $_GET['limpar_ruido'] === ADMIN_KEY) {
+    if (isset($_GET['limpar_ruido']) && defined('ADMIN_KEY') && hash_equals(ADMIN_KEY, (string)$_GET['limpar_ruido'])) {
         $conn->query("DELETE FROM telemetria WHERE hum_ext > 100 OR (temp_ext < 18.5 AND hum_ext > 90)");
         $rem = $conn->affected_rows;
         die(json_encode(["status" => "ok", "removidos" => $rem]));
@@ -371,7 +378,7 @@ elseif ($method === 'GET') {
     
     // Headers de Versão
     $fwPlaca = file_exists(__DIR__ . '/fw_status.txt') ? file_get_contents(__DIR__ . '/fw_status.txt') : '0';
-    $boardModel = file_exists(__DIR__ . '/board_model.txt') ? file_get_contents(__DIR__ . '/board_model.txt') : 'ESP32-S3';
+    $boardModel = file_exists(__DIR__ . '/board_model.txt') ? file_get_contents(__DIR__ . '/board_model.txt') : 'ESP32-C3';
     $binGet = caminhoBinFirmware($boardModel);
     $fwNuvem = $binGet ? (string)filemtime($binGet) : '0';
     
@@ -387,6 +394,7 @@ elseif ($method === 'GET') {
     $seenMinutes = [];
     while($r = $result->fetch_assoc()) {
         $ts = strtotime($r['timestamp']);
+        if ($ts === false) continue;
         // Agrupa por minuto exato: garante estritamente 1 registro por minuto
         $minKey = date('Y-m-d H:i', $ts);
         if (isset($seenMinutes[$minKey])) continue;
@@ -417,7 +425,13 @@ elseif ($method === 'GET') {
     // BUG CORRIGIDO: coluna unix_ts não existe na tabela; usar comparação DATETIME nativa
     // BUG CORRIGIDO: retenção unificada com a rotina do POST (antes 90 dias aqui vs 30 no POST)
     if (mt_rand(1, 100) === 1) {
-        $conn->query("DELETE FROM telemetria WHERE timestamp < DATE_SUB(NOW(), INTERVAL " . (int)DIAS_RETENCAO_TELEMETRIA . " DAY)");
+        $limiteRetencao = date('Y-m-d H:i:s', time() - (DIAS_RETENCAO_TELEMETRIA * 86400));
+        $stmtPurge = $conn->prepare("DELETE FROM telemetria WHERE timestamp < ?");
+        if ($stmtPurge) {
+            $stmtPurge->bind_param("s", $limiteRetencao);
+            $stmtPurge->execute();
+            $stmtPurge->close();
+        }
     }
 }
 

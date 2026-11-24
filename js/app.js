@@ -148,20 +148,22 @@ const [resDados, resFw] = await Promise.all(promises);
 
         // Sincronização Inteligente do Modo da Luz com o Servidor
         if (luzPendenteTempo === 0 || agoraTime - luzPendenteTempo > 20000) {
-            if (window.modoLuzNuvem !== undefined) {
+            if (window.modoLuzNuvem !== undefined && Number.isFinite(window.modoLuzNuvem)) {
                 luzState = window.modoLuzNuvem;
             } else if (ultimo.modo_luz !== undefined) {
-                luzState = parseInt(ultimo.modo_luz);
+                const ml = parseInt(ultimo.modo_luz, 10);
+                if (Number.isFinite(ml)) luzState = ml;
             }
             atualizarBotoesLuz(luzState);
         }
 
         // Sincronização Inteligente do Modo do Ar Condicionado com o Servidor
         if (arPendenteTempo === 0 || agoraTime - arPendenteTempo > 20000) {
-            if (window.modoArNuvem !== undefined) {
+            if (window.modoArNuvem !== undefined && Number.isFinite(window.modoArNuvem)) {
                 arState = window.modoArNuvem;
             } else if (ultimo.modo_ar !== undefined) {
-                arState = parseInt(ultimo.modo_ar);
+                const ma = parseInt(ultimo.modo_ar, 10);
+                if (Number.isFinite(ma)) arState = ma;
             }
             atualizarBotoesAr(arState);
         }
@@ -524,7 +526,8 @@ window.onload = () => {
         
         // Duplo clique no gráfico alterna entre foco de 3h e visão completa
         ['canvasUmid', 'canvasTemp', 'canvasReles'].forEach(id => {
-            document.getElementById(id).addEventListener('dblclick', toggleZoomRange);
+            const el = document.getElementById(id);
+            if (el) el.addEventListener('dblclick', toggleZoomRange);
         });
     });
 };
