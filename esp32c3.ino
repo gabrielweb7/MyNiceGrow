@@ -2,10 +2,10 @@
 //  GROW IA - Firmware Inteligente + Nuvem IoT
 //  Placa: ESP32-C3 SuperMini (Produção) / ESP32-S3 Dual-Core
 //  Autor: Gabriel + Antigravity AI
-//  Versão Atual: v459 (AC Liga/Desliga pela Temp. Externa + Sifão Pós-AC Garantido)
+//  Versão Atual: v460 (Anti-WDT TLS Handshake, Anti-Congela com Histerese & AC Seguro em Falha SHT30)
 // ============================================================
 
-#define FW_VERSION 459
+#define FW_VERSION 460
 
 #include <Arduino.h>
 #include <ArduinoJson.h>
@@ -23,6 +23,7 @@
 #include <HTTPUpdate.h>  // Atualização Remota via Web (OTA)
 #include <Update.h>
 #include <esp_ota_ops.h>
+#include <esp_system.h>
 #include <LittleFS.h>  // Datalogger Offline
 #include <time.h>
 #include <sys/time.h>
@@ -173,6 +174,7 @@ bool releLuz = false, releUmidific = false, releVentoInt = false, releExaustExt 
 bool releArCond = false, releVentoExt = false;
 bool lastReleLuz = false, lastReleUmidific = false, lastReleVento = false, lastReleExaust = false;
 bool lastReleArCond = false, lastReleVentoExt = false;
+bool corteCongelaHisterese = false;
 
 unsigned long ultimaLeitura = 0, ultimoEnvioNuvem = 0;
 
@@ -190,7 +192,7 @@ TaskHandle_t wdtTask;
 volatile unsigned long ultimoSuspiro = 0;
 void watchdogTask(void* pvParameters) {
   for (;;) {
-    if (millis() - ultimoSuspiro > 25000) {  // Se o loop ficar 25 segundos congelado
+    if (millis() - ultimoSuspiro > 35000) {  // Se o loop ficar 35 segundos congelado
       Serial.println("?? [WATCHDOG] O Sistema travou completamente! Forcando reinicio de seguranca...");
       ESP.restart();
     }
@@ -509,6 +511,7 @@ void enviarNuvem(unsigned long agora) {
         WiFiClientSecure clientBulk;
         clientBulk.setInsecure();
         clientBulk.setTimeout(4);  // Timeout de socket TLS em segundos (evita 30s default)
+        clientBulk.setHandshakeTimeout(5);  // Evita handshake TLS travar 120s e disparar WDT
         HTTPClient httpBulk;
         httpBulk.setConnectTimeout(4000);
         if (httpBulk.begin(clientBulk, CLOUD_URL)) {
@@ -571,6 +574,7 @@ void enviarNuvem(unsigned long agora) {
   WiFiClientSecure client;
   client.setInsecure();
   client.setTimeout(4);  // Timeout de socket TLS em segundos
+  client.setHandshakeTimeout(5);  // Evita handshake TLS travar 120s e disparar WDT
   HTTPClient http;
   http.setConnectTimeout(4000);
   if (http.begin(client, CLOUD_URL)) {
@@ -600,6 +604,7 @@ void enviarNuvem(unsigned long agora) {
       }
       prefs.end();
       String response = http.getString();
+      ultimoSuspiro = millis();
       DynamicJsonDocument docRes(4096);
       if (!deserializeJson(docRes, response)) {
         bool recalcularMotorImediato = false;
@@ -1110,7 +1115,7 @@ void aplicarReles() {
     if (releArCond) {
       // Quer LIGAR compressor: respeita descanso mínimo de 3 minutos (inclusive pós-reboot via bootTime)
       unsigned long refDescansoAr = (compressorUltimoDesligamento == 0) ? bootTime : compressorUltimoDesligamento;
-      if (agora - refDescansoAr >= AC_MIN_REST_MS || modoAr == AR_FORCADA_ON) {
+      if (agora - refDescansoAr >= AC_MIN_REST_MS || (modoAr == AR_FORCADA_ON && !corteCongelaHisterese)) {
         podeComutarAr = true;
       } else {
         static unsigned long lastAvisoRest = 0;
@@ -1123,7 +1128,7 @@ void aplicarReles() {
     } else {
       // Quer DESLIGAR compressor: respeita tempo mínimo ligado de 60 segundos
       // EXCEÇÃO DE EMERGÊNCIA: Se forçado OFF pelo usuário ou ativada a trava de segurança Anti-Congelamento, desliga no milissegundo!
-      bool corteEmergenciaAr = (modoAr == AR_FORCADA_OFF || (sensorIntOk && tempInt <= tempMinCongelamento));
+      bool corteEmergenciaAr = (modoAr == AR_FORCADA_OFF || (sensorIntOk && corteCongelaHisterese));
       if (compressorUltimaPartida == 0 || agora - compressorUltimaPartida >= AC_MIN_RUN_MS || corteEmergenciaAr) {
         podeComutarAr = true;
       }
@@ -1138,6 +1143,9 @@ void aplicarReles() {
         compressorUltimoDesligamento = agora;
       }
       digitalWrite(PIN_RELE_AR_COND, lastReleArCond ? RELE_AR_NIVEL_LIGADO : RELE_AR_NIVEL_DESLIGADO);
+      prefs.begin("grow", false);
+      prefs.putBool("r_ar", lastReleArCond);
+      prefs.end();
       Serial.printf("❄️ ACAO: AR CONDICIONADO %s\n", lastReleArCond ? "LIGADO" : "DESLIGADO");
       alterou = true;
     }
@@ -1158,6 +1166,19 @@ void aplicarReles() {
   // Se a placa tomou alguma decisão e ligou/desligou algo autonomamente,
   // força a comunicação imediata com o banco de dados para o painel não ficar defasado
   if (alterou) ultimoEnvioNuvem = 0;
+}
+
+bool atualizarCorteCongela() {
+  if (!sensorIntOk) {
+    corteCongelaHisterese = false;
+    return false;
+  }
+  if (tempInt <= tempMinCongelamento) {
+    corteCongelaHisterese = true;
+  } else if (tempInt >= (tempMinCongelamento + 1.0f)) {
+    corteCongelaHisterese = false;
+  }
+  return corteCongelaHisterese;
 }
 
 bool sifaoExaustAtivo = false;
@@ -1318,7 +1339,7 @@ void executarMotor(unsigned long agora) {
   // --- ESTÁGIO 1: PRÉ-RESFRIAMENTO EVAPORATIVO INTELIGENTE (ANTES DO AC) ---
   // Quando a temperatura se aproxima de pf.tempMax e o bulbo úmido da sala permite perda latente real,
   // tenta resfriamento evaporativo em ondas antes de ligar o compressor do Ar Condicionado.
-  bool corteCongelaAtivo = (sensorIntOk && tempInt <= tempMinCongelamento);
+  bool corteCongelaAtivo = atualizarCorteCongela();
   bool emJanelaPosAcAgora = (janelaSifaoPosAcAte > 0 && (long)(janelaSifaoPosAcAte - agora) > 0);
   if (descansoPreventivoAte > 0 && (long)(agora - descansoPreventivoAte) >= 0) {
     descansoPreventivoAte = 0;
@@ -1716,12 +1737,13 @@ void aplicarSeguranca() {
     releLuz = false;
     Serial.printf("🔥 SEGURANCA: Corte Termico da LUZ ativado! (%.1f°C >= %.1f°C)\n", tempInt, tempCorteLuz);
   }
-  // TRAVA DE SEGURANÇA ANTI-CONGELAMENTO (ANTI-FREEZING GUARD):
+  // TRAVA DE SEGURANÇA ANTI-CONGELAMENTO (ANTI-FREEZING GUARD) COM HISTERESE DE 1°C:
   // Se a temperatura interna cair abaixo de tempMinCongelamento (ex: 15.0°C),
-  // desliga o Ar Condicionado imediatamente, mesmo se estiver forçado manual!
-  if (tempInt <= tempMinCongelamento && sensorIntOk) {
+  // desliga o Ar Condicionado e só libera ao subir +1.0°C (evita liga/desliga no limite).
+  if (atualizarCorteCongela()) {
     releArCond = false;
-    Serial.printf("❄️🛑 SEGURANÇA: Corte Térmico Anti-Congelamento do Ar ativado! (Temp %.1f°C <= %.1f°C)\n", tempInt, tempMinCongelamento);
+    Serial.printf("❄️🛑 SEGURANÇA: Corte Térmico Anti-Congelamento do Ar ativado! (Temp %.1f°C <= %.1f°C | libera >= %.1f°C)\n",
+                  tempInt, tempMinCongelamento, tempMinCongelamento + 1.0f);
   }
   if (tempInt >= TEMP_CRITICA) { Serial.println("⚠️ SEGURANCA: Temperatura critica atingida!"); }
 }
@@ -1769,6 +1791,7 @@ void setup() {
   inicioFaseTempo = prefs.getUInt("inicio", 0);
   fwAtual = prefs.getUInt("fw_ver", 0);
   bool luzSalvaNVS = prefs.getBool("r_luz", false);
+  bool arSalvoNVS = prefs.getBool("r_ar", false);
   uint32_t ultTsSalvo = prefs.getUInt("ult_ts", 0);
 
   // Limpeza preventiva de chaves fantasmas de falta d'água legadas na memória Flash NVS
@@ -1820,10 +1843,14 @@ void setup() {
   digitalWrite(PIN_RELE_EXAUST_EXT, (faseAtual == FASE_SECAGEM) ? LOW : HIGH);
   lastReleExaust = (faseAtual == FASE_SECAGEM);
   releExaustExt = lastReleExaust;
+  esp_reset_reason_t resetReason = esp_reset_reason();
+  bool resetSoftwareOuWdt = (resetReason == ESP_RST_SW || resetReason == ESP_RST_TASK_WDT || resetReason == ESP_RST_WDT || resetReason == ESP_RST_INT_WDT || resetReason == ESP_RST_PANIC);
+  bool preservarArBoot = resetSoftwareOuWdt && ((modoAr == AR_FORCADA_ON) || (arSalvoNVS && modoAr == AR_AUTO && faseAtual != FASE_STANDBY && faseAtual != FASE_SECAGEM));
   pinMode(PIN_RELE_AR_COND, OUTPUT);
-  digitalWrite(PIN_RELE_AR_COND, RELE_AR_NIVEL_DESLIGADO);
-  lastReleArCond = false;
-  releArCond = false;
+  digitalWrite(PIN_RELE_AR_COND, preservarArBoot ? RELE_AR_NIVEL_LIGADO : RELE_AR_NIVEL_DESLIGADO);
+  lastReleArCond = preservarArBoot;
+  releArCond = preservarArBoot;
+  if (preservarArBoot) compressorUltimaPartida = millis();
   // pinMode(PIN_RELE_VENTO_EXT, OUTPUT); // (Comentado: pronto para upgrade com relé duplo)
   // digitalWrite(PIN_RELE_VENTO_EXT, HIGH);
 
@@ -2141,6 +2168,19 @@ void loop() {
       }
       if (modoLuz == LUZ_FORCADA_ON) releLuz = true;
       if (modoLuz == LUZ_FORCADA_OFF) releLuz = false;
+
+      if (modoAr == AR_FORCADA_ON) {
+        releArCond = true;
+      } else if (modoAr == AR_FORCADA_OFF || faseAtual == FASE_STANDBY || faseAtual == FASE_SECAGEM) {
+        releArCond = false;
+      } else if (sensorExtOk) {
+        PerfilClimatico pfAr = obterPerfil(faseAtual);
+        float metaDesligaExt = max(tempMinCongelamento + 0.2f, pfAr.tempMax - tempHistereseAr);
+        if (tempExt >= pfAr.tempMax) releArCond = true;
+        else if (tempExt <= metaDesligaExt) releArCond = false;
+      } else {
+        releArCond = false;
+      }
     }
 
     aplicarReles();
